@@ -6,13 +6,25 @@ import java.io.InputStream;
 import java.io.FileInputStream;
 import java.util.Properties;
 
+import org.apache.commons.lang3.SystemUtils;
+
 
 public class StreamerConfig {
 
     public static Properties config;
 
     public static String get(String prop){
-    	return config.getProperty(prop);
+    	if(prop.endsWith("-path")){
+    		String root_folder;
+    		if(SystemUtils.IS_OS_WINDOWS) {
+    			root_folder = config.getProperty("windows-root-folder");
+    		}else {
+    			root_folder = config.getProperty("linux-root-folder");
+    		}
+    		return root_folder+config.getProperty(prop);
+    	}else {
+    		return config.getProperty(prop);
+    	}
     }
     
     public static int getInt(String prop) {

@@ -9,11 +9,11 @@ public class DataStreamer {
      */
     public static void main(String args[]) {
 		
-	//Test.test_streaming_climatedata();
-	//Test.test_flink_streamer_aotdata();
-	//Test.test_streaming_aotdata();
-	//Test.test_geohash();
-
-	Test.test_create_stream_aotdata();
+		//Test.test_streaming_climatedata();
+		//Test.test_flink_streamer_aotdata();
+		//Test.test_streaming_aotdata();
+		//Test.test_geohash();
+		//Test.test_create_stream_aotdata();
+    	Test.create_streamer_taxidata();
     }
 }

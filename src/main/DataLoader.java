@@ -7,7 +7,9 @@ public class DataLoader{
 	 * */
     public static void main(String args[]){
 
-    	Test.test_load_climatedata();
+    	//Test.test_load_climatedata();
+    	//Test.test_load_taxidata();
+    	Test.streaming_taxidata();
     	//Test.test_create_stream_aotdata();
 	
     }
