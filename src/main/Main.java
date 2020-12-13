@@ -14,7 +14,8 @@ public class Main {
 	// iot.tools.utils.ClimateDataTransposer.transposeClimateData(args[0],args[1],args[2],Integer.parseInt(args[3]),Long.parseLong(args[4]));
 
 	//Test.test_load_climatedata_local();
-	Test.test_flink_streamer_aotdata();
+	//Test.test_flink_streamer_aotdata();
+	Test.test_navigate();
 	//Test.test_geohash();
     }
 }

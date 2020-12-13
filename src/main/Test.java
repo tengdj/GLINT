@@ -98,16 +98,16 @@ public class Test {
 	
 	public static void test_load_chicagomap() {
 		ChicagoMap st = new ChicagoMap();
-		st.loadFromCsv("data/chicago/transportation.csv");
-		st.dumpTo("data/chicago/formated");
+		st.loadFromCsv(StreamerConfig.get("raw-map-data-path"));
+		st.dumpTo(StreamerConfig.get("formated-map-data-path"));
 		st.clear();
-		st.loadFromFormatedData("data/chicago/formated");
+		st.loadFromFormatedData(StreamerConfig.get("formated-map-data-path"));
 	}
 	
 	public static void test_navigate() {
 		ChicagoMap st = new ChicagoMap();
-		st.loadFromFormatedData("data/chicago/formated");
-		ArrayList<Street> nav = st.navigate(new Point(-87.62076287,41.89833179), new Point(-87.90303966,41.97907082));
+		st.loadFromFormatedData(StreamerConfig.get("formated-map-data-path"));
+		ArrayList<Street> nav = st.navigate(new Point(-87.6517705068,41.9426918444), new Point(-87.6288741572,41.8920726347));
 		System.out.println(Map.genGeoJson(nav).toString(1));	
 		st.clear();
 		nav.clear();
