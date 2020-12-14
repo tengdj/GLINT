@@ -55,12 +55,24 @@ public class Test {
 		String taxipath = StreamerConfig.get("taxi-data-path");
 
 		TaxiData td = new TaxiData(mappath);
-		td.setPath(StreamerConfig.get(taxipath));
-		td.limits = 1000;
+		td.setPath(taxipath);
+		if(StreamerConfig.get("data-limits")!=null) {
+			td.limits = StreamerConfig.getInt("data-limits");
+		}
 		td.start();
 		
 		ChicagoTaxiStreamer st = new ChicagoTaxiStreamer();
 		st.start();
+		
+		try {
+			td.join();
+			st.join();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		System.out.println("completed");
+
 	}
 
 

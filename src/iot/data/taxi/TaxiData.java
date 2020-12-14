@@ -58,22 +58,12 @@ public class TaxiData extends TemporalSpatialData{
 		initialize(map_file);
 	}
 	
-	public TaxiData(String map_file, long limits) {
-		initialize(map_file);
-		if(limits>0) {
-			this.limits = limits;
-		}
-	}
-	
 	@Override
 	public void loadFromFiles(String path) {
-		
+		System.out.println("loading from "+path);
 		iot.tools.utils.FileBatchReader fb = new FileBatchReader(path, false);
 		boolean header = true;
 		while(!fb.eof) {
-			if(limits<=0) {
-				break;
-			}
 			for(String s:fb.lines) {
 				if(limits<=0) {
 					break;
@@ -83,17 +73,17 @@ public class TaxiData extends TemporalSpatialData{
 					continue;
 				}
 				String cols[] = s.split(",");
-				if(cols.length!=24) {
+				if(cols.length!=23) {
 					continue;
 				}
-				Trip t;
+
 				try {
-					t = new Trip(cols);
+					Trip t = new Trip(cols);
+					emit(t);
 				} catch (Exception e) {
 					//System.out.println(s);
 					continue;
 				}
-				emit(t);
 			}
 			
 			fb.nextBatch();

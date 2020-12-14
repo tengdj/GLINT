@@ -19,8 +19,7 @@ public class Trip {
 	Point end_location;
 	public double trip_length;
 	public Trip(String cols[]) throws Exception {
-		
-		
+
 		start_time = Util.getTimestamp("MM/dd/yyyy hh:mm:ss a", cols[2]);
 		end_time = Util.getTimestamp("MM/dd/yyyy hh:mm:ss aa",cols[3]);
 		duration_time = (double) Integer.parseInt(cols[4]);
@@ -30,7 +29,6 @@ public class Trip {
 		trip_length = Double.parseDouble(cols[14]);
 		start_location = new Point(Double.parseDouble(cols[18]),Double.parseDouble(cols[17]));
 		end_location = new Point(Double.parseDouble(cols[21]),Double.parseDouble(cols[20]));
-
 	}
 	
 	public void print() {
@@ -51,6 +49,7 @@ public class Trip {
 		for(Street s:st) {
 			total_length += s.getLength();
 		}
+		//ever second
 		double step = total_length/duration_time;		
 		Point origin = null;
 		double dist_from_origin = 0;

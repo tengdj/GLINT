@@ -7,8 +7,6 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
-import org.json.JSONObject;
-
 import iot.common.Event;
 
 public class ChicagoTaxiStreamer extends BaseStreamer{
@@ -22,6 +20,7 @@ public class ChicagoTaxiStreamer extends BaseStreamer{
 		    .process(new TaxiStreamProcessor());
 	
 		processed.print();
+		//processed.writeAsCsv("/gisdata/chicago/out.csv");
 	
 		try {
 		    env.execute("Taxi Streamer");
@@ -29,6 +28,8 @@ public class ChicagoTaxiStreamer extends BaseStreamer{
 		    e.printStackTrace();
 		}
     }
+	
+
     
     private class TaxiStreamProcessor
 		extends KeyedProcessFunction<String, Event, Tuple2<String, String>> {
@@ -43,6 +44,8 @@ public class ChicagoTaxiStreamer extends BaseStreamer{
 		    		new MapStateDescriptor<>("temp", String.class, Integer.class);
 	        temp = getRuntimeContext().getMapState(descr);
 	    }
+		
+		
 	
 	    @Override
 	    public void processElement(
@@ -50,14 +53,15 @@ public class ChicagoTaxiStreamer extends BaseStreamer{
 				   Context ctx,
 				   Collector<Tuple2<String, String>> out) throws Exception {
 	    	
-	    	JSONObject obj = event.toJson();
-		    String geohash = obj.getString("geohash");
+		    String geohash = event.geohash;
 		    if(!temp.contains(geohash)) {
 		    	temp.put(geohash, 1);
 		    }else {
 		    	temp.put(geohash, temp.get(geohash)+1);
 		    }
-		    out.collect(Tuple2.of(ctx.getCurrentKey(), temp.get(geohash).toString()));
+		    if(temp.get(geohash)%10000==0) {
+		    	out.collect(Tuple2.of(geohash, temp.get(geohash).toString()));
+		    }
 	    	return;
 	    }
     }
