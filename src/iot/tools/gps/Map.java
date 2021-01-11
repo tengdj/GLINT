@@ -5,6 +5,7 @@ import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -147,6 +148,24 @@ public class Map {
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+		}
+	}
+	
+	public void toGMSF(String path) {
+		try {
+		  FileWriter myWriter = new FileWriter(path);
+		  myWriter.write("Files in Java might be tricky, but it is fun enough!");
+		  
+		  for(Street street:streets) {
+			  myWriter.write("<Road>\n");
+			  myWriter.write(street.id+" 0 "+street.start.longitude+" "+street.start.latitude+" "+street.end.longitude+" "+street.end.latitude+"\n");
+			  myWriter.write("</Road>\n");
+		  }
+
+		  myWriter.close();
+		} catch (IOException e) {
+		  System.out.println("An error occurred.");
+		  e.printStackTrace();
 		}
 	}
 	

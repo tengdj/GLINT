@@ -2,8 +2,6 @@ package main;
 
 import java.util.ArrayList;
 
-import org.apache.commons.lang3.SystemUtils;
-
 import iot.common.Point;
 import iot.data.taxi.ChicagoMap;
 import iot.data.taxi.TaxiData;
@@ -83,5 +81,18 @@ public class Test {
 		st.clear();
 		st.loadFromFormatedData(StreamerConfig.get("formated-map-data-path"));
 	}
+	
+    /*
+     * Main entry point for our proposed system which
+     * receives data stream and processes it using
+     * Apache Flink's event processing logic
+     */
+    public static void main(String args[]) {
+    	ChicagoMap st = new ChicagoMap();
+		st.loadFromFormatedData("/home/teng/transportation");
+		st.toGMSF("/home/teng/gmsf.csv");
+		
+    }
+    
 	
 }
