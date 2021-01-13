@@ -8,7 +8,7 @@
 #include "Map.h"
 #include <time.h>
 #include <sys/time.h>
-
+#include <bits/stdc++.h>
 
 void Map::clear() {
 	for(Street *s:streets) {
@@ -27,18 +27,83 @@ void Map::clear() {
  * compare each street pair to see if they connect with each other
  * */
 void Map::connect_segments() {
-	printf("connecting streets\n");
-	for(int i=0;i<streets.size()-1;i++) {
-		for(int j=i+1;j<streets.size();j++) {
-			streets[i]->touch(streets[j]);
+	log("connecting streets");
+	struct timeval start = get_cur_time();
+
+	int total = 0;
+	for(Point *p:nodes){
+		for(int i=0;i<p->connects.size()-1;i++){
+			for(int j=i+1;j<p->connects.size();j++){
+				p->connects[i]->connected.push_back(p->connects[j]);
+				p->connects[j]->connected.push_back(p->connects[i]);
+				total += 2;
+			}
 		}
 	}
+
+	logt("touched %d streets %f",start,streets.size(),total*1.0/streets.size());
+	int *checked = new int[streets.size()];
+
+	for(int i=0;i<streets.size();i++) {
+		checked[i] = 0;
+	}
+
+	vector<Street *> cur_max_graph;
+
+	int connected = 0;
+	int cur_list = 0;
+	while(connected<streets.size()){
+		queue<Street *> q;
+		Street *seed = NULL;
+		vector<Street *> tmp;
+		for(int i=0;i<streets.size();i++) {
+			if(!checked[i]){
+				seed = streets[i];
+			}
+		}
+		q.push(seed);
+		while(!q.empty()) {
+			Street *cur = q.front();
+			q.pop();
+			if(checked[cur->id]==1){
+				continue;
+			}
+			tmp.push_back(cur);
+			checked[cur->id] = 1;
+			connected++;
+			for(Street *sc:cur->connected) {
+				if(!checked[sc->id]) {
+					q.push(sc);
+				}
+			}
+		}
+		if(cur_max_graph.size()<tmp.size()){
+			cur_max_graph.clear();
+			cur_max_graph.insert(cur_max_graph.begin(), tmp.begin(), tmp.end());
+		}
+		tmp.clear();
+	}
+	unordered_set<Street *> included;
+	for(Street *st:cur_max_graph){
+		included.insert(st);
+	}
+	for(Street *st:streets){
+		if(included.find(st)==included.end()){
+			delete st;
+		}
+	}
+	streets.clear();
+	streets.insert(streets.end(), cur_max_graph.begin(), cur_max_graph.end());
+	for(unsigned int i=0;i<streets.size();i++){
+		streets[i]->id = i;
+	}
+	delete checked;
+	logt("connected %d streets",start,streets.size());
 }
 
 void Map::dumpTo(const char *path) {
 
-	printf("dumping to %s\n",path);
-	ofstream wf(path, ios::out | ios::binary);
+	ofstream wf(path, ios::out | ios::binary|ios::trunc);
 
 	unsigned int num = nodes.size();
 	wf.write((char *)&num, sizeof(num));
@@ -49,7 +114,6 @@ void Map::dumpTo(const char *path) {
 	num = streets.size();
 	wf.write((char *)&num, sizeof(num));
 	for(Street *s:streets){
-		wf.write((char *)&s->id, sizeof(s->id));
 		wf.write((char *)&s->start->id, sizeof(s->start->id));
 		wf.write((char *)&s->end->id, sizeof(s->end->id));
 		num = s->connected.size();
@@ -57,13 +121,75 @@ void Map::dumpTo(const char *path) {
 		for(Street *cs:s->connected){
 			wf.write((char *)&cs->id, sizeof(cs->id));
 		}
-
 	}
+	wf.close();
+	log("dumped to %s",path);
 }
 
-void Map::loadFrom(const char *path) {
-	printf("loading from %s\n",path);
 
+void Map::loadFromCSV(const char *path){
+
+	std::ifstream file(path);
+	std::string str;
+	vector<string> fields;
+	//skip the head
+	std::getline(file, str);
+	map<string, Point *> nodeset;
+	char cotmp[256];
+	vector<double> values;
+	while (std::getline(file, str)){
+		// Process str
+		 fields.clear();
+		 tokenize(str, fields);
+		 if(fields.size()<=2){
+			 continue;
+		 }
+		 string geo = fields[1];
+		 if(geo.size()<18){
+			 continue;
+		 }
+		 values = parse_double_values(geo);
+		 if(values.size()==0){
+			 continue;
+		 }
+		 assert(values.size()%2==0);
+
+		 double start[2] = {values[0], values[1]};
+		 double end[2] = {values[values.size()-2], values[values.size()-1]};
+
+		 Street *st = new Street();
+		 st->id = streets.size();
+		 sprintf(cotmp, "%.14f_%.14f", values[0], values[1]);
+
+		 if(nodeset.find(cotmp)==nodeset.end()){
+			 Point *p = new Point(start[0],start[1]);
+			 p->id = nodeset.size();
+			 nodes.push_back(p);
+			 nodeset[cotmp] = p;
+		 }
+		 st->start = nodeset[cotmp];
+		 sprintf(cotmp, "%.14f_%.14f", values[values.size()-2], values[values.size()-1]);
+		 if(nodeset.find(cotmp)==nodeset.end()){
+			 Point *p = new Point(end[0],end[1]);
+			 p->id = nodeset.size();
+			 nodes.push_back(p);
+			 nodeset[cotmp] = p;
+		 }
+		 st->end = nodeset[cotmp];
+		 streets.push_back(st);
+		 st->start->connects.push_back(st);
+		 st->end->connects.push_back(st);
+	}
+	nodeset.clear();
+	log("%ld nodes and %ld streets are loaded",nodes.size(),streets.size());
+
+	this->connect_segments();
+}
+
+
+void Map::loadFrom(const char *path) {
+
+	struct timeval start = get_cur_time();
 	ifstream in(path, ios::in | ios::binary);
 
 	vector<vector<unsigned int>> connected;
@@ -71,22 +197,20 @@ void Map::loadFrom(const char *path) {
 	unsigned int num;
 	in.read((char *)&num, sizeof(num));
 	nodes.resize(num);
-	for(int i=0;i<num;i++){
+	for(unsigned int i=0;i<num;i++){
 		Point *p = new Point();
-		in.read((char *)&p->id, sizeof(p->id));
+		p->id = i;
 		in.read((char *)&p->x, sizeof(p->x));
 		in.read((char *)&p->y, sizeof(p->y));
-		nodes[p->id] = p;
+		nodes[i] = p;
 	}
 	in.read((char *)&num, sizeof(num));
 	streets.resize(num);
 	connected.resize(num);
 	int slen = num;
-	for(int i=0;i<slen;i++){
+	for(unsigned int i=0;i<slen;i++){
 		Street *s = new Street();
-
-		in.read((char *)&num, sizeof(num));
-		s->id = num;
+		s->id = i;
 		in.read((char *)&num, sizeof(num));
 		s->start = nodes[num];
 		in.read((char *)&num, sizeof(num));
@@ -98,8 +222,8 @@ void Map::loadFrom(const char *path) {
 			in.read((char *)&num, sizeof(num));
 			cons.push_back(num);
 		}
-		connected[s->id] = cons;
-		streets[s->id] = s;
+		connected[i] = cons;
+		streets[i] = s;
 	}
 
 	for(int i=0;i<slen;i++){
@@ -109,66 +233,42 @@ void Map::loadFrom(const char *path) {
 		connected[i].clear();
 	}
 	connected.clear();
+	in.close();
+	logt("loaded %d nodes %d streets from %s",start,nodes.size(), streets.size(), path);
 }
 
-vector<Street *> Map::nearest(Point *target, int limit){
-	vector<Street *> ret;
-	vector<double> dist;
+Street *Map::nearest(Point *target){
+	Street *ret;
+	double dist = DBL_MAX;
 	for(Street *st:streets) {
 		double d = distance_point_to_segment(target, st);
-		if(dist.size()==0) {
-			dist.push_back(d);
-			ret.push_back(st);
-			continue;
-		}
-		//the queue is full and the distance is bigger than or equal to the current minimum
-		if(dist.size()>=limit&&d>=dist[dist.size()-1]) {
-			continue;
-		}
-		//otherwise, insert current street into the return list, evict the tail
-		for(int insert_into = 0;insert_into<dist.size();insert_into++) {
-			if(dist[insert_into]>=d) {
-				ret.insert(ret.begin()+insert_into, st);
-				dist.insert(dist.begin()+insert_into, d);
-				break;
-			}
-		}
-
-		if(ret.size()>limit) {
-			ret.pop_back();
-			dist.pop_back();
+		if(d<dist){
+			ret = st;
+			dist = d;
 		}
 	}
-	dist.clear();
 	return ret;
 }
 
-vector<Street *> Map::navigate(Point *origin, Point *dest){
+vector<Point *> Map::navigate(Point *origin, Point *dest){
 
 	vector<Street *> ret;
-	vector<Street *> originset = nearest(origin, 5);
-	vector<Street *> destset = nearest(dest, 5);
+	Street *o = nearest(origin);
+	Street *d = nearest(dest);
 
-	for(Street *o:originset) {
-		for(Street *d:destset) {
-			//initialize
-			for(Street *s:streets) {
-				s->father_from_origin = NULL;
-			}
-			Street *s = o->breadthFirst(d->id);
-			if(s!=NULL) {
-				while(s->father_from_origin!=NULL) {
-					ret.push_back(s);
-					s = s->father_from_origin;
-				}
-				break;
-			}
-		}
+//	printf("%d LINESTRING(%f %f, %f %f)\n",o->id, o->start->x,o->start->y,o->end->x,o->end->y);
+//	printf("%d LINESTRING(%f %f, %f %f)\n",d->id, d->start->x,d->start->y,d->end->x,d->end->y);
 
-		if(ret.size()>0) {
-			break;
-		}
+	//initialize
+	for(Street *s:streets) {
+		s->father_from_origin = NULL;
 	}
+	Street *s = o->breadthFirst(d->id);
+	assert(s);
+	do{
+		ret.push_back(s);
+		s = s->father_from_origin;
+	}while(s!=NULL);
 
 	vector<Street *> reversed;
 	reversed.resize(ret.size());
@@ -176,100 +276,50 @@ vector<Street *> Map::navigate(Point *origin, Point *dest){
 		reversed[ret.size()-1-i] = ret[i];
 	}
 	ret.clear();
-	return reversed;
+
+	vector<Point *> trajectory;
+	if(reversed.size()==1){
+		trajectory.push_back(reversed[0]->start);
+		trajectory.push_back(reversed[0]->end);
+		return trajectory;
+	}
+
+	Point *cur = reversed[0]->close(reversed[1]);
+	if(reversed[0]->start==cur){
+		cur = reversed[0]->end;
+	}else{
+		cur = reversed[0]->start;
+	}
+
+	for(int i=0;i<reversed.size();i++){
+		trajectory.push_back(cur);
+		if(reversed[i]->start==cur){
+			cur = reversed[i]->end;
+		}else{
+			cur = reversed[i]->start;
+		}
+	}
+	trajectory.push_back(cur);
+
+	return trajectory;
 
 }
 
-Trip::Trip(string cols[]){
+void Map::print_region(box region){
+	printf("MULTILINESTRING(");
+	bool first = true;
+	for(int i=0;i<streets.size();i++){
 
-	start_time = 0;
-	char tmp[2];
-	tmp[0] = cols[2][11];
-	tmp[1] = cols[2][12];
-	start_time += atoi(tmp)*3600;
-	tmp[0] = cols[2][14];
-	tmp[1] = cols[2][15];
-	start_time += atoi(tmp)*60;
-	tmp[0] = cols[2][17];
-	tmp[1] = cols[2][18];
-	start_time += atoi(tmp);
-
-	end_time = 0;
-	tmp[0] = cols[3][11];
-	tmp[1] = cols[3][12];
-	end_time += atoi(tmp)*3600;
-	tmp[0] = cols[3][14];
-	tmp[1] = cols[3][15];
-	end_time += atoi(tmp)*60;
-	tmp[0] = cols[3][17];
-	tmp[1] = cols[3][18];
-	end_time += atoi(tmp);
-
-
-	start_location = new Point(atof(cols[18].c_str()),atof(cols[17].c_str()));
-	end_location = new Point(atof(cols[21].c_str()),atof(cols[20].c_str()));
-}
-/*
- * simulate the trajectory of the trip.
- * with the given streets the trip has covered, generate a list of points
- * that the taxi may appear at a given time
- *
- * */
-vector<Event *> Trip::getCurLocations(vector<Street *> st) {
-
-	int duration_time = end_time-start_time;
-
-	vector<Event *> positions;
-
-	double total_length = 0;
-	for(Street *s:st) {
-		total_length += s->getLength();
-	}
-	//ever second
-	double step = total_length/duration_time;
-	Point *origin = NULL;
-	double dist_from_origin = 0;
-	if(st.size()==1) {
-		origin = st[0]->start;
-	}else {
-		if(st[0]->start->equals(st[1]->start)||st[0]->start->equals(st[1]->end)) {
-			origin = st[0]->end;
-		}else {
-			origin = st[0]->start;
-		}
-	}
-
-	for(Street *s:st) {
-		bool from_start = origin->equals(s->start);
-		double next_dist_from_origin = dist_from_origin+=s->length;
-
-		Point *cur_start = from_start?s->start:s->end;
-		Point *cur_end = from_start?s->end:s->start;
-
-		double cur_dis = ((int)(next_dist_from_origin/step)+1)*step-dist_from_origin;
-		while(cur_dis<s->length) {//have other position can be reported in this street
-			double cur_portion = cur_dis/s->length;
-			//now get the longitude and latitude and timestamp for current event and add to return list
-			Event *cp = new Event();
-			cp->timestamp = (long)(((cur_dis+dist_from_origin)*1000/total_length)*duration_time+this->start_time);
-			cp->coordinate = new Point(cur_start->x+(cur_end->x-cur_start->x)*cur_portion,
-					cur_start->y+(cur_end->y-cur_start->y)*cur_portion);
-			positions.push_back(cp);
-			cur_dis += step;
+		if(region.contain(*streets[i]->start)||region.contain(*streets[i]->end)){
+			if(!first){
+				printf(",");
+			}else{
+				first = false;
+			}
+			printf("(%f %f, %f %f)",streets[i]->start->x,streets[i]->start->y,streets[i]->end->x,streets[i]->end->y);
 		}
 
 
-		//now cut cur_start->cur_end according to the start and step
-
-		//move to next street
-		dist_from_origin = next_dist_from_origin;
-		if(from_start) {
-			origin = s->end;
-		}else {
-			origin = s->start;
-		}
 	}
-
-	return positions;
-
+	printf(")\n");
 }

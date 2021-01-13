@@ -13,6 +13,7 @@
 #include <iostream>
 #include <fstream>
 #include <float.h>
+#include "util/util.h"
 
 using namespace std;
 /*
@@ -33,8 +34,10 @@ public:
 	void connect_segments();
 	void dumpTo(const char *path);
 	void loadFrom(const char *path);
-	vector<Street *> nearest(Point *target, int limit);
-	vector<Street *> navigate(Point *origin, Point *dest);
+	void loadFromCSV(const char *path);
+	Street * nearest(Point *target);
+	vector<Point *> navigate(Point *origin, Point *dest);
+	void print_region(box region);
 
 };
 
@@ -45,7 +48,7 @@ public:
 };
 
 class Trip {
-
+public:
 	//note that the time in the Chicago taxi dataset is messed up
 	//the end_time and start_time is rounded to the nearest 15 minute like 0, 15, 45.
 	//the duration_time is rounded to the nearest 10 seconds
@@ -54,17 +57,32 @@ class Trip {
 	int end_time;
 	Point start_location;
 	Point end_location;
-	Trip(string cols[]);
+	vector<Point *> trajectory;
+	Trip(string str);
 	/*
 	 * simulate the trajectory of the trip.
 	 * with the given streets the trip has covered, generate a list of points
 	 * that the taxi may appear at a given time
 	 *
 	 * */
-	vector<Event *> getCurLocations(vector<Street *> st);
+	vector<Point *> getTraces();
+	void navigate(Map *m);
+	void print_trip();
 
 };
 
+inline void print_linestring(vector<Point *> trajectory){
+	printf("LINESTRING (");
+	for(int i=0;i<trajectory.size();i++){
+		if(i>0){
+			printf(",");
+		}
+		printf("%f %f",trajectory[i]->x,trajectory[i]->y);
+	}
 
+	printf(")\n");
+}
+
+vector<Trip *> load_trips(const char *path, int limit = 2147483647);
 
 #endif /* DATAGEN_MAP_H_ */
