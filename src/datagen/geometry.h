@@ -125,114 +125,23 @@ public:
 		}
 		return sqrt(md);
 	}
-};
 
-
-class Street {
-public:
-
-	unsigned int id = 0;
-	Point *start = NULL;
-	Point *end = NULL;
-	double length = -1.0;//Euclid distance of vector start->end
-	vector<Street *> connected;
-
-	Street *father_from_origin = NULL;
-	double dist_from_origin = 0;
+	void print_vertices(){
+		printf("%f %f, %f %f, %f %f, %f %f, %f %f",
+					low[0],low[1],
+					high[0],low[1],
+					high[0],high[1],
+					low[0],high[1],
+					low[0],low[1]);
+	}
 
 	void print(){
-		printf("%d\t: ",id);
-		printf("[[%f,%f],",start->x,start->y);
-		printf("[%f,%f]]\t",end->x,end->y);
-		printf("\tconnect: ");
-		for(Street *s:connected) {
-			printf("%d\t",s->id);
-		}
-		printf("\n");
-	}
+		printf("POLYGON((");
+		print_vertices();
+		printf("))\n");
 
-
-	//not distance in real world, but Euclid distance of the vector from start to end
-	double getLength() {
-		if(length<0) {
-			length = start->distance(*end);
-		}
-		return length;
-	}
-
-	Street(unsigned int i, Point *s, Point *e) {
-		start = s;
-		end = e;
-		id = i;
-	}
-	Street() {
-
-	}
-
-	Point *close(Street *seg) {
-		if(seg==NULL) {
-			return NULL;
-		}
-		if(seg->start==start||seg->start==end) {
-			return seg->start;
-		}
-		if(seg->end==end||seg->end==start) {
-			return seg->end;
-		}
-		return NULL;
-	}
-
-	//whether the target segment interact with this one
-	//if so, put it in the connected map
-	bool touch(Street *seg) {
-		//if those two streets are connected, record the connection relationship
-		//since one of the two streets is firstly added, it is for sure it is unique in others list
-		if(close(seg)!=NULL) {
-			connected.push_back(seg);
-			seg->connected.push_back(this);
-			return true;
-		}
-		return false;
-	}
-
-
-
-	/*
-	 * commit a breadth-first search start from this
-	 *
-	 * */
-	Street *breadthFirst(long target_id) {
-
-		if(id==target_id) {
-			return this;
-		}
-		queue<Street *> q;
-		q.push(this);
-		Street *dest = NULL;
-		while(!q.empty()) {
-			dest = q.front();
-			q.pop();
-			if(dest->id == target_id) {//found
-				break;
-			}
-			for(Street *sc:dest->connected) {
-				if(sc==this){
-					continue;
-				}
-				if(sc->father_from_origin==NULL) {
-					sc->father_from_origin = dest;
-					q.push(sc);
-				}
-			}
-		}
-		if(dest&&dest->id==target_id){
-			return dest;
-		}else{
-			return NULL;
-		}
 	}
 };
-
 
 
 inline double distance_point_to_segment(double x, double y,
@@ -277,12 +186,5 @@ inline double distance_point_to_segment(double x, double y,
 
 }
 
-
-
-
-
-inline double distance_point_to_segment(Point *p, Street *s){
-	return distance_point_to_segment(p->x,p->y,s->start->x,s->start->y,s->end->x,s->end->y);
-}
 
 #endif /* DATAGEN_GEOMETRY_H_ */

@@ -10,6 +10,72 @@
 #include <sys/time.h>
 #include <bits/stdc++.h>
 
+
+
+Point *Street::close(Street *seg) {
+	if(seg==NULL) {
+		return NULL;
+	}
+	if(seg->start==start||seg->start==end) {
+		return seg->start;
+	}
+	if(seg->end==end||seg->end==start) {
+		return seg->end;
+	}
+	return NULL;
+}
+
+//whether the target segment interact with this one
+//if so, put it in the connected map
+bool Street::touch(Street *seg) {
+	//if those two streets are connected, record the connection relationship
+	//since one of the two streets is firstly added, it is for sure it is unique in others list
+	if(close(seg)!=NULL) {
+		connected.push_back(seg);
+		seg->connected.push_back(this);
+		return true;
+	}
+	return false;
+}
+
+
+
+/*
+ * commit a breadth-first search start from this
+ *
+ * */
+Street *Street::breadthFirst(long target_id) {
+
+	if(id==target_id) {
+		return this;
+	}
+	queue<Street *> q;
+	q.push(this);
+	Street *dest = NULL;
+	while(!q.empty()) {
+		dest = q.front();
+		q.pop();
+		if(dest->id == target_id) {//found
+			break;
+		}
+		for(Street *sc:dest->connected) {
+			if(sc==this){
+				continue;
+			}
+			if(sc->father_from_origin==NULL) {
+				sc->father_from_origin = dest;
+				q.push(sc);
+			}
+		}
+	}
+	if(dest&&dest->id==target_id){
+		return dest;
+	}else{
+		return NULL;
+	}
+}
+
+
 void Map::clear() {
 	for(Street *s:streets) {
 		delete s;
@@ -184,6 +250,7 @@ void Map::loadFromCSV(const char *path){
 	log("%ld nodes and %ld streets are loaded",nodes.size(),streets.size());
 
 	this->connect_segments();
+
 }
 
 
@@ -322,4 +389,48 @@ void Map::print_region(box region){
 
 	}
 	printf(")\n");
+}
+
+
+
+void Map::analyze_trips(const char *path, int limit){
+	std::ifstream file(path);
+	std::string str;
+	//skip the head
+	std::getline(file, str);
+	getMBR();
+	mbr->print();
+	while (std::getline(file, str)&&--limit>0){
+		Trip *t = new Trip(str);
+		if(mbr->contain(t->start_location)&&mbr->contain(t->end_location)){
+			int loc = this->getgrid(&t->end_location);
+			zones[loc].count++;
+		}
+		delete t;
+	}
+	file.close();
+	for(int i=dimy-1;i>=0;i--){
+		for(int j=0;j<dimx;j++){
+			printf("%06ld\t",zones[i*dimx+j].count);
+		}
+		printf("\n");
+	}
+}
+
+
+void Map::rasterize(int num_grids){
+	getMBR();
+
+	double multi = abs((mbr->high[1]-mbr->low[1])/(mbr->high[0]-mbr->low[0]));
+	step = (mbr->high[0]-mbr->low[0])/std::pow(num_grids*1.0/multi,0.5);
+	dimx = (mbr->high[0]-mbr->low[0])/step+1;
+	dimy = (mbr->high[1]-mbr->low[1])/step+1;
+	zones.resize(dimx*dimy);
+}
+
+int Map::getgrid(Point *p){
+	assert(step>0);
+	int offsety = (p->y-mbr->low[1])/step;
+	int offsetx = (p->x-mbr->low[0])/step;
+	return dimx*offsety+offsetx;
 }

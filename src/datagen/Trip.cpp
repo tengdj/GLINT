@@ -100,5 +100,5 @@ vector<Trip *> load_trips(const char *path, int limit){
 		}
 	}
 	return trips;
-
 }
+

@@ -15,19 +15,8 @@ int main(int argc, char **argv){
 //	m->loadFromCSV("/gisdata/chicago/streets.csv");
 //	m->dumpTo("/gisdata/chicago/formated");
 	m->loadFrom("/gisdata/chicago/formated");
-
-	vector<Trip *> trips = load_trips("/gisdata/chicago/taxi.csv", 1000000);
-	int *hours = new int[24];
-	for(int i=0;i<24;i++){
-		hours[i] = 0;
-	}
-	for(Trip *tp:trips){
-		hours[tp->start_time/3600]++;
-	}
-	for(int i=0;i<24;i++){
-		cout<<hours[i]<<endl;
-	}
-	delete hours;
+	m->rasterize(500);
+	m->analyze_trips("/gisdata/chicago/taxi.csv", 100000);
 
 //	trips[0]->navigate(m);
 //	trips[0]->print_trip();
@@ -36,6 +25,7 @@ int main(int argc, char **argv){
 //	print_linestring(trips[0]->trajectory);
 
 
+	delete m;
 	return 0;
 }
 

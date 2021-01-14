@@ -30,7 +30,7 @@ all:	datagen
 
 # for macro queries
 
-datagen:	datagen/main.o $(DATAGEN_OBJS) 
+datagen:	datagen/datagen.o $(DATAGEN_OBJS) 
 	$(CXX) -o ../build/$@ $^ $(LIBS) 
 	
 
