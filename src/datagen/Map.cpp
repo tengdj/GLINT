@@ -44,35 +44,73 @@ bool Street::touch(Street *seg) {
  * commit a breadth-first search start from this
  *
  * */
-Street *Street::breadthFirst(long target_id) {
+Street *Street::breadthFirst(Street *target, int thread_id) {
 
-	if(id==target_id) {
-		return this;
-	}
 	queue<Street *> q;
 	q.push(this);
 	Street *dest = NULL;
 	while(!q.empty()) {
 		dest = q.front();
 		q.pop();
-		if(dest->id == target_id) {//found
+		if(dest == target) {//found
 			break;
 		}
 		for(Street *sc:dest->connected) {
 			if(sc==this){
 				continue;
 			}
-			if(sc->father_from_origin==NULL) {
-				sc->father_from_origin = dest;
+			if(sc->father_from_origin[thread_id]==NULL) {
+				sc->father_from_origin[thread_id] = dest;
 				q.push(sc);
 			}
 		}
 	}
-	if(dest&&dest->id==target_id){
+	if(dest == target){
 		return dest;
 	}else{
 		return NULL;
 	}
+}
+
+Point *Map::get_next(Point *original){
+	double xoff = get_rand_double();
+	double yoff = get_rand_double();
+	double xval = mbr->low[0]+xoff*(mbr->high[0]-mbr->low[0]);
+	double yval = mbr->low[1]+yoff*(mbr->high[1]-mbr->low[1]);
+
+	Point *dest = new Point(xval,yval);
+
+	if(!original){
+
+	}else{
+
+	}
+
+	return dest;
+}
+
+vector<Point *> Map::generate_trace(int thread_id, int start_time, int end_time){
+	vector<Point *> ret;
+	Point *origin = get_next();
+	Point *dest = get_next(origin);
+	int cur_time = start_time;
+	while(ret.size()<end_time-start_time){
+		vector<Point *> trace = navigate(origin, dest, zones[getgrid(origin)].get_speed(), thread_id);
+		ret.insert(ret.end(), trace.begin(), trace.end());
+		trace.clear();
+		// move to another
+		delete origin;
+		origin = dest;
+		dest = get_next(origin);
+	}
+	for(int i=end_time-start_time;i<ret.size();i++){
+		delete ret[i];
+	}
+	ret.erase(ret.begin()+end_time-start_time,ret.end());
+	assert(ret.size()==end_time-start_time);
+
+	delete dest;
+	return ret;
 }
 
 
@@ -203,6 +241,9 @@ void Map::loadFromCSV(const char *path){
 	map<string, Point *> nodeset;
 	char cotmp[256];
 	vector<double> values;
+	unsigned int id = 0;
+	Point *start_point = NULL;
+	Point *end_point = NULL;
 	while (std::getline(file, str)){
 		// Process str
 		 fields.clear();
@@ -223,8 +264,6 @@ void Map::loadFromCSV(const char *path){
 		 double start[2] = {values[0], values[1]};
 		 double end[2] = {values[values.size()-2], values[values.size()-1]};
 
-		 Street *st = new Street();
-		 st->id = streets.size();
 		 sprintf(cotmp, "%.14f_%.14f", values[0], values[1]);
 
 		 if(nodeset.find(cotmp)==nodeset.end()){
@@ -233,7 +272,7 @@ void Map::loadFromCSV(const char *path){
 			 nodes.push_back(p);
 			 nodeset[cotmp] = p;
 		 }
-		 st->start = nodeset[cotmp];
+		 start_point = nodeset[cotmp];
 		 sprintf(cotmp, "%.14f_%.14f", values[values.size()-2], values[values.size()-1]);
 		 if(nodeset.find(cotmp)==nodeset.end()){
 			 Point *p = new Point(end[0],end[1]);
@@ -241,22 +280,21 @@ void Map::loadFromCSV(const char *path){
 			 nodes.push_back(p);
 			 nodeset[cotmp] = p;
 		 }
-		 st->end = nodeset[cotmp];
-		 streets.push_back(st);
-		 st->start->connects.push_back(st);
-		 st->end->connects.push_back(st);
+		 end_point = nodeset[cotmp];
+		 streets.push_back(new Street(id++,start_point,end_point));
 	}
 	nodeset.clear();
+	connect_segments();
 	log("%ld nodes and %ld streets are loaded",nodes.size(),streets.size());
-
-	this->connect_segments();
-
+	//by default
+	set_thread_num(1);
+	this->getMBR();
 }
 
 
 void Map::loadFrom(const char *path) {
 
-	struct timeval start = get_cur_time();
+	struct timeval start_time = get_cur_time();
 	ifstream in(path, ios::in | ios::binary);
 
 	vector<vector<unsigned int>> connected;
@@ -275,13 +313,14 @@ void Map::loadFrom(const char *path) {
 	streets.resize(num);
 	connected.resize(num);
 	int slen = num;
-	for(unsigned int i=0;i<slen;i++){
-		Street *s = new Street();
-		s->id = i;
+	unsigned int id = 0;
+	Point *start = NULL;
+	Point *end = NULL;
+	for(;id<slen;id++){
 		in.read((char *)&num, sizeof(num));
-		s->start = nodes[num];
+		start = nodes[num];
 		in.read((char *)&num, sizeof(num));
-		s->end = nodes[num];
+		end = nodes[num];
 		in.read((char *)&num, sizeof(num));
 		int len = num;
 		vector<unsigned int> cons;
@@ -289,8 +328,8 @@ void Map::loadFrom(const char *path) {
 			in.read((char *)&num, sizeof(num));
 			cons.push_back(num);
 		}
-		connected[i] = cons;
-		streets[i] = s;
+		connected[id] = cons;
+		streets[id] = new Street(id, start, end);
 	}
 
 	for(int i=0;i<slen;i++){
@@ -301,7 +340,10 @@ void Map::loadFrom(const char *path) {
 	}
 	connected.clear();
 	in.close();
-	logt("loaded %d nodes %d streets from %s",start,nodes.size(), streets.size(), path);
+	//by default
+	set_thread_num(1);
+	this->getMBR();
+	logt("loaded %d nodes %d streets from %s",start_time,nodes.size(), streets.size(), path);
 }
 
 Street *Map::nearest(Point *target){
@@ -317,24 +359,34 @@ Street *Map::nearest(Point *target){
 	return ret;
 }
 
-vector<Point *> Map::navigate(Point *origin, Point *dest){
+/*
+ * simulate the trajectory of the trip.
+ * with the given streets the trip has covered, generate a list of points
+ * that the taxi may appear at a given time
+ *
+ * */
+vector<Point *> Map::navigate(Point *origin, Point *dest, double speed, int thread_id){
+
+	assert(origin);
+	assert(dest);
+	assert(speed>0);
+	assert(thread_id>=0);
 
 	vector<Street *> ret;
 	Street *o = nearest(origin);
 	Street *d = nearest(dest);
-
 //	printf("%d LINESTRING(%f %f, %f %f)\n",o->id, o->start->x,o->start->y,o->end->x,o->end->y);
 //	printf("%d LINESTRING(%f %f, %f %f)\n",d->id, d->start->x,d->start->y,d->end->x,d->end->y);
 
 	//initialize
 	for(Street *s:streets) {
-		s->father_from_origin = NULL;
+		s->father_from_origin[thread_id] = NULL;
 	}
-	Street *s = o->breadthFirst(d->id);
+	Street *s = o->breadthFirst(d, thread_id);
 	assert(s);
 	do{
 		ret.push_back(s);
-		s = s->father_from_origin;
+		s = s->father_from_origin[thread_id];
 	}while(s!=NULL);
 
 	vector<Street *> reversed;
@@ -368,7 +420,36 @@ vector<Point *> Map::navigate(Point *origin, Point *dest){
 	}
 	trajectory.push_back(cur);
 
-	return trajectory;
+	vector<Point *> positions;
+
+	double total_length = 0;
+	for(int i=0;i<trajectory.size()-1;i++){
+		total_length += trajectory[i]->distance(*trajectory[i+1]);
+	}
+
+	double dist_from_origin = 0;
+	for(int i=0;i<trajectory.size()-1;i++) {
+		Point *cur_start = trajectory[i];
+		Point *cur_end = trajectory[i+1];
+		double length = cur_start->distance(*cur_end);
+		double next_dist_from_origin = dist_from_origin+=length;
+		double cur_dis = ((int)(next_dist_from_origin/speed)+1)*speed-dist_from_origin;
+		while(cur_dis<length) {//have other position can be reported in this street
+			double cur_portion = cur_dis/length;
+			//now get the longitude and latitude and timestamp for current event and add to return list
+			Point *p = new Point(cur_start->x+(cur_end->x-cur_start->x)*cur_portion,
+								 cur_start->y+(cur_end->y-cur_start->y)*cur_portion);
+			positions.push_back(p);
+			cur_dis += speed;
+		}
+
+		//move to next street
+		dist_from_origin = next_dist_from_origin;
+	}
+
+	trajectory.clear();
+
+	return positions;
 
 }
 
@@ -399,19 +480,31 @@ void Map::analyze_trips(const char *path, int limit){
 	//skip the head
 	std::getline(file, str);
 	getMBR();
-	mbr->print();
+	ZoneStats total;
 	while (std::getline(file, str)&&--limit>0){
 		Trip *t = new Trip(str);
-		if(mbr->contain(t->start_location)&&mbr->contain(t->end_location)){
-			int loc = this->getgrid(&t->end_location);
+		if(mbr->contain(t->start.coordinate)&&mbr->contain(t->end.coordinate)){
+			int loc = this->getgrid(&t->end.coordinate);
 			zones[loc].count++;
+			zones[loc].duration += t->duration();
+			double dist = t->start.coordinate.distance(t->end.coordinate);
+			zones[loc].length += dist;
+			total.count++;
+			total.duration += t->duration();
+			total.length += dist;
 		}
 		delete t;
 	}
 	file.close();
 	for(int i=dimy-1;i>=0;i--){
 		for(int j=0;j<dimx;j++){
-			printf("%06ld\t",zones[i*dimx+j].count);
+			if(zones[i*dimx+j].duration==0||zones[i*dimx+j].length==0){
+				zones[i*dimx+j].count = 1;
+				zones[i*dimx+j].duration = total.duration/total.count;
+				zones[i*dimx+j].length = total.length/total.count;
+			}
+			assert(zones[i*dimx+j].length/zones[i*dimx+j].duration>0);
+			printf("%.3f\t",zones[i*dimx+j].length*10000.0/zones[i*dimx+j].duration);
 		}
 		printf("\n");
 	}
@@ -419,8 +512,7 @@ void Map::analyze_trips(const char *path, int limit){
 
 
 void Map::rasterize(int num_grids){
-	getMBR();
-
+	assert(mbr);
 	double multi = abs((mbr->high[1]-mbr->low[1])/(mbr->high[0]-mbr->low[0]));
 	step = (mbr->high[0]-mbr->low[0])/std::pow(num_grids*1.0/multi,0.5);
 	dimx = (mbr->high[0]-mbr->low[0])/step+1;

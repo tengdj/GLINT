@@ -36,6 +36,9 @@ public:
 	bool equals(Point *p){
 		return p->x==x&&p->y==y;
 	}
+	void print(){
+		printf("POINT(%f %f)\n",x,y);
+	}
 };
 
 class box{

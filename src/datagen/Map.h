@@ -28,10 +28,12 @@ public:
 	Point *end = NULL;
 	double length = -1.0;//Euclid distance of vector start->end
 	vector<Street *> connected;
+	vector<Street *> father_from_origin;
 
-	Street *father_from_origin = NULL;
-	double dist_from_origin = 0;
-
+	~Street(){
+		connected.clear();
+		father_from_origin.clear();
+	}
 	void print(){
 		printf("%d\t: ",id);
 		printf("[[%f,%f],",start->x,start->y);
@@ -53,12 +55,12 @@ public:
 	}
 
 	Street(unsigned int i, Point *s, Point *e) {
+		assert(s&&e);
 		start = s;
 		end = e;
 		id = i;
-	}
-	Street() {
-
+		start->connects.push_back(this);
+		end->connects.push_back(this);
 	}
 
 	Point *close(Street *seg);
@@ -73,7 +75,7 @@ public:
 	 * commit a breadth-first search start from this
 	 *
 	 * */
-	Street *breadthFirst(long target_id);
+	Street *breadthFirst(Street *target, int thread_id = 0);
 };
 
 
@@ -84,13 +86,38 @@ public:
  *
  * */
 class ZoneStats{
+	int zoneid;
 public:
 	long count = 0;
-	int zoneid;
-	int timestamp;
-	double speed;
+	long duration = 0;
+	double length = 0;
 	double rate_sleep = 0;
 	vector<double> rate_target;
+	~ZoneStats(){
+		rate_target.clear();
+	}
+	double get_speed(){
+		assert(length&&duration);
+		return length/duration;
+	}
+
+};
+
+class Event{
+public:
+	int timestamp;
+	Point coordinate;
+};
+
+class Trip {
+public:
+	Event start;
+	Event end;
+	Trip(string str);
+	void print_trip();
+	int duration(){
+		return end.timestamp-start.timestamp;
+	}
 };
 
 
@@ -113,6 +140,18 @@ class Map {
 	int dimy = 0;
 
 public:
+	~Map(){
+		for(Street *s:streets){
+			delete s;
+		}
+		for(Point *p:nodes){
+			delete p;
+		}
+		zones.clear();
+		if(mbr){
+			delete mbr;
+		}
+	}
 
 	void rasterize(int num_grids);
 	int getgrid(Point *p);
@@ -120,54 +159,41 @@ public:
 		return streets;
 	}
 
+	void set_thread_num(int thread_num){
+		for(Street *s:streets){
+			s->father_from_origin.resize(thread_num);
+		}
+	}
 	void clear();
 	void connect_segments();
 	void dumpTo(const char *path);
 	void loadFrom(const char *path);
 	void loadFromCSV(const char *path);
 	Street * nearest(Point *target);
-	vector<Point *> navigate(Point *origin, Point *dest);
+	vector<Point *> navigate(Point *origin, Point *dest, double speed, int threadid = 0);
+	vector<Point *> navigate(Trip *t, int threadid = 0){
+		return navigate(&t->start.coordinate, &t->end.coordinate, t->duration(), threadid);
+	}
 	void print_region(box region);
 	void analyze_trips(const char *path, int limit = 2147483647);
+	vector<Point *> generate_trace(int thread_id=0, int start_time = 0, int end_time = 24*3600);
+	Point *get_next(Point *original=NULL);
 };
 
-class Event{
-public:
-	int timestamp;
-	Point coordinate;
-};
-
-class Trip {
-public:
-	//note that the time in the Chicago taxi dataset is messed up
-	//the end_time and start_time is rounded to the nearest 15 minute like 0, 15, 45.
-	//the duration_time is rounded to the nearest 10 seconds
-	//thus for most cases end_time-start_time != duration_time
-	int start_time;
-	int end_time;
-	Point start_location;
-	Point end_location;
-	vector<Point *> trajectory;
-	Trip(string str);
-	/*
-	 * simulate the trajectory of the trip.
-	 * with the given streets the trip has covered, generate a list of points
-	 * that the taxi may appear at a given time
-	 *
-	 * */
-	vector<Point *> getTraces();
-	void navigate(Map *m);
-	void print_trip();
-
-};
-
-inline void print_linestring(vector<Point *> trajectory){
+inline void print_linestring(vector<Point *> trajectory, double sample_rate=1.0){
+	assert(sample_rate<=1&&sample_rate>0);
 	printf("LINESTRING (");
+	bool first = true;
 	for(int i=0;i<trajectory.size();i++){
-		if(i>0){
-			printf(",");
+
+		if(tryluck(sample_rate)){
+			if(!first){
+				printf(",");
+			}else{
+				first = false;
+			}
+			printf("%f %f",trajectory[i]->x,trajectory[i]->y);
 		}
-		printf("%f %f",trajectory[i]->x,trajectory[i]->y);
 	}
 
 	printf(")\n");
