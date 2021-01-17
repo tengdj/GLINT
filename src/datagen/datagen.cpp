@@ -7,7 +7,10 @@
 
 
 #include "Map.h"
+#include <vector>
+#include <stdlib.h>
 
+using namespace std;
 
 int main(int argc, char **argv){
 
@@ -20,12 +23,13 @@ int main(int argc, char **argv){
 	m->rasterize(500);
 	m->analyze_trips("/gisdata/chicago/taxi.csv", 10000);
 	logt("analyze trips",start);
+	double *traces = m->generate_trace(1000, 10000);
+	logt("generate traces",start);
 
-	vector<Point *> trace = m->generate_trace(0,0,24*3600);
-	print_linestring(trace,0.1);
-	vector<Point *> trace2 = m->generate_trace(0,0,24*3600);
-	print_linestring(trace2,0.1);
-	logt("get trace",start);
+	delete []traces;
+//	vector<Point *> trace2 = m->generate_trace(0,0,24*3600);
+//	print_linestring(trace2,0.1);
+//	logt("get trace",start);
 
 //
 //	int trip_count = 1000;

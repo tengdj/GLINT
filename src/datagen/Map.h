@@ -14,6 +14,7 @@
 #include <fstream>
 #include <float.h>
 #include "util/util.h"
+#include "util/context.h"
 
 using namespace std;
 /*
@@ -164,21 +165,23 @@ public:
 			s->father_from_origin.resize(thread_num);
 		}
 	}
-	void clear();
 	void connect_segments();
 	void dumpTo(const char *path);
 	void loadFrom(const char *path);
 	void loadFromCSV(const char *path);
 	Street * nearest(Point *target);
-	vector<Point *> navigate(Point *origin, Point *dest, double speed, int threadid = 0);
-	vector<Point *> navigate(Trip *t, int threadid = 0){
-		return navigate(&t->start.coordinate, &t->end.coordinate, t->duration(), threadid);
-	}
+	int navigate(vector<Point *> &result, Point *origin, Point *dest, double speed, int threadid = 0);
+//	vector<Point *> navigate(Trip *t, int threadid = 0){
+//		return navigate(&t->start.coordinate, &t->end.coordinate, t->duration(), threadid);
+//	}
 	void print_region(box region);
-	void analyze_trips(const char *path, int limit = 2147483647);
-	vector<Point *> generate_trace(int thread_id=0, int start_time = 0, int end_time = 24*3600);
 	Point *get_next(Point *original=NULL);
+	void analyze_trips(const char *path, int limit = 2147483647);
+	vector<Point *> get_trace(int thread_id=0, int duration = 24*3600);
+	double *generate_trace(int duration, int count, int thread_num=-1);
 };
+
+
 
 inline void print_linestring(vector<Point *> trajectory, double sample_rate=1.0){
 	assert(sample_rate<=1&&sample_rate>0);
@@ -204,6 +207,10 @@ vector<Trip *> load_trips(const char *path, int limit = 2147483647);
 
 
 inline double distance_point_to_segment(Point *p, Street *s){
+	assert(p);
+	assert(s);
+	assert(s->start);
+	assert(s->end);
 	return distance_point_to_segment(p->x,p->y,s->start->x,s->start->y,s->end->x,s->end->y);
 }
 #endif /* DATAGEN_MAP_H_ */

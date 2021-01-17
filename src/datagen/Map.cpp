@@ -89,42 +89,6 @@ Point *Map::get_next(Point *original){
 	return dest;
 }
 
-vector<Point *> Map::generate_trace(int thread_id, int start_time, int end_time){
-	vector<Point *> ret;
-	Point *origin = get_next();
-	Point *dest = get_next(origin);
-	int cur_time = start_time;
-	while(ret.size()<end_time-start_time){
-		vector<Point *> trace = navigate(origin, dest, zones[getgrid(origin)].get_speed(), thread_id);
-		ret.insert(ret.end(), trace.begin(), trace.end());
-		trace.clear();
-		// move to another
-		delete origin;
-		origin = dest;
-		dest = get_next(origin);
-	}
-	for(int i=end_time-start_time;i<ret.size();i++){
-		delete ret[i];
-	}
-	ret.erase(ret.begin()+end_time-start_time,ret.end());
-	assert(ret.size()==end_time-start_time);
-
-	delete dest;
-	return ret;
-}
-
-
-void Map::clear() {
-	for(Street *s:streets) {
-		delete s;
-	}
-	streets.clear();
-	for(Point *p:nodes){
-		delete p;
-	}
-	nodes.clear();
-}
-
 
 
 /*
@@ -329,6 +293,7 @@ void Map::loadFrom(const char *path) {
 			cons.push_back(num);
 		}
 		connected[id] = cons;
+		assert(start&&end);
 		streets[id] = new Street(id, start, end);
 	}
 
@@ -347,6 +312,7 @@ void Map::loadFrom(const char *path) {
 }
 
 Street *Map::nearest(Point *target){
+	assert(target);
 	Street *ret;
 	double dist = DBL_MAX;
 	for(Street *st:streets) {
@@ -365,7 +331,7 @@ Street *Map::nearest(Point *target){
  * that the taxi may appear at a given time
  *
  * */
-vector<Point *> Map::navigate(Point *origin, Point *dest, double speed, int thread_id){
+int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double speed, int thread_id){
 
 	assert(origin);
 	assert(dest);
@@ -389,49 +355,38 @@ vector<Point *> Map::navigate(Point *origin, Point *dest, double speed, int thre
 		s = s->father_from_origin[thread_id];
 	}while(s!=NULL);
 
-	vector<Street *> reversed;
-	reversed.resize(ret.size());
-	for(int i=ret.size()-1;i>=0;i--) {
-		reversed[ret.size()-1-i] = ret[i];
-	}
-	ret.clear();
+	reverse(ret.begin(),ret.end());
 
 	vector<Point *> trajectory;
-	if(reversed.size()==1){
-		trajectory.push_back(reversed[0]->start);
-		trajectory.push_back(reversed[0]->end);
-		return trajectory;
-	}
-
-	Point *cur = reversed[0]->close(reversed[1]);
-	if(reversed[0]->start==cur){
-		cur = reversed[0]->end;
+	Point *cur;
+	if(ret.size()==1){
+		cur = ret[0]->start;
 	}else{
-		cur = reversed[0]->start;
+		cur = ret[0]->close(ret[1]);
+		// swap to other end
+		if(ret[0]->start==cur){
+			cur = ret[0]->end;
+		}else{
+			cur = ret[0]->start;
+		}
 	}
 
-	for(int i=0;i<reversed.size();i++){
+	for(int i=0;i<ret.size();i++){
 		trajectory.push_back(cur);
-		if(reversed[i]->start==cur){
-			cur = reversed[i]->end;
+		if(ret[i]->start==cur){
+			cur = ret[i]->end;
 		}else{
-			cur = reversed[i]->start;
+			cur = ret[i]->start;
 		}
 	}
 	trajectory.push_back(cur);
 
-	vector<Point *> positions;
-
-	double total_length = 0;
-	for(int i=0;i<trajectory.size()-1;i++){
-		total_length += trajectory[i]->distance(*trajectory[i+1]);
-	}
-
 	double dist_from_origin = 0;
+	int inserted = 0;
 	for(int i=0;i<trajectory.size()-1;i++) {
 		Point *cur_start = trajectory[i];
 		Point *cur_end = trajectory[i+1];
-		double length = cur_start->distance(*cur_end);
+		double length = cur_start->distance(*cur_end, true);
 		double next_dist_from_origin = dist_from_origin+=length;
 		double cur_dis = ((int)(next_dist_from_origin/speed)+1)*speed-dist_from_origin;
 		while(cur_dis<length) {//have other position can be reported in this street
@@ -441,6 +396,7 @@ vector<Point *> Map::navigate(Point *origin, Point *dest, double speed, int thre
 								 cur_start->y+(cur_end->y-cur_start->y)*cur_portion);
 			positions.push_back(p);
 			cur_dis += speed;
+			inserted++;
 		}
 
 		//move to next street
@@ -448,16 +404,14 @@ vector<Point *> Map::navigate(Point *origin, Point *dest, double speed, int thre
 	}
 
 	trajectory.clear();
-
-	return positions;
-
+	ret.clear();
+	return inserted;
 }
 
 void Map::print_region(box region){
 	printf("MULTILINESTRING(");
 	bool first = true;
 	for(int i=0;i<streets.size();i++){
-
 		if(region.contain(*streets[i]->start)||region.contain(*streets[i]->end)){
 			if(!first){
 				printf(",");
@@ -466,8 +420,6 @@ void Map::print_region(box region){
 			}
 			printf("(%f %f, %f %f)",streets[i]->start->x,streets[i]->start->y,streets[i]->end->x,streets[i]->end->y);
 		}
-
-
 	}
 	printf(")\n");
 }
@@ -487,7 +439,7 @@ void Map::analyze_trips(const char *path, int limit){
 			int loc = this->getgrid(&t->end.coordinate);
 			zones[loc].count++;
 			zones[loc].duration += t->duration();
-			double dist = t->start.coordinate.distance(t->end.coordinate);
+			double dist = t->start.coordinate.distance(t->end.coordinate, true);
 			zones[loc].length += dist;
 			total.count++;
 			total.duration += t->duration();
@@ -504,7 +456,7 @@ void Map::analyze_trips(const char *path, int limit){
 				zones[i*dimx+j].length = total.length/total.count;
 			}
 			assert(zones[i*dimx+j].length/zones[i*dimx+j].duration>0);
-			printf("%.3f\t",zones[i*dimx+j].length*10000.0/zones[i*dimx+j].duration);
+			printf("%.3f\t",zones[i*dimx+j].length*1000.0/zones[i*dimx+j].duration);
 		}
 		printf("\n");
 	}
@@ -526,3 +478,98 @@ int Map::getgrid(Point *p){
 	int offsetx = (p->x-mbr->low[0])/step;
 	return dimx*offsety+offsetx;
 }
+
+
+
+vector<Point *> Map::get_trace(int thread_id, int duration){
+	vector<Point *> ret;
+	Point *origin = get_next();
+	Point *dest = get_next(origin);
+	while(ret.size()<duration){
+		//origin->print();
+		//dest->print();
+		//printf("%f\n",zones[getgrid(origin)].get_speed());
+		navigate(ret, origin, dest, zones[getgrid(origin)].get_speed(), thread_id);
+		// move to another
+		delete origin;
+		origin = dest;
+		dest = get_next(origin);
+	}
+	for(int i=duration;i<ret.size();i++){
+		delete ret[i];
+	}
+	ret.erase(ret.begin()+duration,ret.end());
+	assert(ret.size()==duration);
+
+	delete origin;
+	delete dest;
+	return ret;
+}
+
+
+class trace_context{
+public:
+	int thread_id = 0;
+	int duration = 0;
+	int *counter;
+	int max_num = 0;
+	Map *mp = NULL;
+	double *result = NULL;
+};
+
+
+void *gentrace(void *arg){
+	trace_context *ctx = (trace_context *)arg;
+	log("thread %d started",ctx->thread_id);
+
+	while(true){
+		int cur_t = 0;
+		lock();
+		cur_t = (*ctx->counter)++;
+		unlock();
+		if(cur_t>=ctx->max_num){
+			break;
+		}
+		//log("%d",cur_t);
+		vector<Point *> trace = ctx->mp->get_trace(ctx->thread_id, ctx->duration);
+		double *points = ctx->result+2*cur_t*ctx->duration;
+		for(Point *p:trace){
+			*points++ = p->x;
+			*points++ = p->y;
+			delete p;
+		}
+		trace.clear();
+	}
+
+	return NULL;
+}
+
+
+double *Map::generate_trace(int duration, int count,int num_threads){
+	double *ret = new double[duration*count*2];
+	if(num_threads<=0){
+		num_threads = get_num_threads();
+	}
+	set_thread_num(num_threads);
+	pthread_t threads[num_threads];
+	trace_context ctx[num_threads];
+	int counter = 0;
+	for(int i=0;i<num_threads;i++){
+		ctx[i].thread_id = i;
+		ctx[i].mp = this;
+		ctx[i].counter = &counter;
+		ctx[i].max_num = count;
+		ctx[i].result = ret;
+		ctx[i].duration = duration;
+	}
+	for(int i=0;i<num_threads;i++){
+		pthread_create(&threads[i], NULL, gentrace, (void *)&ctx[i]);
+	}
+	for(int i = 0; i < num_threads; i++ ){
+		void *status;
+		pthread_join(threads[i], &status);
+	}
+
+	return ret;
+}
+

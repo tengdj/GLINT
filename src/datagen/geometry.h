@@ -15,6 +15,7 @@
 #include <string>
 #include <queue>
 #include <iostream>
+#include "util/util.h"
 
 using namespace std;
 class Street;
@@ -30,8 +31,19 @@ public:
 		y = yy;
 	}
 	Point(){}
-	double distance(Point &p){
-		return sqrt((p.x-x)*(p.x-x)+(p.y-y)*(p.y-y));
+	~Point(){
+		connects.clear();
+	}
+	double distance(Point &p, bool geography = false){
+		if(!geography){
+			return sqrt((p.x-x)*(p.x-x)+(p.y-y)*(p.y-y));
+		}else{
+			double dx = x-p.x;
+			double dy = y-p.y;
+			dx = dx/degree_per_kilometer_latitude;
+			dy = dy/degree_per_kilometer_longitude(y);
+			return sqrt(dx*dx+dy*dy);
+		}
 	}
 	bool equals(Point *p){
 		return p->x==x&&p->y==y;
@@ -39,6 +51,7 @@ public:
 	void print(){
 		printf("POINT(%f %f)\n",x,y);
 	}
+
 };
 
 class box{
