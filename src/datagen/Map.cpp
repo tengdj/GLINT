@@ -456,9 +456,9 @@ void Map::analyze_trips(const char *path, int limit){
 				zones[i*dimx+j].length = total.length/total.count;
 			}
 			assert(zones[i*dimx+j].length/zones[i*dimx+j].duration>0);
-			printf("%.3f\t",zones[i*dimx+j].length*1000.0/zones[i*dimx+j].duration);
+			//printf("%.3f\t",zones[i*dimx+j].length*1000.0/zones[i*dimx+j].duration);
 		}
-		printf("\n");
+		//printf("\n");
 	}
 }
 
