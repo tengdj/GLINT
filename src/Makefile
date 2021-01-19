@@ -11,8 +11,8 @@ CPPFLAGS	= -g -std=c++14 -Wno-cpp
 
 CUDALIBS	= -L/usr/local/cuda/lib64 -lcuda -lcudart
 
-DATAGEN_SRCS := $(wildcard datagen/*.cpp)
-DATAGEN_OBJS := $(patsubst %.cpp,%.o,$(DATAGEN_SRCS))
+GEOMETRY_SRCS := $(wildcard geometry/*.cpp)
+GEOMETRY_OBJS := $(patsubst %.cpp,%.o,$(GEOMETRY_SRCS))
 
 
 #compile all the cu files
@@ -30,7 +30,7 @@ all:	datagen
 
 # for macro queries
 
-datagen:	datagen/datagen.o $(DATAGEN_OBJS) 
+datagen:	tools/datagen.o $(GEOMETRY_OBJS) 
 	$(CXX) -o ../build/$@ $^ $(LIBS) 
 	
 

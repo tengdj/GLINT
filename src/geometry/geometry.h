@@ -1,5 +1,6 @@
 /*
  * geometry.h
+ * included the most commonly accessed data structures
  *
  *  Created on: Jan 11, 2021
  *      Author: teng
@@ -18,11 +19,8 @@
 #include "util/util.h"
 
 using namespace std;
-class Street;
-
 class Point{
 public:
-	vector<Street *> connects;
 	unsigned int id = 0;
 	double x = 0;
 	double y = 0;
@@ -31,9 +29,7 @@ public:
 		y = yy;
 	}
 	Point(){}
-	~Point(){
-		connects.clear();
-	}
+	~Point(){}
 	double distance(Point &p, bool geography = false){
 		if(!geography){
 			return sqrt((p.x-x)*(p.x-x)+(p.y-y)*(p.y-y));
@@ -49,7 +45,7 @@ public:
 		return p->x==x&&p->y==y;
 	}
 	void print(){
-		printf("POINT(%f %f)\n",x,y);
+		printf("POINT (%f %f)\n",x,y);
 	}
 
 };
@@ -159,6 +155,10 @@ public:
 	}
 };
 
+/*
+ * some utility functions shared by other classes
+ *
+ * */
 
 inline double distance_point_to_segment(double x, double y,
 										double x1, double y1,
@@ -200,6 +200,26 @@ inline double distance_point_to_segment(double x, double y,
 		return sqrt((nx-x)*(nx-x)+(ny-y)*(ny-y));
 	}
 
+}
+
+
+inline void print_linestring(vector<Point *> trajectory, double sample_rate=1.0){
+	assert(sample_rate<=1&&sample_rate>0);
+	printf("LINESTRING (");
+	bool first = true;
+	for(int i=0;i<trajectory.size();i++){
+
+		if(tryluck(sample_rate)){
+			if(!first){
+				printf(",");
+			}else{
+				first = false;
+			}
+			printf("%f %f",trajectory[i]->x,trajectory[i]->y);
+		}
+	}
+
+	printf(")\n");
 }
 
 

@@ -72,52 +72,79 @@ Street *Street::breadthFirst(Street *target, int thread_id) {
 	}
 }
 
-Point *Map::get_next(Point *original){
-	double xoff = get_rand_double();
-	double yoff = get_rand_double();
-	double xval = mbr->low[0]+xoff*(mbr->high[0]-mbr->low[0]);
-	double yval = mbr->low[1]+yoff*(mbr->high[1]-mbr->low[1]);
+/*
+ *
+ * Trip member functions
+ *
+ * */
 
-	Point *dest = new Point(xval,yval);
+Trip::Trip(string str){
 
-	if(!original){
+	vector<string> cols;
+	tokenize(str,cols,",");
 
-	}else{
-
+	start.timestamp = 0;
+	char tmp[2];
+	tmp[0] = cols[2][11];
+	tmp[1] = cols[2][12];
+	start.timestamp += atoi(tmp)*3600;
+	tmp[0] = cols[2][14];
+	tmp[1] = cols[2][15];
+	start.timestamp += atoi(tmp)*60;
+	tmp[0] = cols[2][17];
+	tmp[1] = cols[2][18];
+	start.timestamp += atoi(tmp);
+	if(cols[2][20]=='P'){
+		start.timestamp += 12*3600;
 	}
+	end.timestamp = start.timestamp + atoi(cols[4].c_str());
 
-	return dest;
+	start.coordinate = Point(atof(cols[18].c_str()),atof(cols[17].c_str()));
+	end.coordinate = Point(atof(cols[21].c_str()),atof(cols[20].c_str()));
 }
 
+void Trip::print_trip(){
+	printf("time: %d to %d\n",start.timestamp,end.timestamp);
+	printf("position: (%f %f) to (%f %f)\n",start.coordinate.x,start.coordinate.y,end.coordinate.x,end.coordinate.y);
+}
+
+
+
+
+/*
+ *
+ * Map member functions
+ *
+ * */
 
 
 /*
  * compare each street pair to see if they connect with each other
  * */
-void Map::connect_segments() {
+void Map::connect_segments(vector<vector<Street *>> connection) {
 	log("connecting streets");
 	struct timeval start = get_cur_time();
 
 	int total = 0;
-	for(Point *p:nodes){
-		for(int i=0;i<p->connects.size()-1;i++){
-			for(int j=i+1;j<p->connects.size();j++){
-				p->connects[i]->connected.push_back(p->connects[j]);
-				p->connects[j]->connected.push_back(p->connects[i]);
+	for(vector<Street *> &connects:connection){
+		for(int i=0;i<connects.size()-1;i++){
+			for(int j=i+1;j<connects.size();j++){
+				connects[i]->connected.push_back(connects[j]);
+				connects[j]->connected.push_back(connects[i]);
 				total += 2;
 			}
 		}
 	}
 
 	logt("touched %d streets %f",start,streets.size(),total*1.0/streets.size());
-	int *checked = new int[streets.size()];
 
+	// get the maximum connected component graph
+	int *checked = new int[streets.size()];
 	for(int i=0;i<streets.size();i++) {
 		checked[i] = 0;
 	}
 
 	vector<Street *> cur_max_graph;
-
 	int connected = 0;
 	int cur_list = 0;
 	while(connected<streets.size()){
@@ -151,6 +178,8 @@ void Map::connect_segments() {
 		}
 		tmp.clear();
 	}
+
+	// update the street list with only the connected streets
 	unordered_set<Street *> included;
 	for(Street *st:cur_max_graph){
 		included.insert(st);
@@ -208,6 +237,7 @@ void Map::loadFromCSV(const char *path){
 	unsigned int id = 0;
 	Point *start_point = NULL;
 	Point *end_point = NULL;
+	vector<vector<Street *>> connections;
 	while (std::getline(file, str)){
 		// Process str
 		 fields.clear();
@@ -234,6 +264,8 @@ void Map::loadFromCSV(const char *path){
 			 Point *p = new Point(start[0],start[1]);
 			 p->id = nodeset.size();
 			 nodes.push_back(p);
+			 vector<Street *> cs;
+			 connections.push_back(cs);
 			 nodeset[cotmp] = p;
 		 }
 		 start_point = nodeset[cotmp];
@@ -242,17 +274,24 @@ void Map::loadFromCSV(const char *path){
 			 Point *p = new Point(end[0],end[1]);
 			 p->id = nodeset.size();
 			 nodes.push_back(p);
+			 vector<Street *> cs;
+			 connections.push_back(cs);
 			 nodeset[cotmp] = p;
 		 }
 		 end_point = nodeset[cotmp];
-		 streets.push_back(new Street(id++,start_point,end_point));
+		 Street *ns = new Street(id++,start_point,end_point);
+		 streets.push_back(ns);
+		 connections[start_point->id].push_back(ns);
+		 connections[end_point->id].push_back(ns);
 	}
 	nodeset.clear();
-	connect_segments();
+	connect_segments(connections);
+	for(vector<Street *> &cs:connections){
+		cs.clear();
+	}
+	connections.clear();
 	log("%ld nodes and %ld streets are loaded",nodes.size(),streets.size());
-	//by default
-	set_thread_num(1);
-	this->getMBR();
+	getMBR();
 }
 
 
@@ -305,9 +344,7 @@ void Map::loadFrom(const char *path) {
 	}
 	connected.clear();
 	in.close();
-	//by default
-	set_thread_num(1);
-	this->getMBR();
+	getMBR();
 	logt("loaded %d nodes %d streets from %s",start_time,nodes.size(), streets.size(), path);
 }
 
@@ -316,7 +353,7 @@ Street *Map::nearest(Point *target){
 	Street *ret;
 	double dist = DBL_MAX;
 	for(Street *st:streets) {
-		double d = distance_point_to_segment(target, st);
+		double d = st->distance(target);
 		if(d<dist){
 			ret = st;
 			dist = d;
@@ -338,13 +375,12 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 	assert(speed>0);
 	assert(thread_id>=0);
 
+	// get the closest points streets to the source and destination points
 	vector<Street *> ret;
 	Street *o = nearest(origin);
 	Street *d = nearest(dest);
-//	printf("%d LINESTRING(%f %f, %f %f)\n",o->id, o->start->x,o->start->y,o->end->x,o->end->y);
-//	printf("%d LINESTRING(%f %f, %f %f)\n",d->id, d->start->x,d->start->y,d->end->x,d->end->y);
 
-	//initialize
+	//conduct a breadth first query to get a list of streets
 	for(Street *s:streets) {
 		s->father_from_origin[thread_id] = NULL;
 	}
@@ -354,9 +390,9 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 		ret.push_back(s);
 		s = s->father_from_origin[thread_id];
 	}while(s!=NULL);
-
 	reverse(ret.begin(),ret.end());
 
+	// convert the street sequence to point sequences
 	vector<Point *> trajectory;
 	Point *cur;
 	if(ret.size()==1){
@@ -381,6 +417,8 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 	}
 	trajectory.push_back(cur);
 
+	// quantify the street sequence to generate a list of
+	// points with fixed gap
 	double dist_from_origin = 0;
 	int inserted = 0;
 	for(int i=0;i<trajectory.size()-1;i++) {
@@ -407,6 +445,17 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 	ret.clear();
 	return inserted;
 }
+
+
+
+
+/*
+ *
+ * functions for generating simulated traces of an object
+ * based on the real world statistics
+ *
+ * */
+
 
 void Map::print_region(box region){
 	printf("MULTILINESTRING(");
@@ -481,6 +530,24 @@ int Map::getgrid(Point *p){
 
 
 
+Point *Map::get_next(Point *original){
+	double xoff = get_rand_double();
+	double yoff = get_rand_double();
+	double xval = mbr->low[0]+xoff*(mbr->high[0]-mbr->low[0]);
+	double yval = mbr->low[1]+yoff*(mbr->high[1]-mbr->low[1]);
+
+	Point *dest = new Point(xval,yval);
+
+	if(!original){
+
+	}else{
+
+	}
+
+	return dest;
+}
+
+
 vector<Point *> Map::get_trace(int thread_id, int duration){
 	vector<Point *> ret;
 	Point *origin = get_next();
@@ -550,7 +617,6 @@ double *Map::generate_trace(int duration, int count,int num_threads){
 	if(num_threads<=0){
 		num_threads = get_num_threads();
 	}
-	set_thread_num(num_threads);
 	pthread_t threads[num_threads];
 	trace_context ctx[num_threads];
 	int counter = 0;

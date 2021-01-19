@@ -27,8 +27,12 @@ public:
 	unsigned int id = 0;
 	Point *start = NULL;
 	Point *end = NULL;
-	double length = -1.0;//Euclid distance of vector start->end
+	// cache for Euclid distance of vector start->end
+	double length = -1.0;
+	// other streets this street connects
 	vector<Street *> connected;
+	// temporary storage for breadth first search
+	// with multiple threads support
 	vector<Street *> father_from_origin;
 
 	~Street(){
@@ -60,8 +64,7 @@ public:
 		start = s;
 		end = e;
 		id = i;
-		start->connects.push_back(this);
-		end->connects.push_back(this);
+		father_from_origin.resize(get_num_threads()+10);
 	}
 
 	Point *close(Street *seg);
@@ -77,13 +80,19 @@ public:
 	 *
 	 * */
 	Street *breadthFirst(Street *target, int thread_id = 0);
+
+	// distance from a street to a point
+	double distance(Point *p){
+		assert(p);
+		return distance_point_to_segment(p->x,p->y,start->x,start->y,end->x,end->y);
+	}
 };
 
 
 /*
  *
  * the statistics of the trips parsed from the taxi data
- * each zone/hour
+ * each zone
  *
  * */
 class ZoneStats{
@@ -160,12 +169,7 @@ public:
 		return streets;
 	}
 
-	void set_thread_num(int thread_num){
-		for(Street *s:streets){
-			s->father_from_origin.resize(thread_num);
-		}
-	}
-	void connect_segments();
+	void connect_segments(vector<vector<Street *>> connections);
 	void dumpTo(const char *path);
 	void loadFrom(const char *path);
 	void loadFromCSV(const char *path);
@@ -181,36 +185,4 @@ public:
 	double *generate_trace(int duration, int count, int thread_num=-1);
 };
 
-
-
-inline void print_linestring(vector<Point *> trajectory, double sample_rate=1.0){
-	assert(sample_rate<=1&&sample_rate>0);
-	printf("LINESTRING (");
-	bool first = true;
-	for(int i=0;i<trajectory.size();i++){
-
-		if(tryluck(sample_rate)){
-			if(!first){
-				printf(",");
-			}else{
-				first = false;
-			}
-			printf("%f %f",trajectory[i]->x,trajectory[i]->y);
-		}
-	}
-
-	printf(")\n");
-}
-
-vector<Trip *> load_trips(const char *path, int limit = 2147483647);
-
-
-
-inline double distance_point_to_segment(Point *p, Street *s){
-	assert(p);
-	assert(s);
-	assert(s->start);
-	assert(s->end);
-	return distance_point_to_segment(p->x,p->y,s->start->x,s->start->y,s->end->x,s->end->y);
-}
 #endif /* DATAGEN_MAP_H_ */
