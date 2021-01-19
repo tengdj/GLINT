@@ -35,7 +35,7 @@ data/
 *.wkt
 build/
 
-.cproject
-.project
-.settings/
-.idea/
+#.cproject
+#.project
+#.settings/
+#.idea/
