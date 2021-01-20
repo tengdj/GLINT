@@ -44,7 +44,7 @@ bool Street::touch(Street *seg) {
  * commit a breadth-first search start from this
  *
  * */
-Street *Street::breadthFirst(Street *target, int thread_id) {
+Street *Street::breadthFirst(Street *target) {
 
 	queue<Street *> q;
 	q.push(this);
@@ -59,8 +59,8 @@ Street *Street::breadthFirst(Street *target, int thread_id) {
 			if(sc==this){
 				continue;
 			}
-			if(sc->father_from_origin[thread_id]==NULL) {
-				sc->father_from_origin[thread_id] = dest;
+			if(sc->father_from_origin == NULL) {
+				sc->father_from_origin = dest;
 				q.push(sc);
 			}
 		}
@@ -71,43 +71,6 @@ Street *Street::breadthFirst(Street *target, int thread_id) {
 		return NULL;
 	}
 }
-
-/*
- *
- * Trip member functions
- *
- * */
-
-Trip::Trip(string str){
-
-	vector<string> cols;
-	tokenize(str,cols,",");
-
-	start.timestamp = 0;
-	char tmp[2];
-	tmp[0] = cols[2][11];
-	tmp[1] = cols[2][12];
-	start.timestamp += atoi(tmp)*3600;
-	tmp[0] = cols[2][14];
-	tmp[1] = cols[2][15];
-	start.timestamp += atoi(tmp)*60;
-	tmp[0] = cols[2][17];
-	tmp[1] = cols[2][18];
-	start.timestamp += atoi(tmp);
-	if(cols[2][20]=='P'){
-		start.timestamp += 12*3600;
-	}
-	end.timestamp = start.timestamp + atoi(cols[4].c_str());
-
-	start.coordinate = Point(atof(cols[18].c_str()),atof(cols[17].c_str()));
-	end.coordinate = Point(atof(cols[21].c_str()),atof(cols[20].c_str()));
-}
-
-void Trip::print_trip(){
-	printf("time: %d to %d\n",start.timestamp,end.timestamp);
-	printf("position: (%f %f) to (%f %f)\n",start.coordinate.x,start.coordinate.y,end.coordinate.x,end.coordinate.y);
-}
-
 
 
 
@@ -294,6 +257,27 @@ void Map::loadFromCSV(const char *path){
 	getMBR();
 }
 
+Map *Map::clone(){
+	Map *nmap = new Map();
+	nmap->nodes.resize(nodes.size());
+	for(Point *p:nodes){
+		Point *np = new Point(p);
+		nmap->nodes[np->id] = np;
+	}
+	nmap->streets.resize(streets.size());
+	for(Street *s:streets){
+		Street *ns = new Street(s->id,nmap->nodes[s->start->id],nmap->nodes[s->end->id]);
+		nmap->streets[s->id] = ns;
+	}
+
+	for(Street *s:streets){
+		for(Street *cs:s->connected){
+			nmap->streets[s->id]->connected.push_back(nmap->streets[cs->id]);
+		}
+	}
+	nmap->getMBR();
+	return nmap;
+}
 
 void Map::loadFrom(const char *path) {
 
@@ -368,12 +352,11 @@ Street *Map::nearest(Point *target){
  * that the taxi may appear at a given time
  *
  * */
-int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double speed, int thread_id){
+int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double speed){
 
 	assert(origin);
 	assert(dest);
 	assert(speed>0);
-	assert(thread_id>=0);
 
 	// get the closest points streets to the source and destination points
 	vector<Street *> ret;
@@ -382,13 +365,13 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 
 	//conduct a breadth first query to get a list of streets
 	for(Street *s:streets) {
-		s->father_from_origin[thread_id] = NULL;
+		s->father_from_origin = NULL;
 	}
-	Street *s = o->breadthFirst(d, thread_id);
+	Street *s = o->breadthFirst(d);
 	assert(s);
 	do{
 		ret.push_back(s);
-		s = s->father_from_origin[thread_id];
+		s = s->father_from_origin;
 	}while(s!=NULL);
 	reverse(ret.begin(),ret.end());
 
@@ -447,16 +430,6 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 }
 
 
-
-
-/*
- *
- * functions for generating simulated traces of an object
- * based on the real world statistics
- *
- * */
-
-
 void Map::print_region(box region){
 	printf("MULTILINESTRING(");
 	bool first = true;
@@ -472,170 +445,3 @@ void Map::print_region(box region){
 	}
 	printf(")\n");
 }
-
-
-
-void Map::analyze_trips(const char *path, int limit){
-	std::ifstream file(path);
-	std::string str;
-	//skip the head
-	std::getline(file, str);
-	getMBR();
-	ZoneStats total;
-	while (std::getline(file, str)&&--limit>0){
-		Trip *t = new Trip(str);
-		if(mbr->contain(t->start.coordinate)&&mbr->contain(t->end.coordinate)){
-			int loc = this->getgrid(&t->end.coordinate);
-			zones[loc].count++;
-			zones[loc].duration += t->duration();
-			double dist = t->start.coordinate.distance(t->end.coordinate, true);
-			zones[loc].length += dist;
-			total.count++;
-			total.duration += t->duration();
-			total.length += dist;
-		}
-		delete t;
-	}
-	file.close();
-	for(int i=dimy-1;i>=0;i--){
-		for(int j=0;j<dimx;j++){
-			if(zones[i*dimx+j].duration==0||zones[i*dimx+j].length==0){
-				zones[i*dimx+j].count = 1;
-				zones[i*dimx+j].duration = total.duration/total.count;
-				zones[i*dimx+j].length = total.length/total.count;
-			}
-			assert(zones[i*dimx+j].length/zones[i*dimx+j].duration>0);
-			//printf("%.3f\t",zones[i*dimx+j].length*1000.0/zones[i*dimx+j].duration);
-		}
-		//printf("\n");
-	}
-}
-
-
-void Map::rasterize(int num_grids){
-	assert(mbr);
-	double multi = abs((mbr->high[1]-mbr->low[1])/(mbr->high[0]-mbr->low[0]));
-	step = (mbr->high[0]-mbr->low[0])/std::pow(num_grids*1.0/multi,0.5);
-	dimx = (mbr->high[0]-mbr->low[0])/step+1;
-	dimy = (mbr->high[1]-mbr->low[1])/step+1;
-	zones.resize(dimx*dimy);
-}
-
-int Map::getgrid(Point *p){
-	assert(step>0);
-	int offsety = (p->y-mbr->low[1])/step;
-	int offsetx = (p->x-mbr->low[0])/step;
-	return dimx*offsety+offsetx;
-}
-
-
-
-Point *Map::get_next(Point *original){
-	double xoff = get_rand_double();
-	double yoff = get_rand_double();
-	double xval = mbr->low[0]+xoff*(mbr->high[0]-mbr->low[0]);
-	double yval = mbr->low[1]+yoff*(mbr->high[1]-mbr->low[1]);
-
-	Point *dest = new Point(xval,yval);
-
-	if(!original){
-
-	}else{
-
-	}
-
-	return dest;
-}
-
-
-vector<Point *> Map::get_trace(int thread_id, int duration){
-	vector<Point *> ret;
-	Point *origin = get_next();
-	Point *dest = get_next(origin);
-	while(ret.size()<duration){
-		//origin->print();
-		//dest->print();
-		//printf("%f\n",zones[getgrid(origin)].get_speed());
-		navigate(ret, origin, dest, zones[getgrid(origin)].get_speed(), thread_id);
-		// move to another
-		delete origin;
-		origin = dest;
-		dest = get_next(origin);
-	}
-	for(int i=duration;i<ret.size();i++){
-		delete ret[i];
-	}
-	ret.erase(ret.begin()+duration,ret.end());
-	assert(ret.size()==duration);
-
-	delete origin;
-	delete dest;
-	return ret;
-}
-
-
-class trace_context{
-public:
-	int thread_id = 0;
-	int duration = 0;
-	int *counter;
-	int max_num = 0;
-	Map *mp = NULL;
-	double *result = NULL;
-};
-
-
-void *gentrace(void *arg){
-	trace_context *ctx = (trace_context *)arg;
-	log("thread %d started",ctx->thread_id);
-
-	while(true){
-		int cur_t = 0;
-		lock();
-		cur_t = (*ctx->counter)++;
-		unlock();
-		if(cur_t>=ctx->max_num){
-			break;
-		}
-		//log("%d",cur_t);
-		vector<Point *> trace = ctx->mp->get_trace(ctx->thread_id, ctx->duration);
-		double *points = ctx->result+2*cur_t*ctx->duration;
-		for(Point *p:trace){
-			*points++ = p->x;
-			*points++ = p->y;
-			delete p;
-		}
-		trace.clear();
-	}
-
-	return NULL;
-}
-
-
-double *Map::generate_trace(int duration, int count,int num_threads){
-	double *ret = new double[duration*count*2];
-	if(num_threads<=0){
-		num_threads = get_num_threads();
-	}
-	pthread_t threads[num_threads];
-	trace_context ctx[num_threads];
-	int counter = 0;
-	for(int i=0;i<num_threads;i++){
-		ctx[i].thread_id = i;
-		ctx[i].mp = this;
-		ctx[i].counter = &counter;
-		ctx[i].max_num = count;
-		ctx[i].result = ret;
-		ctx[i].duration = duration;
-	}
-	for(int i=0;i<num_threads;i++){
-		pthread_create(&threads[i], NULL, gentrace, (void *)&ctx[i]);
-	}
-	for(int i = 0; i < num_threads; i++ ){
-		void *status;
-		pthread_join(threads[i], &status);
-	}
-
-	return ret;
-}
-

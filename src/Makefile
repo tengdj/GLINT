@@ -14,6 +14,8 @@ CUDALIBS	= -L/usr/local/cuda/lib64 -lcuda -lcudart
 GEOMETRY_SRCS := $(wildcard geometry/*.cpp)
 GEOMETRY_OBJS := $(patsubst %.cpp,%.o,$(GEOMETRY_SRCS))
 
+TRACING_SRCS := $(wildcard tracing/*.cpp)
+TRACING_OBJS := $(patsubst %.cpp,%.o,$(TRACING_SRCS))
 
 #compile all the cu files
 CU_SRCS := $(wildcard cuda/*.cu)
@@ -30,7 +32,7 @@ all:	datagen
 
 # for macro queries
 
-datagen:	tools/datagen.o $(GEOMETRY_OBJS) 
+datagen:	tools/datagen.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 	$(CXX) -o ../build/$@ $^ $(LIBS) 
 	
 

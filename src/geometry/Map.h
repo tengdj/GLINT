@@ -32,12 +32,11 @@ public:
 	// other streets this street connects
 	vector<Street *> connected;
 	// temporary storage for breadth first search
-	// with multiple threads support
-	vector<Street *> father_from_origin;
+	Street * father_from_origin = NULL;
 
 	~Street(){
 		connected.clear();
-		father_from_origin.clear();
+		father_from_origin = NULL;
 	}
 	void print(){
 		printf("%d\t: ",id);
@@ -64,7 +63,6 @@ public:
 		start = s;
 		end = e;
 		id = i;
-		father_from_origin.resize(get_num_threads()+10);
 	}
 
 	Point *close(Street *seg);
@@ -79,7 +77,7 @@ public:
 	 * commit a breadth-first search start from this
 	 *
 	 * */
-	Street *breadthFirst(Street *target, int thread_id = 0);
+	Street *breadthFirst(Street *target);
 
 	// distance from a street to a point
 	double distance(Point *p){
@@ -89,65 +87,11 @@ public:
 };
 
 
-/*
- *
- * the statistics of the trips parsed from the taxi data
- * each zone
- *
- * */
-class ZoneStats{
-	int zoneid;
-public:
-	long count = 0;
-	long duration = 0;
-	double length = 0;
-	double rate_sleep = 0;
-	vector<double> rate_target;
-	~ZoneStats(){
-		rate_target.clear();
-	}
-	double get_speed(){
-		assert(length&&duration);
-		return length/duration;
-	}
-
-};
-
-class Event{
-public:
-	int timestamp;
-	Point coordinate;
-};
-
-class Trip {
-public:
-	Event start;
-	Event end;
-	Trip(string str);
-	void print_trip();
-	int duration(){
-		return end.timestamp-start.timestamp;
-	}
-};
-
 
 class Map {
 	vector<Point *> nodes;
 	vector<Street *> streets;
-	vector<ZoneStats> zones;
 	box *mbr = NULL;
-	box *getMBR(){
-		if(!mbr){
-			mbr = new box();
-			for(Point *p:nodes){
-				mbr->update(*p);
-			}
-		}
-		return mbr;
-	}
-	double step = 0;
-	int dimx = 0;
-	int dimy = 0;
 
 public:
 	~Map(){
@@ -157,14 +101,20 @@ public:
 		for(Point *p:nodes){
 			delete p;
 		}
-		zones.clear();
 		if(mbr){
 			delete mbr;
 		}
 	}
+	box *getMBR(){
+		if(!mbr){
+			mbr = new box();
+			for(Point *p:nodes){
+				mbr->update(*p);
+			}
+		}
+		return mbr;
+	}
 
-	void rasterize(int num_grids);
-	int getgrid(Point *p);
 	vector<Street *> getStreets(){
 		return streets;
 	}
@@ -174,15 +124,10 @@ public:
 	void loadFrom(const char *path);
 	void loadFromCSV(const char *path);
 	Street * nearest(Point *target);
-	int navigate(vector<Point *> &result, Point *origin, Point *dest, double speed, int threadid = 0);
-//	vector<Point *> navigate(Trip *t, int threadid = 0){
-//		return navigate(&t->start.coordinate, &t->end.coordinate, t->duration(), threadid);
-//	}
+	int navigate(vector<Point *> &result, Point *origin, Point *dest, double speed);
 	void print_region(box region);
-	Point *get_next(Point *original=NULL);
-	void analyze_trips(const char *path, int limit = 2147483647);
-	vector<Point *> get_trace(int thread_id=0, int duration = 24*3600);
-	double *generate_trace(int duration, int count, int thread_num=-1);
+	// clone the map for multiple thread support
+	Map *clone();
 };
 
 #endif /* DATAGEN_MAP_H_ */

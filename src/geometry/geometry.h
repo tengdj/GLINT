@@ -29,6 +29,11 @@ public:
 		y = yy;
 	}
 	Point(){}
+	Point(Point *p){
+		id = p->id;
+		x = p->x;
+		y = p->y;
+	}
 	~Point(){}
 	double distance(Point &p, bool geography = false){
 		if(!geography){

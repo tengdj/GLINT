@@ -7,6 +7,7 @@
 
 
 #include "../geometry/Map.h"
+#include "../tracing/tracing.h"
 #include <vector>
 #include <stdlib.h>
 
@@ -15,20 +16,26 @@ using namespace std;
 int main(int argc, char **argv){
 
 	int grid_num = 100000;
-	struct timeval start = get_cur_time();
+	int duration = 1000;
+	int num_objects = 1000;
+	int num_trips = 10000;
 
 	Map *m = new Map();
 //	m->loadFromCSV("/gisdata/chicago/streets.csv");
 //	m->dumpTo("/gisdata/chicago/formated");
 	m->loadFrom("/gisdata/chicago/formated");
-	m->rasterize(grid_num);
-	m->analyze_trips("/gisdata/chicago/taxi.csv", 10000);
+	struct timeval start = get_cur_time();
+	trace_generator *gen = new trace_generator(grid_num,num_objects,duration, get_num_threads(),m);
+	gen->analyze_trips("/gisdata/chicago/taxi.csv", num_trips);
 	logt("analyze trips",start);
-	double *traces = m->generate_trace(1000, 1000);
+	double *traces = gen->generate_trace();
+	delete gen;
 	logt("generate traces",start);
+
+	// test contact tracing
 	vector<vector<Point *>> grids;
 	grids.resize(grid_num);
-	for(int i=0;i<1000*1000;i++){
+	for(int i=0;i<duration*num_objects;i++){
 		Point *p = new Point(traces[i*2],traces[i*2+1]);
 		int g = i%grid_num;//m->getgrid(p);
 		grids[g].push_back(p);
