@@ -15,9 +15,9 @@ using namespace std;
 
 int main(int argc, char **argv){
 
-	int grid_num = 100000;
+	int grid_num = 1000;
 	int duration = 1000;
-	int num_objects = 1000;
+	int num_objects = 100;
 	int num_trips = 10000;
 
 	Map *m = new Map();
@@ -29,7 +29,6 @@ int main(int argc, char **argv){
 	gen->analyze_trips("/gisdata/chicago/taxi.csv", num_trips);
 	logt("analyze trips",start);
 	double *traces = gen->generate_trace();
-	delete gen;
 	logt("generate traces",start);
 
 	// test contact tracing
@@ -37,15 +36,17 @@ int main(int argc, char **argv){
 	grids.resize(grid_num);
 	for(int i=0;i<duration*num_objects;i++){
 		Point *p = new Point(traces[i*2],traces[i*2+1]);
-		int g = i%grid_num;//m->getgrid(p);
+		int g = gen->getgrid(p);
 		grids[g].push_back(p);
 	}
 	logt("get grid",start);
 	int index = 0;
 	double mindist = DBL_MAX;
 	int count = 0;
+	int gcount = 0;
 	for(vector<Point *> &ps:grids){
 		int len = ps.size();
+		gcount += len;
 		index++;
 		if(len>0){
 			//cout<<index<<" "<<len<<endl;
@@ -53,7 +54,7 @@ int main(int argc, char **argv){
 			continue;
 		}
 		for(int i=0;i<len-1;i++){
-			for(int j=i+1;j<ps.size();j++){
+			for(int j=i+1;j<len;j++){
 				double dist = ps[i]->distance(*ps[j], true);
 				count++;
 				if(dist<mindist){
@@ -61,11 +62,17 @@ int main(int argc, char **argv){
 				}
 			}
 		}
+		for(Point *p:ps){
+			delete p;
+		}
+		ps.clear();
 	}
+	grids.clear();
 
-	logt("contact %d",start,count);
+	logt("contact %d %d",start,count,gcount);
 
 	delete []traces;
+	delete gen;
 //	vector<Point *> trace2 = m->generate_trace(0,0,24*3600);
 //	print_linestring(trace2,0.1);
 //	logt("get trace",start);

@@ -46,8 +46,8 @@ public:
 			return sqrt(dx*dx+dy*dy);
 		}
 	}
-	bool equals(Point *p){
-		return p->x==x&&p->y==y;
+	bool equals(Point &p){
+		return p.x==x&&p.y==y;
 	}
 	void print(){
 		printf("POINT (%f %f)\n",x,y);
