@@ -17,6 +17,22 @@
 #include "util/context.h"
 
 using namespace std;
+
+class Node: public Point{
+public:
+	int id = 0;
+	Node(){}
+	Node(double xx, double yy){
+		x = xx;
+		y = yy;
+	}
+	Node(Node *n){
+		x = n->x;
+		y = n->y;
+		id = n->id;
+	}
+};
+
 /*
  * represents a segment with some features
  *
@@ -25,8 +41,8 @@ class Street {
 public:
 
 	unsigned int id = 0;
-	Point *start = NULL;
-	Point *end = NULL;
+	Node *start = NULL;
+	Node *end = NULL;
 	// cache for Euclid distance of vector start->end
 	double length = -1.0;
 	// other streets this street connects
@@ -58,14 +74,14 @@ public:
 		return length;
 	}
 
-	Street(unsigned int i, Point *s, Point *e) {
+	Street(unsigned int i, Node *s, Node *e) {
 		assert(s&&e);
 		start = s;
 		end = e;
 		id = i;
 	}
 
-	Point *close(Street *seg);
+	Node *close(Street *seg);
 
 	//whether the target segment interact with this one
 	//if so, put it in the connected map
@@ -89,7 +105,7 @@ public:
 
 
 class Map {
-	vector<Point *> nodes;
+	vector<Node *> nodes;
 	vector<Street *> streets;
 	box *mbr = NULL;
 
@@ -98,7 +114,7 @@ public:
 		for(Street *s:streets){
 			delete s;
 		}
-		for(Point *p:nodes){
+		for(Node *p:nodes){
 			delete p;
 		}
 		if(mbr){
@@ -108,7 +124,7 @@ public:
 	box *getMBR(){
 		if(!mbr){
 			mbr = new box();
-			for(Point *p:nodes){
+			for(Node *p:nodes){
 				mbr->update(*p);
 			}
 		}

@@ -14,6 +14,24 @@
 using namespace std;
 
 
+class Grid{
+	void rasterize(int num_grids);
+public:
+	double step = 0;
+	int dimx = 0;
+	int dimy = 0;
+	box space;
+	Grid(box &mbr, int num_grids){
+		space = mbr;
+		rasterize(num_grids);
+	}
+	int getgrid(Point *p);
+	int getgrid(double x, double y);
+	int get_grid_num(){
+		return dimx*dimy;
+	}
+	Point get_random_point(int xoff=-1, int yoff=-1);
+};
 
 /*
  *
@@ -65,27 +83,25 @@ public:
 };
 
 class trace_generator{
-	double step = 0;
-	int dimx = 0;
-	int dimy = 0;
+	Grid *grid = NULL;
 	vector<ZoneStats *> zones;
 public:
 
     Map *map = NULL;
+    context ctx;
 	int counter = 0;
-	int duration = 0;
-	int num_threads = 0;
 
 	// construct with some parameters
-	trace_generator(int ngrids, int cter, int dur, int thread, Map *m){
-		counter = cter;
-		duration = dur;
-		num_threads = thread;
-		if(num_threads<=0){
-			num_threads = get_num_threads();
-		}
+	trace_generator(context &c, Map *m){
+		counter = c.num_objects;
+		ctx = c;
+		assert(ctx.num_threads>0);
 		map = m;
-		rasterize(ngrids);
+		grid = new Grid(*m->getMBR(),ctx.num_grids);
+		zones.resize(grid->dimx*grid->dimy+1);
+		for(int i=0;i<zones.size();i++){
+			zones[i] = new ZoneStats(i);
+		}
 	}
 	~trace_generator(){
 		map = NULL;
@@ -93,20 +109,33 @@ public:
 			delete z;
 		}
 		zones.clear();
+		if(grid){
+			delete grid;
+		}
 	}
-	void rasterize(int num_grids);
-	int getgrid(Point *p);
 	// generate the destination with the given source point
 	Trip *next_trip(Trip *former=NULL);
 
 	void analyze_trips(const char *path, int limit = 2147483647);
-	double *generate_trace();
+	Point *generate_trace();
 	// generate a trace with given duration
-	vector<Point *> get_trace(Map *mymap);
+	vector<Point *> get_trace(Map *mymap = NULL);
 };
 
 
-
+class tracer{
+	context ctx;
+	box mbr;
+	Point *trace;
+public:
+	tracer(context &c, box &b, Point *t){
+		ctx = c;
+		trace = t;
+		mbr = b;
+	}
+	void process_qtree();
+	void process();
+};
 
 
 

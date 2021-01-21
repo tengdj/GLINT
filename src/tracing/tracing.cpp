@@ -45,6 +45,54 @@ void Trip::print_trip(){
 	printf("position: (%f %f) to (%f %f)\n",start.coordinate.x,start.coordinate.y,end.coordinate.x,end.coordinate.y);
 }
 
+/*
+ *
+ * member functions for grid class
+ *
+ * */
+
+void Grid::rasterize(int num_grids){
+	double multi = abs((space.high[1]-space.low[1])/(space.high[0]-space.low[0]));
+	step = (space.high[0]-space.low[0])/std::pow(num_grids*1.0/multi,0.5);
+	while(true){
+		dimx = (space.high[0]-space.low[0])/step+1;
+		dimy = (space.high[1]-space.low[1])/step+1;
+		// increase the step if too many grids are generated
+		if(dimx*dimy>num_grids){
+			step = step*1.01;
+		}else{
+			break;
+		}
+	}
+}
+
+int Grid::getgrid(double x, double y){
+	assert(step>0);
+	int offsety = (y-space.low[1])/step;
+	int offsetx = (x-space.low[0])/step;
+	int gid = dimx*offsety+offsetx;
+	assert(gid<=dimx*dimy && gid>=0);
+	return gid;
+}
+
+int Grid::getgrid(Point *p){
+	return getgrid(p->x, p->y);
+}
+
+Point Grid::get_random_point(int xoff, int yoff){
+	double xrand = get_rand_double();
+	double yrand = get_rand_double();
+	double xval,yval;
+	if(xoff==-1||yoff==-1){
+		xval = space.low[0]+xrand*(space.high[0]-space.low[0]);
+		yval = space.low[1]+xrand*(space.high[1]-space.low[1]);
+	}else{
+		xval = space.low[0]+xoff*step+xrand*step;
+		yval = space.low[1]+yoff*step+xrand*step;
+	}
+	return Point(xval, yval);
+}
+
 
 /*
  *
@@ -61,8 +109,13 @@ void trace_generator::analyze_trips(const char *path, int limit){
 	ZoneStats *total = new ZoneStats(0);
 	while (std::getline(file, str)&&--limit>0){
 		Trip *t = new Trip(str);
-		if(map->getMBR()->contain(t->start.coordinate)&&map->getMBR()->contain(t->end.coordinate)){
-			int zid = getgrid(&t->end.coordinate);
+		// a valid trip should be covered by the map,
+		// last for a while and the distance larger than 0
+		if(map->getMBR()->contain(t->start.coordinate)&&
+		   map->getMBR()->contain(t->end.coordinate)&&
+		   t->length()>0&&
+		   t->duration()>0){
+			int zid = grid->getgrid(&t->start.coordinate);
 			zones[zid]->count++;
 			zones[zid]->duration += t->duration();
 			double dist = t->start.coordinate.distance(t->end.coordinate, true);
@@ -70,15 +123,22 @@ void trace_generator::analyze_trips(const char *path, int limit){
 			total->count++;
 			total->duration += t->duration();
 			total->length += dist;
+
+			int ezid = grid->getgrid(&t->end.coordinate);
+			if(zones[zid]->target_count.find(ezid)==zones[zid]->target_count.end()){
+				zones[zid]->target_count[ezid] = 1;
+			}else{
+				zones[zid]->target_count[ezid]++;
+			}
 		}
 		delete t;
 	}
 	file.close();
-	for(int y=0;y<dimy;y++){
-		for(int x=0;x<=dimx;x++){
-			int zid = y*dimx+x;
-			assert(zid<=dimx*dimy);
-			if(zones[zid]->duration==0||zones[zid]->length==0){
+	for(int y=0;y<grid->dimy;y++){
+		for(int x=0;x<=grid->dimx;x++){
+			int zid = y*grid->dimx+x;
+			assert(zid<=grid->get_grid_num());
+			if(zones[zid]->count==0){
 				zones[zid]->count = 1;
 				zones[zid]->duration = total->duration/total->count;
 				zones[zid]->length = total->length/total->count;
@@ -91,64 +151,30 @@ void trace_generator::analyze_trips(const char *path, int limit){
 	delete total;
 }
 
-
-void trace_generator::rasterize(int num_grids){
-	double multi = abs((map->getMBR()->high[1]-map->getMBR()->low[1])/(map->getMBR()->high[0]-map->getMBR()->low[0]));
-	step = (map->getMBR()->high[0]-map->getMBR()->low[0])/std::pow(num_grids*1.0/multi,0.5);
-	while(true){
-		dimx = (map->getMBR()->high[0]-map->getMBR()->low[0])/step+1;
-		dimy = (map->getMBR()->high[1]-map->getMBR()->low[1])/step+1;
-		// increase the step if too many grids are generated
-		if(dimx*dimy>num_grids){
-			step = step*1.01;
-		}else{
-			break;
-		}
-	};
-	zones.resize(dimx*dimy+1);
-	for(int i=0;i<zones.size();i++){
-		zones[i] = new ZoneStats(i);
-	}
-}
-
-int trace_generator::getgrid(Point *p){
-	assert(step>0);
-	int offsety = (p->y-map->getMBR()->low[1])/step;
-	int offsetx = (p->x-map->getMBR()->low[0])/step;
-	int gid = dimx*offsety+offsetx;
-	if(gid>dimx*dimy){
-		p->print();
-		map->getMBR()->print();
-		cout<<gid<<" "<<dimx*dimy<<" "<<map->getMBR()->contain(*p)<<endl;;
-	}
-	assert(gid<=dimx*dimy);
-	return gid;
-}
-
-
 /*
  * simulate next move.
  *
  * */
 
+int inside = 0;
+int outside = 0;
 Trip *trace_generator::next_trip(Trip *former){
 	Trip *next = new Trip();
 	if(former==NULL){
-		double xoff = get_rand_double();
-		double yoff = get_rand_double();
-		double xval = map->getMBR()->low[0]+xoff*(map->getMBR()->high[0]-map->getMBR()->low[0]);
-		double yval = map->getMBR()->low[1]+yoff*(map->getMBR()->high[1]-map->getMBR()->low[1]);
-		next->start.coordinate = Point(xval,yval);
-		next->start.timestamp = 0;
+		do{
+			next->start.coordinate = grid->get_random_point();
+			next->start.timestamp = 0;
+		}while(false);
 	}else{
 		next->start = former->end;
 	}
 
 	// now generate the next destination according to current position
-	int locstart = getgrid(&next->start.coordinate);
+	int locstart = grid->getgrid(&next->start.coordinate);
 	double rest = get_rand_double()*zones[locstart]->rate_sleep;
 	// rest for a while, the time is adjustable
 	if(tryluck(rest)){
+		assert(false&&"invalid now");
 		next->end = next->start;
 		next->end.timestamp += zones[locstart]->max_sleep_time*rest/zones[locstart]->rate_sleep;
 	}else{
@@ -160,19 +186,15 @@ Trip *trace_generator::next_trip(Trip *former){
 			}
 		}
 		if(dest == -1){
-			dest = get_rand_number(dimx*dimy);
+			dest = get_rand_number(grid->dimx*grid->dimy);
 		}
+		int x = dest%grid->dimx;
+		int y = dest/grid->dimx;
 
-		int x = dest%dimx;
-		int y = dest/dimx;
 
-		double xoff = get_rand_double();
-		double yoff = get_rand_double();
-		double xval = map->getMBR()->low[0]+x*step+xoff*step;
-		double yval = map->getMBR()->low[1]+y*step+yoff*step;
-		next->end.coordinate = Point(xval,yval);
+		next->end.coordinate = grid->get_random_point(x, y);
 		next->end.timestamp = next->start.timestamp+next->length(true)/zones[locstart]->get_speed();
-		int gid = getgrid(&next->end.coordinate);
+		int gid = grid->getgrid(&next->end.coordinate);
 	}
 
 	return next;
@@ -180,12 +202,19 @@ Trip *trace_generator::next_trip(Trip *former){
 
 
 vector<Point *> trace_generator::get_trace(Map *mymap){
+	// use the default map for single thread mode
+	if(!mymap){
+		mymap = map;
+	}
+	assert(mymap);
 	vector<Point *> ret;
 	Trip *trip = next_trip();
-	while(ret.size()<duration){
+
+	while(ret.size()<ctx.duration){
+		//trip->print_trip();
 		// stay here
-		if(trip->start.coordinate.equals(trip->start.coordinate)){
-			for(int i=0;i<trip->duration()&&ret.size()<duration;i++){
+		if(trip->start.coordinate.equals(trip->end.coordinate)){
+			for(int i=0;i<trip->duration()&&ret.size()<ctx.duration;i++){
 				ret.push_back(new Point(&trip->start.coordinate));
 			}
 		}else{
@@ -197,67 +226,57 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 		delete trip;
 		trip = newtrip;
 	}
-	for(int i=duration;i<ret.size();i++){
+	for(int i=ctx.duration;i<ret.size();i++){
 		delete ret[i];
 	}
-	ret.erase(ret.begin()+duration,ret.end());
-	assert(ret.size()==duration);
+	ret.erase(ret.begin()+ctx.duration,ret.end());
+	assert(ret.size()==ctx.duration);
 
 	delete trip;
 	return ret;
 }
 
-
-class trace_context{
-public:
-	trace_generator *gen = NULL;
-	double *result = NULL;
-};
-
-
 void *gentrace(void *arg){
-	trace_context *ctx = (trace_context *)arg;
-	trace_generator *gen = ctx->gen;
+	context *ctx = (context *)arg;
+	trace_generator *gen = (trace_generator *)ctx->target[0];
+	Point *result = (Point *)ctx->target[1];
 	Map *mymap = gen->map->clone();
 	while(true){
 		// pick one object for generating
-		int cur_t = 0;
+		int obj = 0;
 		lock();
-		cur_t = --gen->counter;
+		obj = --gen->counter;
 		unlock();
-		if(cur_t<0){
+		if(obj<0){
 			break;
 		}
 		//log("%d",cur_t);
-		vector<Point *> trace = ctx->gen->get_trace(mymap);
-
+		vector<Point *> trace = gen->get_trace(mymap);
 		// copy to target
-		double *points = ctx->result+2*cur_t*gen->duration;
-		for(Point *p:trace){
-			*points++ = p->x;
-			*points++ = p->y;
-			delete p;
+		for(int i=0;i<gen->ctx.duration;i++){
+			result[i*gen->ctx.num_objects+obj] = *trace[i];
+			delete trace[i];
 		}
 		trace.clear();
 	}
 	delete mymap;
-
 	return NULL;
 }
 
 
-double *trace_generator::generate_trace(){
-	double *ret = new double[duration*counter*2];
-	pthread_t threads[num_threads];
-	trace_context ctx[num_threads];
-	for(int i=0;i<num_threads;i++){
-		ctx[i].gen = this;
-		ctx[i].result = ret;
+Point *trace_generator::generate_trace(){
+	Point *ret = (Point *)malloc(ctx.duration*ctx.num_objects*sizeof(Point));
+	pthread_t threads[ctx.num_threads];
+	context tctx[ctx.num_threads];
+	for(int i=0;i<ctx.num_threads;i++){
+		tctx[i] = ctx;
+		tctx[i].target[0] = (void *)this;
+		tctx[i].target[1] = (void *)ret;
 	}
-	for(int i=0;i<num_threads;i++){
-		pthread_create(&threads[i], NULL, gentrace, (void *)&ctx[i]);
+	for(int i=0;i<ctx.num_threads;i++){
+		pthread_create(&threads[i], NULL, gentrace, (void *)&tctx[i]);
 	}
-	for(int i = 0; i < num_threads; i++ ){
+	for(int i = 0; i < ctx.num_threads; i++ ){
 		void *status;
 		pthread_join(threads[i], &status);
 	}

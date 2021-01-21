@@ -21,7 +21,6 @@
 using namespace std;
 class Point{
 public:
-	unsigned int id = 0;
 	double x = 0;
 	double y = 0;
 	Point(double xx, double yy){
@@ -30,7 +29,6 @@ public:
 	}
 	Point(){}
 	Point(Point *p){
-		id = p->id;
 		x = p->x;
 		y = p->y;
 	}
@@ -211,6 +209,25 @@ inline double distance_point_to_segment(double x, double y,
 inline void print_linestring(vector<Point *> trajectory, double sample_rate=1.0){
 	assert(sample_rate<=1&&sample_rate>0);
 	printf("LINESTRING (");
+	bool first = true;
+	for(int i=0;i<trajectory.size();i++){
+
+		if(tryluck(sample_rate)){
+			if(!first){
+				printf(",");
+			}else{
+				first = false;
+			}
+			printf("%f %f",trajectory[i]->x,trajectory[i]->y);
+		}
+	}
+
+	printf(")\n");
+}
+
+inline void print_points(vector<Point *> trajectory, double sample_rate=1.0){
+	assert(sample_rate<=1&&sample_rate>0);
+	printf("MULTIPOINT (");
 	bool first = true;
 	for(int i=0;i<trajectory.size();i++){
 

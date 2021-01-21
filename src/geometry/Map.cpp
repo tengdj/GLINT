@@ -12,7 +12,7 @@
 
 
 
-Point *Street::close(Street *seg) {
+Node *Street::close(Street *seg) {
 	if(seg==NULL) {
 		return NULL;
 	}
@@ -167,7 +167,7 @@ void Map::dumpTo(const char *path) {
 
 	unsigned int num = nodes.size();
 	wf.write((char *)&num, sizeof(num));
-	for(Point *p:nodes){
+	for(Node *p:nodes){
 		wf.write((char *)&p->x, sizeof(p->x));
 		wf.write((char *)&p->y, sizeof(p->y));
 	}
@@ -194,12 +194,12 @@ void Map::loadFromCSV(const char *path){
 	vector<string> fields;
 	//skip the head
 	std::getline(file, str);
-	map<string, Point *> nodeset;
+	map<string, Node *> nodeset;
 	char cotmp[256];
 	vector<double> values;
 	unsigned int id = 0;
-	Point *start_point = NULL;
-	Point *end_point = NULL;
+	Node *start_point = NULL;
+	Node *end_point = NULL;
 	vector<vector<Street *>> connections;
 	while (std::getline(file, str)){
 		// Process str
@@ -224,7 +224,7 @@ void Map::loadFromCSV(const char *path){
 		 sprintf(cotmp, "%.14f_%.14f", values[0], values[1]);
 
 		 if(nodeset.find(cotmp)==nodeset.end()){
-			 Point *p = new Point(start[0],start[1]);
+			 Node *p = new Node(start[0],start[1]);
 			 p->id = nodeset.size();
 			 nodes.push_back(p);
 			 vector<Street *> cs;
@@ -234,7 +234,7 @@ void Map::loadFromCSV(const char *path){
 		 start_point = nodeset[cotmp];
 		 sprintf(cotmp, "%.14f_%.14f", values[values.size()-2], values[values.size()-1]);
 		 if(nodeset.find(cotmp)==nodeset.end()){
-			 Point *p = new Point(end[0],end[1]);
+			 Node *p = new Node(end[0],end[1]);
 			 p->id = nodeset.size();
 			 nodes.push_back(p);
 			 vector<Street *> cs;
@@ -260,8 +260,8 @@ void Map::loadFromCSV(const char *path){
 Map *Map::clone(){
 	Map *nmap = new Map();
 	nmap->nodes.resize(nodes.size());
-	for(Point *p:nodes){
-		Point *np = new Point(p);
+	for(Node *p:nodes){
+		Node *np = new Node(p);
 		nmap->nodes[np->id] = np;
 	}
 	nmap->streets.resize(streets.size());
@@ -290,19 +290,19 @@ void Map::loadFrom(const char *path) {
 	in.read((char *)&num, sizeof(num));
 	nodes.resize(num);
 	for(unsigned int i=0;i<num;i++){
-		Point *p = new Point();
-		p->id = i;
-		in.read((char *)&p->x, sizeof(p->x));
-		in.read((char *)&p->y, sizeof(p->y));
-		nodes[i] = p;
+		Node *n = new Node();
+		n->id = i;
+		in.read((char *)&n->x, sizeof(n->x));
+		in.read((char *)&n->y, sizeof(n->y));
+		nodes[i] = n;
 	}
 	in.read((char *)&num, sizeof(num));
 	streets.resize(num);
 	connected.resize(num);
 	int slen = num;
 	unsigned int id = 0;
-	Point *start = NULL;
-	Point *end = NULL;
+	Node *start = NULL;
+	Node *end = NULL;
 	for(;id<slen;id++){
 		in.read((char *)&num, sizeof(num));
 		start = nodes[num];
@@ -376,8 +376,8 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 	reverse(ret.begin(),ret.end());
 
 	// convert the street sequence to point sequences
-	vector<Point *> trajectory;
-	Point *cur;
+	vector<Node *> trajectory;
+	Node *cur;
 	if(ret.size()==1){
 		cur = ret[0]->start;
 	}else{
@@ -405,12 +405,13 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 	double dist_from_origin = 0;
 	int inserted = 0;
 	for(int i=0;i<trajectory.size()-1;i++) {
-		Point *cur_start = trajectory[i];
-		Point *cur_end = trajectory[i+1];
+		Node *cur_start = trajectory[i];
+		Node *cur_end = trajectory[i+1];
 		double length = cur_start->distance(*cur_end, true);
 		double next_dist_from_origin = dist_from_origin+=length;
 		double cur_dis = ((int)(next_dist_from_origin/speed)+1)*speed-dist_from_origin;
-		while(cur_dis<length) {//have other position can be reported in this street
+		while(cur_dis<length) {
+			//have other position can be reported in this street
 			double cur_portion = cur_dis/length;
 			//now get the longitude and latitude and timestamp for current event and add to return list
 			Point *p = new Point(cur_start->x+(cur_end->x-cur_start->x)*cur_portion,
