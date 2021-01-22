@@ -19,6 +19,7 @@
 #include <time.h>
 #include <sstream>
 #include <math.h>
+#include <limits.h>
 
 using namespace std;
 

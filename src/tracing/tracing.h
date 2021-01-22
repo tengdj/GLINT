@@ -132,8 +132,10 @@ public:
 		ctx = c;
 		trace = t;
 		mbr = b;
+		//mbr.to_squre();
 	}
 	void process_qtree();
+	void process_fixgrid();
 	void process();
 };
 

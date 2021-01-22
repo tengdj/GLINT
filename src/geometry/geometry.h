@@ -110,12 +110,16 @@ public:
 
 
 
-	double distance(Point &p){
+	double distance(Point &p, bool geography = false){
 		if(this->contain(p)){
 			return 0;
 		}
 		double dx = max(abs(p.x-(low[0]+high[0])/2) - (high[0]-low[0])/2, 0.0);
 		double dy = max(abs(p.y-(low[1]+high[1])/2) - (high[1]-low[1])/2, 0.0);
+		if(geography){
+			dx = dx/degree_per_kilometer_latitude;
+			dy = dy/degree_per_kilometer_longitude(p.y);
+		}
 		return sqrt(dx * dx + dy * dy);
 	}
 
@@ -155,6 +159,13 @@ public:
 		print_vertices();
 		printf("))\n");
 
+	}
+
+	void to_squre(){
+		int bigger_one = (high[1]-low[1]>high[0]-low[0]);
+		double difference = (high[bigger_one]-low[bigger_one])-(high[!bigger_one]-low[!bigger_one]);
+		low[!bigger_one] = low[!bigger_one]-difference/2;
+		high[!bigger_one] = high[!bigger_one]+difference/2;
 	}
 };
 

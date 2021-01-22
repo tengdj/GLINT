@@ -12,7 +12,8 @@
 
 enum PROCESS_METHOD{
 	QTREE = 0,
-	GPU = 1
+	GPU = 1,
+	FIX_GRID = 2
 };
 
 class context{

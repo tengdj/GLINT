@@ -17,10 +17,11 @@ int main(int argc, char **argv){
 
 	context ctx;
 	ctx.num_grids = 1000;
-	ctx.duration = 100;
-	ctx.num_objects = 1000;
-	ctx.num_trips = 10000;
+	ctx.duration = 1000;
+	ctx.num_objects = 10000;
+	ctx.num_trips = 100000;
 	ctx.num_threads = get_num_threads();
+	ctx.method = FIX_GRID;
 
 	Map *m = new Map();
 //	m->loadFromCSV("/gisdata/chicago/streets.csv");
