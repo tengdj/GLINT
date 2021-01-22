@@ -80,6 +80,41 @@ Street *Street::breadthFirst(Street *target) {
  *
  * */
 
+Map::Map(string path){
+	assert(path.size()>0);
+	log("loading from %s",path.c_str());
+	if(path.size()>4&&
+	   path.at(path.size()-4)=='.'&&
+	   path.at(path.size()-3)=='c'&&
+	   path.at(path.size()-2)=='s'&&
+	   path.at(path.size()-1)=='v'){
+		this->loadFromCSV(path.c_str());
+		this->dumpTo(path.substr(0, path.size()-4).c_str());
+	}else{
+		this->loadFrom(path.c_str());
+	}
+}
+
+Map::~Map(){
+	for(Street *s:streets){
+		delete s;
+	}
+	for(Node *p:nodes){
+		delete p;
+	}
+	if(mbr){
+		delete mbr;
+	}
+}
+box *Map::getMBR(){
+	if(!mbr){
+		mbr = new box();
+		for(Node *p:nodes){
+			mbr->update(*p);
+		}
+	}
+	return mbr;
+}
 
 /*
  * compare each street pair to see if they connect with each other
@@ -186,6 +221,59 @@ void Map::dumpTo(const char *path) {
 	log("dumped to %s",path);
 }
 
+void Map::loadFrom(const char *path) {
+
+	struct timeval start_time = get_cur_time();
+	ifstream in(path, ios::in | ios::binary);
+
+	vector<vector<unsigned int>> connected;
+
+	unsigned int num;
+	in.read((char *)&num, sizeof(num));
+	nodes.resize(num);
+	for(unsigned int i=0;i<num;i++){
+		Node *n = new Node();
+		n->id = i;
+		in.read((char *)&n->x, sizeof(n->x));
+		in.read((char *)&n->y, sizeof(n->y));
+		nodes[i] = n;
+	}
+	in.read((char *)&num, sizeof(num));
+	streets.resize(num);
+	connected.resize(num);
+	int slen = num;
+	unsigned int id = 0;
+	Node *start = NULL;
+	Node *end = NULL;
+	for(;id<slen;id++){
+		in.read((char *)&num, sizeof(num));
+		start = nodes[num];
+		in.read((char *)&num, sizeof(num));
+		end = nodes[num];
+		in.read((char *)&num, sizeof(num));
+		int len = num;
+		vector<unsigned int> cons;
+		for(int j=0;j<len;j++){
+			in.read((char *)&num, sizeof(num));
+			cons.push_back(num);
+		}
+		connected[id] = cons;
+		assert(start&&end);
+		streets[id] = new Street(id, start, end);
+	}
+
+	for(int i=0;i<slen;i++){
+		for(unsigned int sl:connected[i]){
+			streets[i]->connected.push_back(streets[sl]);
+		}
+		connected[i].clear();
+	}
+	connected.clear();
+	in.close();
+	getMBR();
+	logt("loaded %d nodes %d streets from %s",start_time,nodes.size(), streets.size(), path);
+}
+
 
 void Map::loadFromCSV(const char *path){
 
@@ -279,58 +367,6 @@ Map *Map::clone(){
 	return nmap;
 }
 
-void Map::loadFrom(const char *path) {
-
-	struct timeval start_time = get_cur_time();
-	ifstream in(path, ios::in | ios::binary);
-
-	vector<vector<unsigned int>> connected;
-
-	unsigned int num;
-	in.read((char *)&num, sizeof(num));
-	nodes.resize(num);
-	for(unsigned int i=0;i<num;i++){
-		Node *n = new Node();
-		n->id = i;
-		in.read((char *)&n->x, sizeof(n->x));
-		in.read((char *)&n->y, sizeof(n->y));
-		nodes[i] = n;
-	}
-	in.read((char *)&num, sizeof(num));
-	streets.resize(num);
-	connected.resize(num);
-	int slen = num;
-	unsigned int id = 0;
-	Node *start = NULL;
-	Node *end = NULL;
-	for(;id<slen;id++){
-		in.read((char *)&num, sizeof(num));
-		start = nodes[num];
-		in.read((char *)&num, sizeof(num));
-		end = nodes[num];
-		in.read((char *)&num, sizeof(num));
-		int len = num;
-		vector<unsigned int> cons;
-		for(int j=0;j<len;j++){
-			in.read((char *)&num, sizeof(num));
-			cons.push_back(num);
-		}
-		connected[id] = cons;
-		assert(start&&end);
-		streets[id] = new Street(id, start, end);
-	}
-
-	for(int i=0;i<slen;i++){
-		for(unsigned int sl:connected[i]){
-			streets[i]->connected.push_back(streets[sl]);
-		}
-		connected[i].clear();
-	}
-	connected.clear();
-	in.close();
-	getMBR();
-	logt("loaded %d nodes %d streets from %s",start_time,nodes.size(), streets.size(), path);
-}
 
 Street *Map::nearest(Point *target){
 	assert(target);

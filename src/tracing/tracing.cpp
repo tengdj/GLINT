@@ -102,6 +102,8 @@ Point Grid::get_random_point(int xoff, int yoff){
  * */
 
 void trace_generator::analyze_trips(const char *path, int limit){
+	struct timeval start = get_cur_time();
+
 	std::ifstream file(path);
 	std::string str;
 	//skip the head
@@ -149,6 +151,7 @@ void trace_generator::analyze_trips(const char *path, int limit){
 		//printf("\n");
 	}
 	delete total;
+	logt("analyze trips in %s",start, path);
 }
 
 /*
@@ -210,11 +213,11 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 	vector<Point *> ret;
 	Trip *trip = next_trip();
 
-	while(ret.size()<ctx.duration){
+	while(ret.size()<config.duration){
 		//trip->print_trip();
 		// stay here
 		if(trip->start.coordinate.equals(trip->end.coordinate)){
-			for(int i=0;i<trip->duration()&&ret.size()<ctx.duration;i++){
+			for(int i=0;i<trip->duration()&&ret.size()<config.duration;i++){
 				ret.push_back(new Point(&trip->start.coordinate));
 			}
 		}else{
@@ -226,20 +229,20 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 		delete trip;
 		trip = newtrip;
 	}
-	for(int i=ctx.duration;i<ret.size();i++){
+	for(int i=config.duration;i<ret.size();i++){
 		delete ret[i];
 	}
-	ret.erase(ret.begin()+ctx.duration,ret.end());
-	assert(ret.size()==ctx.duration);
+	ret.erase(ret.begin()+config.duration,ret.end());
+	assert(ret.size()==config.duration);
 
 	delete trip;
 	return ret;
 }
 
 void *gentrace(void *arg){
-	context *ctx = (context *)arg;
-	trace_generator *gen = (trace_generator *)ctx->target[0];
-	Point *result = (Point *)ctx->target[1];
+	configuration *config = (configuration *)arg;
+	trace_generator *gen = (trace_generator *)config->target[0];
+	Point *result = (Point *)config->target[1];
 	Map *mymap = gen->map->clone();
 	while(true){
 		// pick one object for generating
@@ -253,8 +256,8 @@ void *gentrace(void *arg){
 		//log("%d",cur_t);
 		vector<Point *> trace = gen->get_trace(mymap);
 		// copy to target
-		for(int i=0;i<gen->ctx.duration;i++){
-			result[i*gen->ctx.num_objects+obj] = *trace[i];
+		for(int i=0;i<gen->config.duration;i++){
+			result[i*gen->config.num_objects+obj] = *trace[i];
 			delete trace[i];
 		}
 		trace.clear();
@@ -265,22 +268,23 @@ void *gentrace(void *arg){
 
 
 Point *trace_generator::generate_trace(){
-	Point *ret = (Point *)malloc(ctx.duration*ctx.num_objects*sizeof(Point));
-	pthread_t threads[ctx.num_threads];
-	context tctx[ctx.num_threads];
-	for(int i=0;i<ctx.num_threads;i++){
-		tctx[i] = ctx;
+	struct timeval start = get_cur_time();
+	Point *ret = (Point *)malloc(config.duration*config.num_objects*sizeof(Point));
+	pthread_t threads[config.num_threads];
+	configuration tctx[config.num_threads];
+	for(int i=0;i<config.num_threads;i++){
+		tctx[i] = config;
 		tctx[i].target[0] = (void *)this;
 		tctx[i].target[1] = (void *)ret;
 	}
-	for(int i=0;i<ctx.num_threads;i++){
+	for(int i=0;i<config.num_threads;i++){
 		pthread_create(&threads[i], NULL, gentrace, (void *)&tctx[i]);
 	}
-	for(int i = 0; i < ctx.num_threads; i++ ){
+	for(int i = 0; i < config.num_threads; i++ ){
 		void *status;
 		pthread_join(threads[i], &status);
 	}
-
+	logt("generate traces",start);
 	return ret;
 }
 

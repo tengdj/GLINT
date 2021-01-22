@@ -35,6 +35,8 @@ all:	datagen
 datagen:	tools/datagen.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 	$(CXX) -o ../build/$@ $^ $(LIBS) 
 	
-
+trace:	tools/trace.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
+	$(CXX) -o ../build/$@ $^ $(LIBS) 
+	
 clean:
 	rm -fr ../build/* $(OBJS) $(CU_OBJS)

@@ -88,16 +88,16 @@ class trace_generator{
 public:
 
     Map *map = NULL;
-    context ctx;
+    configuration config;
 	int counter = 0;
 
 	// construct with some parameters
-	trace_generator(context &c, Map *m){
+	trace_generator(configuration &c, Map *m){
 		counter = c.num_objects;
-		ctx = c;
-		assert(ctx.num_threads>0);
+		config = c;
+		assert(config.num_threads>0);
 		map = m;
-		grid = new Grid(*m->getMBR(),ctx.num_grids);
+		grid = new Grid(*m->getMBR(),config.num_grids);
 		zones.resize(grid->dimx*grid->dimy+1);
 		for(int i=0;i<zones.size();i++){
 			zones[i] = new ZoneStats(i);
@@ -124,19 +124,30 @@ public:
 
 
 class tracer{
-	context ctx;
+	int num_objects = 0;
+	int duration = 0;
 	box mbr;
-	Point *trace;
+	Point *trace = NULL;
+	bool owned_trace = false;
 public:
-	tracer(context &c, box &b, Point *t){
-		ctx = c;
+	tracer(box &b, Point *t, int o, int d){
 		trace = t;
 		mbr = b;
-		//mbr.to_squre();
+		num_objects = o;
+		duration = d;
 	}
-	void process_qtree();
-	void process_fixgrid();
-	void process();
+	tracer(const char *path){
+		loadFrom(path);
+	};
+	~tracer(){
+		if(owned_trace){
+			free(trace);
+		}
+	}
+	void process_qtree(int num_nodes = 1000);
+	void process_fixgrid(int num_nodes = 1000);
+	void dumpTo(const char *path);
+	void loadFrom(const char *path);
 };
 
 

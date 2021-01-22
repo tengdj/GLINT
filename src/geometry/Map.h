@@ -109,36 +109,20 @@ class Map {
 	vector<Street *> streets;
 	box *mbr = NULL;
 
-public:
-	~Map(){
-		for(Street *s:streets){
-			delete s;
-		}
-		for(Node *p:nodes){
-			delete p;
-		}
-		if(mbr){
-			delete mbr;
-		}
-	}
-	box *getMBR(){
-		if(!mbr){
-			mbr = new box();
-			for(Node *p:nodes){
-				mbr->update(*p);
-			}
-		}
-		return mbr;
-	}
-
-	vector<Street *> getStreets(){
-		return streets;
-	}
-
 	void connect_segments(vector<vector<Street *>> connections);
 	void dumpTo(const char *path);
 	void loadFrom(const char *path);
 	void loadFromCSV(const char *path);
+public:
+
+	Map(){};
+	Map(string path);
+	vector<Street *> getStreets(){
+		return streets;
+	}
+
+	~Map();
+	box *getMBR();
 	Street * nearest(Point *target);
 	int navigate(vector<Point *> &result, Point *origin, Point *dest, double speed);
 	void print_region(box region);

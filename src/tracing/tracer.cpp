@@ -8,33 +8,32 @@
 #include "tracing.h"
 #include "../index/QTree.h"
 
-void tracer::process_qtree(){
+void tracer::process_qtree(int num_grids){
 	struct timeval start = get_cur_time();
 	QTNode *qtree = new QTNode(mbr);
-	qtree->max_objects = ctx.duration*ctx.num_objects/ctx.num_grids;
-	for(int t=0;t<ctx.duration;t++){
-		for(int o=0;o<ctx.num_objects;o++){
-			Point *p = trace+t*ctx.num_objects+o;
+	qtree->max_objects = duration*num_objects/num_grids;
+	for(int t=0;t<duration;t++){
+		for(int o=0;o<num_objects;o++){
+			Point *p = trace+t*num_objects+o;
 			assert(mbr.contain(*p));
 			qtree->insert(p);
 		}
 	}
 	qtree->fix_structure();
-	logt("building qtree with %d points", start, ctx.duration*ctx.num_objects);
+	logt("building qtree with %d points", start, duration*num_objects);
 
 	// test contact tracing
 	vector<QTNode *> nodes;
-	int counter = 0;
-	for(int t=0;t<ctx.duration;t++){
-		for(int o=0;o<ctx.num_objects;o++){
-			Point *p = trace+t*ctx.num_objects+o;
+	size_t counter = 0;
+	for(int t=0;t<duration;t++){
+		for(int o=0;o<num_objects;o++){
+			Point *p = trace+t*num_objects+o;
 			qtree->insert(p);
 		}
 		qtree->get_leafs(nodes);
 		for(QTNode *ps:nodes){
 			int len = ps->objects.size();
 			if(len>2){
-				cout<<len<<endl;
 				for(int i=0;i<len-1;i++){
 					for(int j=i+1;j<len;j++){
 						ps->objects[i]->distance(*ps->objects[j], true);
@@ -50,22 +49,21 @@ void tracer::process_qtree(){
 	logt("contact trace with %d calculation use QTree",start,counter);
 }
 
-void tracer::process_fixgrid(){
+void tracer::process_fixgrid(int num_grids){
 	struct timeval start = get_cur_time();
 	// test contact tracing
 	int counter = 0;
 	vector<vector<Point *>> grids;
-	Grid grid(mbr, ctx.num_grids);
+	Grid grid(mbr, num_grids);
 	grids.resize(grid.get_grid_num()+1);
-	for(int t=0;t<ctx.duration;t++){
-		for(int o=0;o<ctx.num_objects;o++){
-			Point *p = trace+t*ctx.num_objects+o;
+	for(int t=0;t<duration;t++){
+		for(int o=0;o<num_objects;o++){
+			Point *p = trace+t*num_objects+o;
 			grids[grid.getgrid(p)].push_back(p);
 		}
 		for(vector<Point *> &ps:grids){
 			int len = ps.size();
 			if(len>=2){
-				cout<<len<<endl;
 				for(int i=0;i<len-1;i++){
 					for(int j=i+1;j<len;j++){
 						ps[i]->distance(*ps[j], true);
@@ -80,19 +78,30 @@ void tracer::process_fixgrid(){
 	logt("contact trace with %d calculation use fixed grid",start,counter);
 }
 
-void tracer::process(){
-	switch(ctx.method){
-	case QTREE:
-		process_qtree();
-		break;
-	case GPU:
-		break;
-	case FIX_GRID:
-		process_fixgrid();
-		break;
-	default:
-		break;
-	}
+
+void tracer::dumpTo(const char *path) {
+	struct timeval start_time = get_cur_time();
+	ofstream wf(path, ios::out|ios::binary|ios::trunc);
+	wf.write((char *)&num_objects, sizeof(num_objects));
+	wf.write((char *)&duration, sizeof(duration));
+	wf.write((char *)&mbr, sizeof(mbr));
+	size_t num_points = duration*num_objects;
+	wf.write((char *)trace, sizeof(Point)*num_points);
+	wf.close();
+	logt("dumped to %s",start_time,path);
 }
 
+void tracer::loadFrom(const char *path) {
 
+	struct timeval start_time = get_cur_time();
+	ifstream in(path, ios::in | ios::binary);
+	in.read((char *)&num_objects, sizeof(num_objects));
+	in.read((char *)&duration, sizeof(duration));
+	in.read((char *)&mbr, sizeof(mbr));
+	size_t num_points = duration*num_objects;
+	trace = (Point *)malloc(duration*num_objects*sizeof(Point));
+	in.read((char *)trace, sizeof(Point)*num_points);
+	in.close();
+	logt("loaded %d objects last for %d seconds from %s",start_time, num_objects, duration, path);
+	owned_trace = true;
+}
