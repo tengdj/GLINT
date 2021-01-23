@@ -222,7 +222,7 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 			}
 		}else{
 			double speed = trip->end.coordinate.distance(trip->start.coordinate, true)/trip->duration();
-			mymap->navigate(ret, &trip->start.coordinate, &trip->end.coordinate, speed);
+			mymap->navigate(ret, &trip->start.coordinate, &trip->end.coordinate, speed, config.duration);
 		}
 		// move to another
 		Trip *newtrip = next_trip(trip);

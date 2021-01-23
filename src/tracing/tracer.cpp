@@ -8,25 +8,29 @@
 #include "tracing.h"
 #include "../index/QTree.h"
 
-void tracer::process_qtree(int num_grids){
+void tracer::process_qtree(){
 	struct timeval start = get_cur_time();
 	QTNode *qtree = new QTNode(mbr);
-	qtree->max_objects = duration*num_objects/num_grids;
-	for(int t=0;t<duration;t++){
-		for(int o=0;o<num_objects;o++){
-			Point *p = trace+t*num_objects+o;
-			assert(mbr.contain(*p));
-			qtree->insert(p);
+	qtree->max_objects = (config.duration*config.num_objects/config.num_grids)/10;
+	size_t qcount = 0;
+	for(int t=0;t<config.duration;t++){
+		for(int o=0;o<config.num_objects;o++){
+			if(tryluck(0.1)){
+				Point *p = trace+t*num_objects+o;
+				assert(mbr.contain(*p));
+				qtree->insert(p);
+				qcount++;
+			}
 		}
 	}
 	qtree->fix_structure();
-	logt("building qtree with %d points", start, duration*num_objects);
+	logt("building qtree with %ld points", start, qcount);
 
 	// test contact tracing
 	vector<QTNode *> nodes;
 	size_t counter = 0;
-	for(int t=0;t<duration;t++){
-		for(int o=0;o<num_objects;o++){
+	for(int t=0;t<config.duration;t++){
+		for(int o=0;o<config.num_objects;o++){
 			Point *p = trace+t*num_objects+o;
 			qtree->insert(p);
 		}
@@ -46,18 +50,19 @@ void tracer::process_qtree(int num_grids){
 		qtree->fix_structure();
 	}
 	delete qtree;
-	logt("contact trace with %d calculation use QTree",start,counter);
+	logt("contact trace with %ld calculation use QTree",start,counter);
 }
 
-void tracer::process_fixgrid(int num_grids){
+void tracer::process_fixgrid(){
 	struct timeval start = get_cur_time();
 	// test contact tracing
 	int counter = 0;
 	vector<vector<Point *>> grids;
-	Grid grid(mbr, num_grids);
+	Grid grid(mbr, config.num_grids);
+	log("%f",grid.get_step()*1000);
 	grids.resize(grid.get_grid_num()+1);
-	for(int t=0;t<duration;t++){
-		for(int o=0;o<num_objects;o++){
+	for(int t=0;t<config.duration;t++){
+		for(int o=0;o<config.num_objects;o++){
 			Point *p = trace+t*num_objects+o;
 			grids[grid.getgrid(p)].push_back(p);
 		}

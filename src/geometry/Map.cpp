@@ -388,7 +388,7 @@ Street *Map::nearest(Point *target){
  * that the taxi may appear at a given time
  *
  * */
-int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double speed){
+int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double speed, int max_duration){
 
 	assert(origin);
 	assert(dest);
@@ -439,14 +439,13 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 	// quantify the street sequence to generate a list of
 	// points with fixed gap
 	double dist_from_origin = 0;
-	int inserted = 0;
-	for(int i=0;i<trajectory.size()-1;i++) {
+	for(int i=0;i<trajectory.size()-1&&positions.size()<max_duration;i++) {
 		Node *cur_start = trajectory[i];
 		Node *cur_end = trajectory[i+1];
 		double length = cur_start->distance(*cur_end, true);
 		double next_dist_from_origin = dist_from_origin+=length;
 		double cur_dis = ((int)(next_dist_from_origin/speed)+1)*speed-dist_from_origin;
-		while(cur_dis<length) {
+		while(cur_dis<length&&positions.size()<max_duration) {
 			//have other position can be reported in this street
 			double cur_portion = cur_dis/length;
 			//now get the longitude and latitude and timestamp for current event and add to return list
@@ -454,7 +453,6 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 								 cur_start->y+(cur_end->y-cur_start->y)*cur_portion);
 			positions.push_back(p);
 			cur_dis += speed;
-			inserted++;
 		}
 
 		//move to next street
@@ -463,7 +461,7 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 
 	trajectory.clear();
 	ret.clear();
-	return inserted;
+	return positions.size();
 }
 
 

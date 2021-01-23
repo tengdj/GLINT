@@ -31,6 +31,9 @@ public:
 		return dimx*dimy;
 	}
 	Point get_random_point(int xoff=-1, int yoff=-1);
+	double get_step(){
+		return step/degree_per_kilometer_latitude;
+	}
 };
 
 /*
@@ -124,28 +127,35 @@ public:
 
 
 class tracer{
+	// the statistic for the data set
 	int num_objects = 0;
 	int duration = 0;
-	box mbr;
 	Point *trace = NULL;
 	bool owned_trace = false;
+	// for query
+	configuration config;
 public:
-	tracer(box &b, Point *t, int o, int d){
+	box mbr;
+	tracer(configuration &conf, box &b, Point *t, int o, int d){
 		trace = t;
 		mbr = b;
 		num_objects = o;
 		duration = d;
+		config = conf;
 	}
-	tracer(const char *path){
-		loadFrom(path);
+	tracer(configuration &conf){
+		loadFrom(conf.trace_path.c_str());
+		config = conf;
+		assert(config.duration<=duration);
+		assert(config.num_objects<=num_objects);
 	};
 	~tracer(){
 		if(owned_trace){
 			free(trace);
 		}
 	}
-	void process_qtree(int num_nodes = 1000);
-	void process_fixgrid(int num_nodes = 1000);
+	void process_qtree();
+	void process_fixgrid();
 	void dumpTo(const char *path);
 	void loadFrom(const char *path);
 };

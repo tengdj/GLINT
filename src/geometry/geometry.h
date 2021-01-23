@@ -34,15 +34,13 @@ public:
 	}
 	~Point(){}
 	double distance(Point &p, bool geography = false){
-		if(!geography){
-			return sqrt((p.x-x)*(p.x-x)+(p.y-y)*(p.y-y));
-		}else{
-			double dx = x-p.x;
-			double dy = y-p.y;
-			dx = dx/degree_per_kilometer_latitude;
-			dy = dy/degree_per_kilometer_longitude(y);
-			return sqrt(dx*dx+dy*dy);
+		double dx = x-p.x;
+		double dy = y-p.y;
+		if(geography){
+			dy = dy/degree_per_kilometer_latitude;
+			dx = dx/degree_per_kilometer_longitude(y);
 		}
+		return sqrt(dx*dx+dy*dy);
 	}
 	bool equals(Point &p){
 		return p.x==x&&p.y==y;
@@ -104,8 +102,16 @@ public:
 
 
 
-	double area(){
-		return (high[0]-low[0])*(high[1]-low[1]);
+	double area(bool geography = false){
+		if(!geography){
+			return (high[0]-low[0])*(high[1]-low[1]);
+		}else{
+			double h = (high[1]-low[1])/degree_per_kilometer_latitude;
+			double top = (high[0]-low[0])/degree_per_kilometer_longitude(high[1]);
+			double bot = (high[0]-low[0])/degree_per_kilometer_longitude(low[1]);
+			printf("%f %f %f\n",h,top,bot);
+			return (top+bot)*h/2;
+		}
 	}
 
 
@@ -117,8 +123,8 @@ public:
 		double dx = max(abs(p.x-(low[0]+high[0])/2) - (high[0]-low[0])/2, 0.0);
 		double dy = max(abs(p.y-(low[1]+high[1])/2) - (high[1]-low[1])/2, 0.0);
 		if(geography){
-			dx = dx/degree_per_kilometer_latitude;
-			dy = dy/degree_per_kilometer_longitude(p.y);
+			dy = dy/degree_per_kilometer_latitude;
+			dx = dx/degree_per_kilometer_longitude(p.y);
 		}
 		return sqrt(dx * dx + dy * dy);
 	}
