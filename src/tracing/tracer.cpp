@@ -11,11 +11,12 @@
 void tracer::process_qtree(){
 	struct timeval start = get_cur_time();
 	QTNode *qtree = new QTNode(mbr);
-	qtree->max_objects = (config.duration*config.num_objects/config.num_grids)/10;
+	double sample_rate = 0.1;
+	qtree->max_objects = sample_rate*(config.duration*config.num_objects/config.num_grids);
 	size_t qcount = 0;
 	for(int t=0;t<config.duration;t++){
 		for(int o=0;o<config.num_objects;o++){
-			if(tryluck(0.1)){
+			if(tryluck(sample_rate)){
 				Point *p = trace+t*num_objects+o;
 				assert(mbr.contain(*p));
 				qtree->insert(p);
@@ -23,8 +24,8 @@ void tracer::process_qtree(){
 			}
 		}
 	}
+	logt("building qtree with %ld points with %d max_objects", start, qcount, qtree->max_objects);
 	qtree->fix_structure();
-	logt("building qtree with %ld points", start, qcount);
 
 	// test contact tracing
 	vector<QTNode *> nodes;
@@ -35,8 +36,12 @@ void tracer::process_qtree(){
 			qtree->insert(p);
 		}
 		qtree->get_leafs(nodes);
+		vector<int> gridcount;
+		gridcount.resize(nodes.size());
+		int tt = 0;
 		for(QTNode *ps:nodes){
 			int len = ps->objects.size();
+			gridcount[tt++] = len;
 			if(len>2){
 				for(int i=0;i<len-1;i++){
 					for(int j=i+1;j<len;j++){
@@ -46,6 +51,16 @@ void tracer::process_qtree(){
 				}
 			}
 		}
+
+		sort(gridcount.begin(),gridcount.end(),greater<int>());
+		for(int i=0;i<gridcount.size();i++){
+			if(!gridcount[i]){
+				break;
+			}
+			cout<<i<<" "<<gridcount[i]<<endl;
+		}
+		gridcount.clear();
+
 		nodes.clear();
 		qtree->fix_structure();
 	}
@@ -61,11 +76,30 @@ void tracer::process_fixgrid(){
 	Grid grid(mbr, config.num_grids);
 	log("%f",grid.get_step()*1000);
 	grids.resize(grid.get_grid_num()+1);
+	vector<int> formergrid;
+	formergrid.resize(config.num_objects);
+	vector<int> gridcount;
+	gridcount.resize(grid.get_grid_num()+1);
 	for(int t=0;t<config.duration;t++){
+		int diff = 0;
 		for(int o=0;o<config.num_objects;o++){
 			Point *p = trace+t*num_objects+o;
-			grids[grid.getgrid(p)].push_back(p);
+			int gid = grid.getgrid(p);
+			if(gid!=formergrid[o]){
+				diff++;
+				formergrid[o] = gid;
+			}
+			grids[gid].push_back(p);
+			gridcount[gid]++;
 		}
+		sort(gridcount.begin(),gridcount.end(),greater<int>());
+		for(int i=0;i<gridcount.size();i++){
+			if(!gridcount[i]){
+				break;
+			}
+			cout<<i<<" "<<gridcount[i]<<endl;
+		}
+		//cout<<diff<<endl;
 		for(vector<Point *> &ps:grids){
 			int len = ps.size();
 			if(len>=2){
