@@ -22,7 +22,7 @@ int main(int argc, char **argv){
 	trace_generator *gen = new trace_generator(config,m);
 	gen->analyze_trips(config.taxi_path.c_str(), config.num_trips);
 	Point *traces = gen->generate_trace();
-	tracer *t = new tracer(config,*m->getMBR(),traces,config.num_objects,config.duration);
+	tracer *t = new tracer(config,*m->getMBR(),traces);
 	t->dumpTo(config.trace_path.c_str());
 
 	free(traces);

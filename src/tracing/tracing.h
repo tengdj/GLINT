@@ -136,18 +136,14 @@ class tracer{
 	configuration config;
 public:
 	box mbr;
-	tracer(configuration &conf, box &b, Point *t, int o, int d){
+	tracer(configuration &conf, box &b, Point *t){
 		trace = t;
 		mbr = b;
-		num_objects = o;
-		duration = d;
 		config = conf;
 	}
 	tracer(configuration &conf){
-		loadFrom(conf.trace_path.c_str());
 		config = conf;
-		assert(config.duration<=duration);
-		assert(config.num_objects<=num_objects);
+		loadFrom(conf.trace_path.c_str());
 	};
 	~tracer(){
 		if(owned_trace){
