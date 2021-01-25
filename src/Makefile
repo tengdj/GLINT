@@ -21,8 +21,8 @@ TRACING_OBJS := $(patsubst %.cpp,%.o,$(TRACING_SRCS))
 CU_SRCS := $(wildcard cuda/*.cu)
 CU_OBJS := $(patsubst %.cu,%_cu.o,$(CU_SRCS))
 
-#%_cu.o: %.cu
-#	$(NVCC) -c $(CPPFLAGS) $(INCLUDES) -o $@ $<	
+%_cu.o: %.cu
+	$(NVCC) -c -g -std=c++14 $(INCLUDES) -o $@ $<	
 	
 %.o:	%.cpp
 	$(CXX) -c $(CPPFLAGS) $(INCLUDES) -o $@ $<	
@@ -37,6 +37,9 @@ datagen:	tools/datagen.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 	
 trace:	tools/trace.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 	$(CXX) -o ../build/$@ $^ $(LIBS) 
+
+cudatest:	tools/cudatest.o $(CU_OBJS)
+	$(CXX) -o ../build/$@ $^ $(LIBS) $(CUDALIBS)
 	
 clean:
 	rm -fr ../build/* $(OBJS) $(CU_OBJS)

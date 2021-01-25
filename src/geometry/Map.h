@@ -14,7 +14,7 @@
 #include <fstream>
 #include <float.h>
 #include "util/util.h"
-#include "util/context.h"
+#include "util/config.h"
 
 using namespace std;
 

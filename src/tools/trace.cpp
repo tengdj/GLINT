@@ -7,7 +7,7 @@
 
 #include "../geometry/Map.h"
 #include "../tracing/tracing.h"
-#include "../util/context.h"
+#include "../util/config.h"
 #include <vector>
 #include <stdlib.h>
 

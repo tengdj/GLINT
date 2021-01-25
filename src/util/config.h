@@ -28,6 +28,7 @@ public:
 	int num_objects = 1000;
 	int num_grids = 1000;
 	int num_trips = 100000;
+	double reach_threshold = 0.1;
 	void *target[3] = {NULL,NULL,NULL};
 	string map_path = "/gisdata/chicago/streets";
 	string taxi_path = "/gisdata/chicago/taxi.csv";
