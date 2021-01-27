@@ -27,7 +27,7 @@ CU_OBJS := $(patsubst %.cu,%_cu.o,$(CU_SRCS))
 %.o:	%.cpp
 	$(CXX) -c $(CPPFLAGS) $(INCLUDES) -o $@ $<	
 
-all:	datagen
+all:	datagen trace
 
 
 # for macro queries

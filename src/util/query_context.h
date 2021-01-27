@@ -12,20 +12,13 @@
 class query_context{
 public:
 	configuration config;
+	void *target[3] = {NULL,NULL,NULL};
 	double *data = NULL;
 	uint *offset_size = NULL;
 	int *result = NULL;
 	~query_context(){
-		if(data){
-			delete data;
-		}
-		if(offset_size){
-			delete offset_size;
-		}
-		if(result){
-			delete result;
-		}
 	}
+	query_context(){}
 };
 
 

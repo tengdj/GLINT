@@ -17,15 +17,13 @@ using namespace std;
 int main(int argc, char **argv){
 
 	configuration config = get_parameters(argc, argv);
-
+	config.print();
 	tracer *tr = new tracer(config);
 	if(config.method == QTREE){
 		tr->process_qtree();
 	}else if(config.method == FIX_GRID){
 		tr->process_fixgrid();
 	}
-
 	delete tr;
-
 	return 0;
 }

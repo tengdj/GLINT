@@ -9,6 +9,7 @@
 #define SRC_TRACING_TRACING_H_
 
 #include "../geometry/Map.h"
+#include "../util/query_context.h"
 #include <map>
 
 using namespace std;
@@ -88,6 +89,7 @@ public:
 class trace_generator{
 	Grid *grid = NULL;
 	vector<ZoneStats *> zones;
+	ZoneStats *total = NULL;
 public:
 
     Map *map = NULL;
@@ -115,6 +117,9 @@ public:
 		if(grid){
 			delete grid;
 		}
+		if(total){
+			delete total;
+		}
 	}
 	// generate the destination with the given source point
 	Trip *next_trip(Trip *former=NULL);
@@ -123,13 +128,12 @@ public:
 	Point *generate_trace();
 	// generate a trace with given duration
 	vector<Point *> get_trace(Map *mymap = NULL);
+
 };
 
 
 class tracer{
 	// the statistic for the data set
-	int num_objects = 0;
-	int duration = 0;
 	Point *trace = NULL;
 	bool owned_trace = false;
 	// for query
@@ -154,6 +158,7 @@ public:
 	void process_fixgrid();
 	void dumpTo(const char *path);
 	void loadFrom(const char *path);
+	void print_trace(double sample_rate);
 };
 
 

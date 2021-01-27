@@ -106,11 +106,25 @@ public:
 		if(!geography){
 			return (high[0]-low[0])*(high[1]-low[1]);
 		}else{
-			double h = (high[1]-low[1])/degree_per_kilometer_latitude;
-			double top = (high[0]-low[0])/degree_per_kilometer_longitude(high[1]);
-			double bot = (high[0]-low[0])/degree_per_kilometer_longitude(low[1]);
-			printf("%f %f %f\n",h,top,bot);
+			double h = (high[1]-low[1])*1000.0/degree_per_kilometer_latitude;
+			double top = (high[0]-low[0])*1000.0/degree_per_kilometer_longitude(high[1]);
+			double bot = (high[0]-low[0])*1000.0/degree_per_kilometer_longitude(low[1]);
 			return (top+bot)*h/2;
+		}
+	}
+
+	double height(bool geography = false){
+		if(!geography){
+			return high[1]-low[1];
+		}else{
+			return (high[1]-low[1])*1000.0/degree_per_kilometer_latitude;
+		}
+	}
+	double width(bool geography = false){
+		if(!geography){
+			return high[0]-low[0];
+		}else{
+			return (high[0]-low[0])*1000.0/degree_per_kilometer_longitude(low[1]);
 		}
 	}
 
@@ -260,6 +274,25 @@ inline void print_points(vector<Point *> trajectory, double sample_rate=1.0){
 
 	printf(")\n");
 }
+
+inline void print_points(Point *trajectory, size_t num_objects, double sample_rate=1.0){
+	assert(sample_rate<=1&&sample_rate>0);
+	printf("MULTIPOINT (");
+	bool first = true;
+	for(int i=0;i<num_objects;i++){
+		if(tryluck(sample_rate)){
+			if(!first){
+				printf(",");
+			}else{
+				first = false;
+			}
+			printf("%f %f",trajectory[i].x,trajectory[i].y);
+		}
+	}
+
+	printf(")\n");
+}
+
 
 
 #endif /* DATAGEN_GEOMETRY_H_ */

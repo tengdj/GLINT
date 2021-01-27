@@ -48,5 +48,9 @@ int main(int argc, char **argv){
 	for(gpu_info *g:gpus){
 		delete g;
 	}
+	delete []ctx.data;
+	delete []ctx.result;
+	delete []ctx.offset_size;
+
 }
 

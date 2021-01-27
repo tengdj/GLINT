@@ -33,7 +33,12 @@ class QTNode{
 	double mid_y = 0;
 	int level = 0;
 	QTNode *children[4] = {NULL,NULL,NULL,NULL};
-
+	QTNode *father = NULL;
+	QTNode *root = NULL;
+	int max_level = INT_MAX;
+	int max_leafs = INT_MAX;
+	double min_width = DBL_MAX;
+	int num_leafs = 0;
 public:
 	box mbr;
 	int max_objects = 100;
@@ -46,6 +51,7 @@ public:
 		mbr.high[1] = high_y;
 		mid_x = (mbr.high[0]+mbr.low[0])/2;
 		mid_y = (mbr.high[1]+mbr.low[1])/2;
+		root = this;
 		assert(mbr.low[0]!=mbr.high[0]);
 		assert(mbr.low[1]!=mbr.high[1]);
 		assert(mbr.low[0]!=mid_x);
@@ -66,16 +72,17 @@ public:
 		return children[0]==NULL;
 	}
 
-	void leaf_count(int &count){
-		if(isleaf()){
-			count++;
-		}else{
-			for(int i=0;i<4;i++){
-				children[i]->leaf_count(count);
-			}
-		}
+	int leaf_count(){
+		return num_leafs;
+	}
+	inline bool should_split(){
+		return objects.size()>=2*max_objects &&
+			   level<max_level &&
+			   (!root||root->leaf_count()<max_leafs) &&
+			   mbr.width(true)>min_width;
 	}
 	void split(){
+
 		children[bottom_left] = new QTNode(mbr.low[0],mbr.low[1],mid_x,mid_y);
 		children[bottom_right] = new QTNode(mid_x,mbr.low[1],mbr.high[0],mid_y);
 		children[top_left] = new QTNode(mbr.low[0],mid_y,mid_x,mbr.high[1]);
@@ -83,6 +90,14 @@ public:
 		for(int i=0;i<4;i++){
 			children[i]->level = level+1;
 			children[i]->max_objects = max_objects;
+			children[i]->min_width = min_width;
+			children[i]->father = this;
+			children[i]->root = root;
+		}
+		QTNode *cur = this;
+		while(cur){
+			cur->num_leafs += 3;
+			cur = cur->father;
 		}
 		for(Point *p:objects){
 			children[which_region(p)]->objects.push_back(p);
@@ -95,7 +110,7 @@ public:
 	void insert(Point *p){
 		if(isleaf()){
 			objects.push_back(p);
-			if(objects.size()>2*max_objects){
+			if(should_split()){
 				this->split();
 			}
 		}else{
@@ -127,6 +142,17 @@ public:
 		max_objects = INT_MAX;
 	}
 
+	// set the maximum width of each box
+	// unit is meter
+	void set_min_width(double width){
+		min_width = width;
+	}
+	void set_max_level(int level){
+		max_level = level;
+	}
+	void set_max_leafs(int leafs){
+		max_leafs = leafs;
+	}
 };
 
 inline void print_qtnodes(vector<QTNode *> &nodes){

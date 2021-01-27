@@ -6,7 +6,7 @@
  */
 
 #include "tracing.h"
-
+#include "../index/QTree.h"
 
 
 /*
@@ -85,10 +85,10 @@ Point Grid::get_random_point(int xoff, int yoff){
 	double xval,yval;
 	if(xoff==-1||yoff==-1){
 		xval = space.low[0]+xrand*(space.high[0]-space.low[0]);
-		yval = space.low[1]+xrand*(space.high[1]-space.low[1]);
+		yval = space.low[1]+yrand*(space.high[1]-space.low[1]);
 	}else{
 		xval = space.low[0]+xoff*step+xrand*step;
-		yval = space.low[1]+yoff*step+xrand*step;
+		yval = space.low[1]+yoff*step+yrand*step;
 	}
 	return Point(xval, yval);
 }
@@ -104,11 +104,14 @@ Point Grid::get_random_point(int xoff, int yoff){
 void trace_generator::analyze_trips(const char *path, int limit){
 	struct timeval start = get_cur_time();
 
+	if(total){
+		delete total;
+	}
 	std::ifstream file(path);
 	std::string str;
 	//skip the head
 	std::getline(file, str);
-	ZoneStats *total = new ZoneStats(0);
+	total = new ZoneStats(0);
 	while (std::getline(file, str)&&--limit>0){
 		Trip *t = new Trip(str);
 		// a valid trip should be covered by the map,
@@ -150,7 +153,6 @@ void trace_generator::analyze_trips(const char *path, int limit){
 		}
 		//printf("\n");
 	}
-	delete total;
 	logt("analyze trips in %s",start, path);
 }
 
@@ -165,8 +167,21 @@ Trip *trace_generator::next_trip(Trip *former){
 	Trip *next = new Trip();
 	if(former==NULL){
 		do{
-			next->start.coordinate = grid->get_random_point();
 			next->start.timestamp = 0;
+			int start_x = -1;
+			int start_y = -1;
+			do{
+				for(int i=0;i<=grid->dimx&&start_x<0;i++){
+					for(int j=0;j<grid->dimy;j++){
+						if(zones[j*grid->dimx+i]->count>1&&tryluck(zones[j*grid->dimx+i]->count*1.0/total->count)){
+							start_x = i;
+							start_y = j;
+							break;
+						}
+					}
+				}
+			}while(start_x<0);
+			next->start.coordinate = grid->get_random_point(start_x, start_y);
 		}while(false);
 	}else{
 		next->start = former->end;
@@ -212,7 +227,6 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 	assert(mymap);
 	vector<Point *> ret;
 	Trip *trip = next_trip();
-
 	while(ret.size()<config.duration){
 		//trip->print_trip();
 		// stay here
@@ -234,15 +248,14 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 	}
 	ret.erase(ret.begin()+config.duration,ret.end());
 	assert(ret.size()==config.duration);
-
 	delete trip;
 	return ret;
 }
 
 void *gentrace(void *arg){
-	configuration *config = (configuration *)arg;
-	trace_generator *gen = (trace_generator *)config->target[0];
-	Point *result = (Point *)config->target[1];
+	query_context *ctx = (query_context *)arg;
+	trace_generator *gen = (trace_generator *)ctx->target[0];
+	Point *result = (Point *)ctx->target[1];
 	Map *mymap = gen->map->clone();
 	while(true){
 		// pick one object for generating
@@ -253,7 +266,7 @@ void *gentrace(void *arg){
 		if(obj<0){
 			break;
 		}
-		//log("%d",cur_t);
+		//log("%d",obj);
 		vector<Point *> trace = gen->get_trace(mymap);
 		// copy to target
 		for(int i=0;i<gen->config.duration;i++){
@@ -271,9 +284,9 @@ Point *trace_generator::generate_trace(){
 	struct timeval start = get_cur_time();
 	Point *ret = (Point *)malloc(config.duration*config.num_objects*sizeof(Point));
 	pthread_t threads[config.num_threads];
-	configuration tctx[config.num_threads];
+	query_context tctx[config.num_threads];
 	for(int i=0;i<config.num_threads;i++){
-		tctx[i] = config;
+		tctx[i].config = config;
 		tctx[i].target[0] = (void *)this;
 		tctx[i].target[1] = (void *)ret;
 	}
@@ -286,6 +299,169 @@ Point *trace_generator::generate_trace(){
 	}
 	logt("generate traces",start);
 	return ret;
+}
+
+/*
+ * functions for tracer
+ *
+ * */
+
+bool myfunction (QTNode *n1, QTNode *n2) {
+	return n1->objects.size()<n2->objects.size();
+}
+
+void tracer::process_qtree(){
+	struct timeval start = get_cur_time();
+	QTNode *qtree = new QTNode(mbr);
+	qtree->set_min_width(config.reach_threshold/sqrt(2));
+	qtree->max_objects = config.max_objects_per_grid;
+	for(int o=0;o<config.num_objects;o++){
+		Point *p = trace+o;
+		assert(mbr.contain(*p));
+		qtree->insert(p);
+	}
+
+	logt("building qtree with %ld points with %d max_objects %d leafs", start, config.num_objects, qtree->max_objects, qtree->leaf_count());
+	qtree->fix_structure();
+
+	// test contact tracing
+	vector<QTNode *> nodes;
+	size_t counter = 0;
+	size_t reached = 0;
+	for(int t=0;t<config.duration;t++){
+		for(int o=0;o<config.num_objects;o++){
+			Point *p = trace+t*config.num_objects+o;
+			qtree->insert(p);
+		}
+		qtree->get_leafs(nodes,false);
+		vector<int> gridcount;
+		gridcount.resize(nodes.size());
+		sort(nodes.begin(),nodes.end(),myfunction);
+		int tt = 0;
+		for(QTNode *n:nodes){
+			int len = n->objects.size();
+			gridcount[tt++] = len;
+			printf("%ld width: %f height: %f area: %f ",n->objects.size(),n->mbr.width(true),n->mbr.height(true),n->mbr.area(true));
+			n->mbr.print();
+			if(len>2){
+				for(int i=0;i<len-1;i++){
+					for(int j=i+1;j<len;j++){
+						double dist = n->objects[i]->distance(*n->objects[j], true);
+						if(dist<config.reach_threshold){
+							reached++;
+						}
+						counter++;
+					}
+				}
+			}
+		}
+
+		sort(gridcount.begin(),gridcount.end(),greater<int>());
+		for(int i=0;i<gridcount.size();i++){
+			if(!gridcount[i]){
+				break;
+			}
+			//cout<<i<<" "<<gridcount[i]<<endl;
+		}
+		gridcount.clear();
+
+		nodes.clear();
+		qtree->fix_structure();
+	}
+	delete qtree;
+	logt("contact trace with %ld calculation use QTree %ld connected",start,counter,reached);
+}
+
+void tracer::process_fixgrid(){
+	struct timeval start = get_cur_time();
+	// test contact tracing
+	int counter = 0;
+	vector<vector<Point *>> grids;
+	Grid grid(mbr, config.num_grids);
+	log("%f",grid.get_step()*1000);
+	grids.resize(grid.get_grid_num()+1);
+	vector<int> formergrid;
+	formergrid.resize(config.num_objects);
+	vector<int> gridcount;
+	gridcount.resize(grid.get_grid_num()+1);
+	for(int t=0;t<config.duration;t++){
+		int diff = 0;
+		for(int o=0;o<config.num_objects;o++){
+			Point *p = trace+t*config.num_objects+o;
+			int gid = grid.getgrid(p);
+			if(gid!=formergrid[o]){
+				diff++;
+				formergrid[o] = gid;
+			}
+			grids[gid].push_back(p);
+			gridcount[gid]++;
+		}
+		sort(gridcount.begin(),gridcount.end(),greater<int>());
+		for(int i=0;i<gridcount.size();i++){
+			if(!gridcount[i]){
+				break;
+			}
+			cout<<i<<" "<<gridcount[i]<<endl;
+		}
+		//  cout<<diff<<endl;
+		for(vector<Point *> &ps:grids){
+			int len = ps.size();
+			if(len>=2){
+				for(int i=0;i<len-1;i++){
+					for(int j=i+1;j<len;j++){
+						ps[i]->distance(*ps[j], true);
+						counter++;
+					}
+				}
+			}
+			ps.clear();
+		}
+	}
+	grids.clear();
+	logt("contact trace with %d calculation use fixed grid",start,counter);
+}
+
+
+void tracer::dumpTo(const char *path) {
+	struct timeval start_time = get_cur_time();
+	ofstream wf(path, ios::out|ios::binary|ios::trunc);
+	wf.write((char *)&config.num_objects, sizeof(config.num_objects));
+	wf.write((char *)&config.duration, sizeof(config.duration));
+	wf.write((char *)&mbr, sizeof(mbr));
+	size_t num_points = config.duration*config.num_objects;
+	wf.write((char *)trace, sizeof(Point)*num_points);
+	wf.close();
+	logt("dumped to %s",start_time,path);
+}
+
+void tracer::loadFrom(const char *path) {
+
+	int total_num_objects;
+	int total_duration;
+	struct timeval start_time = get_cur_time();
+	ifstream in(path, ios::in | ios::binary);
+	in.read((char *)&total_num_objects, sizeof(total_num_objects));
+	in.read((char *)&total_duration, sizeof(total_duration));
+	in.read((char *)&mbr, sizeof(mbr));
+	cout<<total_duration<<endl;
+	assert(config.duration<=total_duration);
+	assert(config.num_objects<=total_num_objects);
+
+	trace = (Point *)malloc(config.duration*config.num_objects*sizeof(Point));
+	for(int i=0;i<config.duration;i++){
+		in.read((char *)(trace+i*total_num_objects), config.num_objects*sizeof(Point));
+		if(total_num_objects>config.num_objects){
+			in.seekg((total_num_objects-config.num_objects)*sizeof(Point), ios_base::cur);
+		}
+	}
+
+	in.close();
+	logt("loaded %d objects last for %d seconds from %s",start_time, config.num_objects, config.duration, path);
+	owned_trace = true;
+}
+
+void tracer::print_trace(double sample_rate){
+	print_points(trace,config.num_objects,sample_rate);
 }
 
 
