@@ -65,6 +65,7 @@ inline configuration get_parameters(int argc, char **argv){
 		("trips,t", po::value<int>(&global_ctx.num_trips), "number of trips")
 		("objects,o", po::value<int>(&global_ctx.num_objects), "number of objects")
 		("duration,d", po::value<int>(&global_ctx.duration), "duration of the trace")
+		("reachable_distance,r", po::value<double>(&global_ctx.reach_threshold), "reachable distance (in meters)")
 		("map_path", po::value<string>(&global_ctx.map_path), "path to the map file")
 		("taxi_path", po::value<string>(&global_ctx.taxi_path), "path to the taxi file")
 		("trace_path", po::value<string>(&global_ctx.trace_path), "path to the trace file")

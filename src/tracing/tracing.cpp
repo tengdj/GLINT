@@ -328,6 +328,8 @@ void tracer::process_qtree(){
 	vector<QTNode *> nodes;
 	size_t counter = 0;
 	size_t reached = 0;
+	vector<QTNode *> grids;
+	grids.resize(config.num_objects);
 	for(int t=0;t<config.duration;t++){
 		for(int o=0;o<config.num_objects;o++){
 			Point *p = trace+t*config.num_objects+o;
@@ -338,15 +340,23 @@ void tracer::process_qtree(){
 		gridcount.resize(nodes.size());
 		sort(nodes.begin(),nodes.end(),myfunction);
 		int tt = 0;
+		int griddiff = 0;
 		for(QTNode *n:nodes){
 			int len = n->objects.size();
 			gridcount[tt++] = len;
-			printf("%ld width: %f height: %f area: %f ",n->objects.size(),n->mbr.width(true),n->mbr.height(true),n->mbr.area(true));
-			n->mbr.print();
+			for(int i=0;i<len;i++){
+				int oid = (n->objects[i]-trace-t*config.num_objects)/sizeof(Point);
+				griddiff += (grids[oid]!=n);
+				grids[oid] = n;
+			}
+//			printf("%ld width: %f height: %f area: %f ",n->objects.size(),n->mbr.width(true),n->mbr.height(true),n->mbr.area(true));
+//			n->mbr.print();
+//			print_points(n->objects);
 			if(len>2){
 				for(int i=0;i<len-1;i++){
 					for(int j=i+1;j<len;j++){
-						double dist = n->objects[i]->distance(*n->objects[j], true);
+						double dist = n->objects[i]->distance(*n->objects[j], true)*1000;
+						//log("%f",dist);
 						if(dist<config.reach_threshold){
 							reached++;
 						}
@@ -355,6 +365,7 @@ void tracer::process_qtree(){
 				}
 			}
 		}
+		log("%d",griddiff);
 
 		sort(gridcount.begin(),gridcount.end(),greater<int>());
 		for(int i=0;i<gridcount.size();i++){

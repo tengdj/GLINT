@@ -413,6 +413,9 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 
 	// convert the street sequence to point sequences
 	vector<Node *> trajectory;
+	Node *originnode = new Node(origin->x, origin->y);
+	Node *destnode = new Node(dest->x, dest->y);
+	trajectory.push_back(originnode);
 	Node *cur;
 	if(ret.size()==1){
 		cur = ret[0]->start;
@@ -435,6 +438,8 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 		}
 	}
 	trajectory.push_back(cur);
+	trajectory.push_back(destnode);
+
 
 	// quantify the street sequence to generate a list of
 	// points with fixed gap
@@ -461,6 +466,8 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 
 	trajectory.clear();
 	ret.clear();
+	delete originnode;
+	delete destnode;
 	return positions.size();
 }
 
