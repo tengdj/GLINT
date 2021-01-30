@@ -27,20 +27,30 @@ enum QT_Direction{
 	top_left = 2,
 	top_right = 3
 };
+class QTNode;
+
+class QConfig{
+public:
+	// for regulating the split of nodes
+	int max_level = INT_MAX;
+	int max_leafs = INT_MAX;
+	int max_objects = INT_MAX;
+	double reach_distance = 5;// in meters
+	double x_buffer = 0;
+	double y_buffer = 0;
+	// counter
+	int num_leafs = 0;
+	int num_objects = 0;
+};
 
 class QTNode{
 	double mid_x = 0;
 	double mid_y = 0;
 	int level = 0;
 	QTNode *children[4] = {NULL,NULL,NULL,NULL};
-	QTNode *father = NULL;
-	QTNode *root = NULL;
-	int max_level = INT_MAX;
-	int max_leafs = INT_MAX;
-	double min_width = DBL_MAX;
-	int num_leafs = 0;
-public:
+	QConfig *config = NULL;
 	box mbr;
+public:
 	int max_objects = 100;
 	vector<Point *> objects;
 
@@ -51,7 +61,6 @@ public:
 		mbr.high[1] = high_y;
 		mid_x = (mbr.high[0]+mbr.low[0])/2;
 		mid_y = (mbr.high[1]+mbr.low[1])/2;
-		root = this;
 		assert(mbr.low[0]!=mbr.high[0]);
 		assert(mbr.low[1]!=mbr.high[1]);
 		assert(mbr.low[0]!=mid_x);
@@ -72,14 +81,11 @@ public:
 		return children[0]==NULL;
 	}
 
-	int leaf_count(){
-		return num_leafs;
-	}
 	inline bool should_split(){
-		return objects.size()>=2*max_objects &&
-			   level<max_level &&
-			   (!root||root->leaf_count()<max_leafs) &&
-			   mbr.width(true)>min_width;
+		return objects.size()>=2*config->max_objects &&
+			   level<config->max_level &&
+			   config->num_leafs<config->max_leafs &&
+			   mbr.width(true)>config->reach_distance/sqrt(2);
 	}
 	void split(){
 
@@ -87,21 +93,16 @@ public:
 		children[bottom_right] = new QTNode(mid_x,mbr.low[1],mbr.high[0],mid_y);
 		children[top_left] = new QTNode(mbr.low[0],mid_y,mid_x,mbr.high[1]);
 		children[top_right] = new QTNode(mid_x,mid_y,mbr.high[0],mbr.high[1]);
+
 		for(int i=0;i<4;i++){
 			children[i]->level = level+1;
-			children[i]->max_objects = max_objects;
-			children[i]->min_width = min_width;
-			children[i]->father = this;
-			children[i]->root = root;
-		}
-		QTNode *cur = this;
-		while(cur){
-			cur->num_leafs += 3;
-			cur = cur->father;
+			children[i]->config = config;
 		}
 		for(Point *p:objects){
-			children[which_region(p)]->objects.push_back(p);
+			insert(p);
 		}
+		config->num_leafs += 3;
+		config->num_objects -= objects.size();
 		objects.clear();
 	}
 	inline int which_region(Point *p){
@@ -110,14 +111,34 @@ public:
 	void insert(Point *p){
 		if(isleaf()){
 			objects.push_back(p);
+			config->num_objects++;
 			if(should_split()){
 				this->split();
 			}
 		}else{
-			children[which_region(p)]->insert(p);
+			// could be possibly in multiple children
+			bool top = (p->y>mid_y-config->y_buffer);
+			bool bottom = (p->y<mid_y+config->y_buffer);
+			bool left = (p->x<mid_x+config->x_buffer);
+			bool right = (p->x>mid_x-config->x_buffer);
+			if(bottom&&left){
+				children[0]->insert(p);
+			}
+			if(bottom&&right){
+				children[1]->insert(p);
+			}
+			if(top&&left){
+				children[2]->insert(p);
+			}
+			if(top&&right){
+				children[3]->insert(p);
+			}
 		}
 	}
 
+	int leaf_count(){
+		return config->num_leafs;
+	}
 	void get_leafs(vector<QTNode *> &leafs, bool skip_empty = true){
 
 		if(isleaf()){
@@ -132,40 +153,43 @@ public:
 	}
 
 	void fix_structure(){
-		if(isleaf()){
-			objects.clear();
-		}else{
+		objects.clear();
+		if(!isleaf()){
 			for(int i=0;i<4;i++){
 				children[i]->fix_structure();
 			}
 		}
-		max_objects = INT_MAX;
+		config->max_objects = INT_MAX;
+		config->num_objects = 0;
 	}
 
-	// set the maximum width of each box
-	// unit is meter
-	void set_min_width(double width){
-		min_width = width;
+	void print(){
+		vector<QTNode *> nodes;
+		get_leafs(nodes);
+		printf("MULTIPOLYGON(");
+		for(int i=0;i<nodes.size();i++){
+			if(i>0){
+				printf(",");
+			}
+			printf("((");
+			nodes[i]->mbr.print_vertices();
+			printf("))");
+		}
+		printf(")\n");
+		nodes.clear();
 	}
-	void set_max_level(int level){
-		max_level = level;
+
+	void print_node(){
+		printf("level: %d objects: %ld width: %f height: %f",level,objects.size(),mbr.width(true),mbr.height(true));
+		mbr.print();
+		print_points(objects);
 	}
-	void set_max_leafs(int leafs){
-		max_leafs = leafs;
+
+	// set the configuration of a qtree node
+	// should be called only for the root
+	void set_config(QConfig *conf){
+		config = conf;
 	}
 };
-
-inline void print_qtnodes(vector<QTNode *> &nodes){
-	printf("MULTIPOLYGON(");
-	for(int i=0;i<nodes.size();i++){
-		if(i>0){
-			printf(",");
-		}
-		printf("((");
-		nodes[i]->mbr.print_vertices();
-		printf("))");
-	}
-	printf(")\n");
-}
 
 #endif /* SRC_INDEX_QTREE_H_ */

@@ -35,7 +35,7 @@ int main(int argc, char **argv){
 				Point *p1 = (Point *)(ctx.data+cur_offset*2+k*2);
 				Point *p2 = (Point *)(ctx.data+cur_offset*2+t*2);
 				double dist = p1->distance(*p2,true);
-				if(dist<ctx.config.reach_threshold){
+				if(dist<ctx.config.reach_distance){
 					ctx.result[i]++;
 				}
 			}

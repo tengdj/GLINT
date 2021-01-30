@@ -312,16 +312,22 @@ bool myfunction (QTNode *n1, QTNode *n2) {
 
 void tracer::process_qtree(){
 	struct timeval start = get_cur_time();
+	QConfig qconfig;
+	qconfig.reach_distance = config.reach_distance;
+	qconfig.max_objects = config.max_objects_per_grid;
+	qconfig.x_buffer = config.reach_distance*degree_per_kilometer_longitude(mbr.low[1])/1000;
+	qconfig.y_buffer = config.reach_distance*degree_per_kilometer_latitude/1000;
+	//printf("%f %f %f %f\n",qconfig.x_buffer, qconfig.y_buffer, qconfig.x_buffer/degree_per_kilometer_longitude(mbr.low[1]),qconfig.y_buffer/degree_per_kilometer_latitude);
 	QTNode *qtree = new QTNode(mbr);
-	qtree->set_min_width(config.reach_threshold/sqrt(2));
-	qtree->max_objects = config.max_objects_per_grid;
+	qtree->set_config(&qconfig);
+
 	for(int o=0;o<config.num_objects;o++){
 		Point *p = trace+o;
 		assert(mbr.contain(*p));
 		qtree->insert(p);
 	}
 
-	logt("building qtree with %ld points with %d max_objects %d leafs", start, config.num_objects, qtree->max_objects, qtree->leaf_count());
+	logt("building qtree with %ld points with %d max_objects %d leafs", start, qconfig.num_objects, qconfig.max_objects, qconfig.num_leafs);
 	qtree->fix_structure();
 
 	// test contact tracing
@@ -336,28 +342,23 @@ void tracer::process_qtree(){
 			qtree->insert(p);
 		}
 		qtree->get_leafs(nodes,false);
-		vector<int> gridcount;
-		gridcount.resize(nodes.size());
 		sort(nodes.begin(),nodes.end(),myfunction);
 		int tt = 0;
 		int griddiff = 0;
 		for(QTNode *n:nodes){
 			int len = n->objects.size();
-			gridcount[tt++] = len;
 			for(int i=0;i<len;i++){
-				int oid = (n->objects[i]-trace-t*config.num_objects)/sizeof(Point);
+				int oid = (n->objects[i]-trace-t*config.num_objects);
 				griddiff += (grids[oid]!=n);
 				grids[oid] = n;
 			}
-//			printf("%ld width: %f height: %f area: %f ",n->objects.size(),n->mbr.width(true),n->mbr.height(true),n->mbr.area(true));
-//			n->mbr.print();
-//			print_points(n->objects);
+			//n->print_node();
 			if(len>2){
 				for(int i=0;i<len-1;i++){
 					for(int j=i+1;j<len;j++){
 						double dist = n->objects[i]->distance(*n->objects[j], true)*1000;
 						//log("%f",dist);
-						if(dist<config.reach_threshold){
+						if(dist<config.reach_distance){
 							reached++;
 						}
 						counter++;
@@ -365,17 +366,7 @@ void tracer::process_qtree(){
 				}
 			}
 		}
-		log("%d",griddiff);
-
-		sort(gridcount.begin(),gridcount.end(),greater<int>());
-		for(int i=0;i<gridcount.size();i++){
-			if(!gridcount[i]){
-				break;
-			}
-			//cout<<i<<" "<<gridcount[i]<<endl;
-		}
-		gridcount.clear();
-
+		log("%d %d",t,griddiff);
 		nodes.clear();
 		qtree->fix_structure();
 	}
@@ -454,13 +445,12 @@ void tracer::loadFrom(const char *path) {
 	in.read((char *)&total_num_objects, sizeof(total_num_objects));
 	in.read((char *)&total_duration, sizeof(total_duration));
 	in.read((char *)&mbr, sizeof(mbr));
-	cout<<total_duration<<endl;
 	assert(config.duration<=total_duration);
 	assert(config.num_objects<=total_num_objects);
 
 	trace = (Point *)malloc(config.duration*config.num_objects*sizeof(Point));
 	for(int i=0;i<config.duration;i++){
-		in.read((char *)(trace+i*total_num_objects), config.num_objects*sizeof(Point));
+		in.read((char *)(trace+i*config.num_objects), config.num_objects*sizeof(Point));
 		if(total_num_objects>config.num_objects){
 			in.seekg((total_num_objects-config.num_objects)*sizeof(Point), ios_base::cur);
 		}

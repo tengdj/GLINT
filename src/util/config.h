@@ -30,7 +30,7 @@ public:
 	int num_grids = 1000;
 	int num_trips = 100000;
 	int max_objects_per_grid = 100;
-	double reach_threshold = 5;
+	double reach_distance = 5;
 	string map_path = "/gisdata/chicago/streets";
 	string taxi_path = "/gisdata/chicago/taxi.csv";
 	string trace_path = "/gisdata/chicago/traces";
@@ -43,12 +43,11 @@ public:
 		printf("num objects per grids:\t%d\n",max_objects_per_grid);
 		printf("num trips:\t%d\n",num_trips);
 		printf("duration:\t%d\n",duration);
-		printf("reachable threshold:\t%f\n",reach_threshold);
+		printf("reachable threshold:\t%f\n",reach_distance);
 		printf("map path:\t%s\n",map_path.c_str());
 		printf("taxi path:\t%s\n",taxi_path.c_str());
 		printf("trace path:\t%s\n",trace_path.c_str());
-		printf("query method:\t%s\n",trace_path.c_str());
-
+		printf("query method:\t%s\n",process_method[method].c_str());
 	}
 };
 
@@ -65,7 +64,7 @@ inline configuration get_parameters(int argc, char **argv){
 		("trips,t", po::value<int>(&global_ctx.num_trips), "number of trips")
 		("objects,o", po::value<int>(&global_ctx.num_objects), "number of objects")
 		("duration,d", po::value<int>(&global_ctx.duration), "duration of the trace")
-		("reachable_distance,r", po::value<double>(&global_ctx.reach_threshold), "reachable distance (in meters)")
+		("reachable_distance,r", po::value<double>(&global_ctx.reach_distance), "reachable distance (in meters)")
 		("map_path", po::value<string>(&global_ctx.map_path), "path to the map file")
 		("taxi_path", po::value<string>(&global_ctx.taxi_path), "path to the taxi file")
 		("trace_path", po::value<string>(&global_ctx.trace_path), "path to the trace file")
