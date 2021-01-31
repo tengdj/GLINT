@@ -35,7 +35,7 @@ public:
 	int max_level = INT_MAX;
 	int max_leafs = INT_MAX;
 	int max_objects = INT_MAX;
-	double reach_distance = 5;// in meters
+	double grid_width = 5;// in meters
 	double x_buffer = 0;
 	double y_buffer = 0;
 	// counter
@@ -85,7 +85,7 @@ public:
 		return objects.size()>=2*config->max_objects &&
 			   level<config->max_level &&
 			   config->num_leafs<config->max_leafs &&
-			   mbr.width(true)>config->reach_distance/sqrt(2);
+			   mbr.width(true)>config->grid_width;
 	}
 	void split(){
 

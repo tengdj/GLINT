@@ -16,15 +16,16 @@ using namespace std;
 
 
 class Grid{
-	void rasterize(int num_grids);
+	void rasterize(double step);
 public:
-	double step = 0;
+	double step_x = 0;
+	double step_y = 0;
 	int dimx = 0;
 	int dimy = 0;
 	box space;
-	Grid(box &mbr, int num_grids){
+	Grid(box &mbr, double s){
 		space = mbr;
-		rasterize(num_grids);
+		rasterize(s);
 	}
 	int getgrid(Point *p);
 	int getgrid(double x, double y);
@@ -32,9 +33,6 @@ public:
 		return dimx*dimy;
 	}
 	Point get_random_point(int xoff=-1, int yoff=-1);
-	double get_step(){
-		return step/degree_per_kilometer_latitude;
-	}
 };
 
 /*

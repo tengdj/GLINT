@@ -31,6 +31,7 @@ public:
 	int num_trips = 100000;
 	int max_objects_per_grid = 100;
 	double reach_distance = 5;
+	double grid_width = 5;
 	string map_path = "/gisdata/chicago/streets";
 	string taxi_path = "/gisdata/chicago/taxi.csv";
 	string trace_path = "/gisdata/chicago/traces";
@@ -65,6 +66,7 @@ inline configuration get_parameters(int argc, char **argv){
 		("objects,o", po::value<int>(&global_ctx.num_objects), "number of objects")
 		("duration,d", po::value<int>(&global_ctx.duration), "duration of the trace")
 		("reachable_distance,r", po::value<double>(&global_ctx.reach_distance), "reachable distance (in meters)")
+		("grid_width", po::value<double>(&global_ctx.grid_width), "the width of each grid (in meters)")
 		("map_path", po::value<string>(&global_ctx.map_path), "path to the map file")
 		("taxi_path", po::value<string>(&global_ctx.taxi_path), "path to the taxi file")
 		("trace_path", po::value<string>(&global_ctx.trace_path), "path to the trace file")

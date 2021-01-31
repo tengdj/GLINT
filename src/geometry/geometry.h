@@ -113,6 +113,7 @@ public:
 		}
 	}
 
+	// width and height is in meters
 	double height(bool geography = false){
 		if(!geography){
 			return high[1]-low[1];
@@ -181,9 +182,22 @@ public:
 
 	}
 
-	void to_squre(){
-		int bigger_one = (high[1]-low[1]>high[0]-low[0]);
+	void to_squre(bool geography=false){
+		double dx = high[0]-low[0];
+		double dy = high[1]-low[1];
+		int bigger_one = dy>dx;
 		double difference = (high[bigger_one]-low[bigger_one])-(high[!bigger_one]-low[!bigger_one]);
+
+		if(geography){
+			dy = dy/degree_per_kilometer_latitude;
+			dx = dx/degree_per_kilometer_longitude(low[1]);
+			if(dy>dx){//extend horizontal dimension
+				difference = (dy-dx)*degree_per_kilometer_longitude(low[1]);
+			}else{
+				difference = (dx-dy)*degree_per_kilometer_latitude;
+			}
+			bigger_one = dy>dx;
+		}
 		low[!bigger_one] = low[!bigger_one]-difference/2;
 		high[!bigger_one] = high[!bigger_one]+difference/2;
 	}

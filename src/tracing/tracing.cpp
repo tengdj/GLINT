@@ -51,25 +51,18 @@ void Trip::print_trip(){
  *
  * */
 
-void Grid::rasterize(int num_grids){
-	double multi = abs((space.high[1]-space.low[1])/(space.high[0]-space.low[0]));
-	step = (space.high[0]-space.low[0])/std::pow(num_grids*1.0/multi,0.5);
-	while(true){
-		dimx = (space.high[0]-space.low[0])/step+1;
-		dimy = (space.high[1]-space.low[1])/step+1;
-		// increase the step if too many grids are generated
-		if(dimx*dimy>num_grids){
-			step = step*1.01;
-		}else{
-			break;
-		}
-	}
+void Grid::rasterize(double s){
+	dimy = space.height(true)/s+1;
+	dimx = dimy;
+	step_x = space.width()/dimx;
+	step_y = space.height()/dimy;
+
 }
 
 int Grid::getgrid(double x, double y){
-	assert(step>0);
-	int offsety = (y-space.low[1])/step;
-	int offsetx = (x-space.low[0])/step;
+	assert(step_x>0&&step_y>0);
+	int offsety = (y-space.low[1])/step_y;
+	int offsetx = (x-space.low[0])/step_x;
 	int gid = dimx*offsety+offsetx;
 	assert(gid<=dimx*dimy && gid>=0);
 	return gid;
@@ -87,8 +80,8 @@ Point Grid::get_random_point(int xoff, int yoff){
 		xval = space.low[0]+xrand*(space.high[0]-space.low[0]);
 		yval = space.low[1]+yrand*(space.high[1]-space.low[1]);
 	}else{
-		xval = space.low[0]+xoff*step+xrand*step;
-		yval = space.low[1]+yoff*step+yrand*step;
+		xval = space.low[0]+xoff*step_x+xrand*step_x;
+		yval = space.low[1]+yoff*step_y+yrand*step_y;
 	}
 	return Point(xval, yval);
 }
@@ -313,7 +306,7 @@ bool myfunction (QTNode *n1, QTNode *n2) {
 void tracer::process_qtree(){
 	struct timeval start = get_cur_time();
 	QConfig qconfig;
-	qconfig.reach_distance = config.reach_distance;
+	qconfig.grid_width = config.grid_width;
 	qconfig.max_objects = config.max_objects_per_grid;
 	qconfig.x_buffer = config.reach_distance*degree_per_kilometer_longitude(mbr.low[1])/1000;
 	qconfig.y_buffer = config.reach_distance*degree_per_kilometer_latitude/1000;
@@ -378,10 +371,12 @@ void tracer::process_fixgrid(){
 	struct timeval start = get_cur_time();
 	// test contact tracing
 	int counter = 0;
+	int reached = 0;
 	vector<vector<Point *>> grids;
-	Grid grid(mbr, config.num_grids);
-	log("%f",grid.get_step()*1000);
+	Grid grid(mbr, config.grid_width);
+	log("%d grids",grid.get_grid_num());
 	grids.resize(grid.get_grid_num()+1);
+
 	vector<int> formergrid;
 	formergrid.resize(config.num_objects);
 	vector<int> gridcount;
@@ -391,36 +386,66 @@ void tracer::process_fixgrid(){
 		for(int o=0;o<config.num_objects;o++){
 			Point *p = trace+t*config.num_objects+o;
 			int gid = grid.getgrid(p);
-			if(gid!=formergrid[o]){
-				diff++;
-				formergrid[o] = gid;
-			}
+//			if(gid!=formergrid[o]){
+//				diff++;
+//				formergrid[o] = gid;
+//			}
 			grids[gid].push_back(p);
 			gridcount[gid]++;
 		}
 		sort(gridcount.begin(),gridcount.end(),greater<int>());
-		for(int i=0;i<gridcount.size();i++){
-			if(!gridcount[i]){
-				break;
-			}
+		for(int i=0;i<10;i++){
 			cout<<i<<" "<<gridcount[i]<<endl;
 		}
 		//  cout<<diff<<endl;
-		for(vector<Point *> &ps:grids){
-			int len = ps.size();
-			if(len>=2){
+		for(int y=0;y<grid.dimy;y++){
+			for(int x=0;x<=grid.dimx;x++){
+				//cout<<y*grid.dimx+x<<" "<<grids[y*grid.dimx+x].size()<<endl;
+				int len = grids[y*grid.dimx+x].size();
+				// current grid
 				for(int i=0;i<len-1;i++){
 					for(int j=i+1;j<len;j++){
-						ps[i]->distance(*ps[j], true);
+						double dist = grids[y*grid.dimx+x][i]->distance(*grids[y*grid.dimx+x][j], true)*1000;
+						if(dist<config.reach_distance){
+							reached++;
+						}
 						counter++;
 					}
 				}
+				// grid above
+				if(y+1<=grid.dimy){
+					for(Point *p1:grids[y*grid.dimx+x]){
+						for(Point *p2:grids[(y+1)*grid.dimx+x]){
+							double dist = p1->distance(*p2, true)*1000;
+							if(dist<config.reach_distance){
+								reached++;
+							}
+							counter++;
+						}
+					}
+				}
+				// grids at right
+				for(int ry=y-1;ry<=y+1;ry++){
+					if(ry>=0&&ry<=grid.dimy&&x+1<=grid.dimx){
+						for(Point *p1:grids[y*grid.dimx+x]){
+							for(Point *p2:grids[ry*grid.dimx+x+1]){
+								double dist = p1->distance(*p2, true)*1000;
+								if(dist<config.reach_distance){
+									reached++;
+								}
+								counter++;
+							}
+						}
+					}
+				}
 			}
+		}
+		for(vector<Point *> &ps:grids){
 			ps.clear();
 		}
 	}
 	grids.clear();
-	logt("contact trace with %d calculation use fixed grid",start,counter);
+	logt("contact trace with %ld calculation use fixed grid %ld connected",start,counter,reached);
 }
 
 
@@ -445,6 +470,7 @@ void tracer::loadFrom(const char *path) {
 	in.read((char *)&total_num_objects, sizeof(total_num_objects));
 	in.read((char *)&total_duration, sizeof(total_duration));
 	in.read((char *)&mbr, sizeof(mbr));
+	mbr.to_squre(true);
 	assert(config.duration<=total_duration);
 	assert(config.num_objects<=total_num_objects);
 
