@@ -16,9 +16,21 @@ public:
 	double *data = NULL;
 	uint *offset_size = NULL;
 	int *result = NULL;
+	size_t counter = 0;
+	pthread_mutex_t lk;
 	~query_context(){
 	}
-	query_context(){}
+	query_context(){
+		pthread_mutex_init(&lk, NULL);
+	}
+	int fetch_one(){
+		int gt = 0;
+		pthread_mutex_lock(&lk);
+		gt = --counter;
+		pthread_mutex_unlock(&lk);
+		return gt;
+	}
+
 };
 
 

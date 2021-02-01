@@ -57,7 +57,12 @@ public:
 	double high[2] = {-100000.0,-100000.0};
 
 	box(){}
-
+	box(double lowx, double lowy, double highx, double highy){
+		low[0] = lowx;
+		low[1] = lowy;
+		high[0] = highx;
+		high[1] = highy;
+	}
 	box(box *b){
 		low[0] = b->low[0];
 		high[0] = b->high[0];

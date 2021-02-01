@@ -152,6 +152,19 @@ public:
 		}
 	}
 
+	void get_leafs(vector<vector<Point *>> &grids, bool skip_empty = true){
+
+		if(isleaf()){
+			if(!skip_empty||!objects.size()==0){
+				grids.push_back(objects);
+			}
+		}else{
+			for(int i=0;i<4;i++){
+				children[i]->get_leafs(grids);
+			}
+		}
+	}
+
 	void fix_structure(){
 		objects.clear();
 		if(!isleaf()){

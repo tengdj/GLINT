@@ -59,7 +59,7 @@ void Grid::rasterize(double s){
 
 }
 
-int Grid::getgrid(double x, double y){
+int Grid::getgridid(double x, double y){
 	assert(step_x>0&&step_y>0);
 	int offsety = (y-space.low[1])/step_y;
 	int offsetx = (x-space.low[0])/step_x;
@@ -68,9 +68,51 @@ int Grid::getgrid(double x, double y){
 	return gid;
 }
 
-int Grid::getgrid(Point *p){
-	return getgrid(p->x, p->y);
+int Grid::getgridid(Point *p){
+	return getgridid(p->x, p->y);
 }
+
+box Grid::getgrid(int x, int y){
+	double lowx = space.low[0] + x*step_x;
+	double highx = lowx + step_x;
+	double lowy = space.low[1] + y*step_y;
+	double highy = lowy + step_y;
+	return box(lowx,lowy,highx,highy);
+}
+
+box Grid::getgrid(Point *p){
+	int gid = getgridid(p);
+	return getgrid(gid%dimx,gid/dimx);
+}
+
+vector<int> Grid::getgrids(Point *p, double x_buffer, double y_buffer){
+	vector<int> ret;
+	int offsety = (p->y-space.low[1])/step_y;
+	int offsetx = (p->x-space.low[0])/step_x;
+	int gid = dimx*offsety+offsetx;
+	ret.push_back(gid);
+	bool right = offsetx+1<=dimx&&(offsetx+1)*step_x+space.low[0]<p->x+x_buffer;
+	bool top = offsety+1<=dimy&&(offsety+1)*step_y+space.low[1]<p->y+y_buffer;
+	bool bottom = offsety-1>=0&&(offsety-1)*step_y+space.low[1]>p->y-y_buffer;
+	if(right){
+		// top right
+		if(top){
+			ret.push_back(dimx*(offsety+1)+offsetx+1);
+		}
+		// right
+		ret.push_back(dimx*offsety+offsetx+1);
+		// bottom right
+		if(bottom){
+			ret.push_back(dimx*(offsety-1)+offsetx+1);
+		}
+	}
+	if(top){
+		ret.push_back(dimx*(offsety+1)+offsetx);
+	}
+	return ret;
+}
+
+
 
 Point Grid::get_random_point(int xoff, int yoff){
 	double xrand = get_rand_double();
@@ -113,7 +155,7 @@ void trace_generator::analyze_trips(const char *path, int limit){
 		   map->getMBR()->contain(t->end.coordinate)&&
 		   t->length()>0&&
 		   t->duration()>0){
-			int zid = grid->getgrid(&t->start.coordinate);
+			int zid = grid->getgridid(&t->start.coordinate);
 			zones[zid]->count++;
 			zones[zid]->duration += t->duration();
 			double dist = t->start.coordinate.distance(t->end.coordinate, true);
@@ -122,7 +164,7 @@ void trace_generator::analyze_trips(const char *path, int limit){
 			total->duration += t->duration();
 			total->length += dist;
 
-			int ezid = grid->getgrid(&t->end.coordinate);
+			int ezid = grid->getgridid(&t->end.coordinate);
 			if(zones[zid]->target_count.find(ezid)==zones[zid]->target_count.end()){
 				zones[zid]->target_count[ezid] = 1;
 			}else{
@@ -181,7 +223,7 @@ Trip *trace_generator::next_trip(Trip *former){
 	}
 
 	// now generate the next destination according to current position
-	int locstart = grid->getgrid(&next->start.coordinate);
+	int locstart = grid->getgridid(&next->start.coordinate);
 	double rest = get_rand_double()*zones[locstart]->rate_sleep;
 	// rest for a while, the time is adjustable
 	if(tryluck(rest)){
@@ -205,7 +247,7 @@ Trip *trace_generator::next_trip(Trip *former){
 
 		next->end.coordinate = grid->get_random_point(x, y);
 		next->end.timestamp = next->start.timestamp+next->length(true)/zones[locstart]->get_speed();
-		int gid = grid->getgrid(&next->end.coordinate);
+		int gid = grid->getgridid(&next->end.coordinate);
 	}
 
 	return next;
@@ -252,10 +294,7 @@ void *gentrace(void *arg){
 	Map *mymap = gen->map->clone();
 	while(true){
 		// pick one object for generating
-		int obj = 0;
-		lock();
-		obj = --gen->counter;
-		unlock();
+		int obj = ctx->fetch_one();
 		if(obj<0){
 			break;
 		}
@@ -299,9 +338,54 @@ Point *trace_generator::generate_trace(){
  *
  * */
 
-bool myfunction (QTNode *n1, QTNode *n2) {
-	return n1->objects.size()<n2->objects.size();
+
+
+
+void *process_grid_unit(void *arg){
+	query_context *ctx = (query_context *)arg;
+	vector<vector<Point *>> *grids = (vector<vector<Point *>> *)ctx->target[0];
+	size_t checked = 0;
+	size_t reached = 0;
+	while(true){
+		// pick one object for generating
+		int gid = ctx->fetch_one();
+		if(gid<0){
+			break;
+		}
+		int len = (*grids)[gid].size();
+		//n->print_node();
+		if(len>2){
+			for(int i=0;i<len-1;i++){
+				for(int j=i+1;j<len;j++){
+					double dist = (*grids)[gid][i]->distance(*(*grids)[gid][j], true)*1000;
+					//log("%f",dist);
+					if(dist<ctx->config.reach_distance){
+						reached++;
+					}
+					checked++;
+				}
+			}
+		}
+	}
+	lock();
+	*(size_t *)ctx->target[1] += checked;
+	*(size_t *)ctx->target[2] += reached;
+	unlock();
+	return NULL;
 }
+
+void process_grids(query_context &tctx){
+	pthread_t threads[tctx.config.num_threads];
+
+	for(int i=0;i<tctx.config.num_threads;i++){
+		pthread_create(&threads[i], NULL, process_grid_unit, (void *)&tctx);
+	}
+	for(int i = 0; i < tctx.config.num_threads; i++ ){
+		void *status;
+		pthread_join(threads[i], &status);
+	}
+}
+
 
 void tracer::process_qtree(){
 	struct timeval start = get_cur_time();
@@ -324,128 +408,70 @@ void tracer::process_qtree(){
 	qtree->fix_structure();
 
 	// test contact tracing
-	vector<QTNode *> nodes;
-	size_t counter = 0;
+	vector<vector<Point *>> grids;
+	size_t checked = 0;
 	size_t reached = 0;
-	vector<QTNode *> grids;
-	grids.resize(config.num_objects);
 	for(int t=0;t<config.duration;t++){
 		for(int o=0;o<config.num_objects;o++){
 			Point *p = trace+t*config.num_objects+o;
 			qtree->insert(p);
 		}
-		qtree->get_leafs(nodes,false);
-		sort(nodes.begin(),nodes.end(),myfunction);
-		int tt = 0;
-		int griddiff = 0;
-		for(QTNode *n:nodes){
-			int len = n->objects.size();
-			for(int i=0;i<len;i++){
-				int oid = (n->objects[i]-trace-t*config.num_objects);
-				griddiff += (grids[oid]!=n);
-				grids[oid] = n;
-			}
-			//n->print_node();
-			if(len>2){
-				for(int i=0;i<len-1;i++){
-					for(int j=i+1;j<len;j++){
-						double dist = n->objects[i]->distance(*n->objects[j], true)*1000;
-						//log("%f",dist);
-						if(dist<config.reach_distance){
-							reached++;
-						}
-						counter++;
-					}
-				}
-			}
-		}
-		log("%d %d",t,griddiff);
-		nodes.clear();
+		qtree->get_leafs(grids);
+
+		query_context tctx;
+		tctx.config = config;
+		tctx.target[0] = (void *)&grids;
+		tctx.counter = grids.size();
+		tctx.target[1] = (void *)&checked;
+		tctx.target[2] = (void *)&reached;
+
+		process_grids(tctx);
+		grids.clear();
 		qtree->fix_structure();
 	}
 	delete qtree;
-	logt("contact trace with %ld calculation use QTree %ld connected",start,counter,reached);
+	logt("contact trace with %ld calculation use QTree %ld connected",start,checked,reached);
 }
+
+
 
 void tracer::process_fixgrid(){
 	struct timeval start = get_cur_time();
 	// test contact tracing
-	int counter = 0;
-	int reached = 0;
+	size_t checked = 0;
+	size_t reached = 0;
 	vector<vector<Point *>> grids;
 	Grid grid(mbr, config.grid_width);
 	log("%d grids",grid.get_grid_num());
 	grids.resize(grid.get_grid_num()+1);
 
-	vector<int> formergrid;
-	formergrid.resize(config.num_objects);
-	vector<int> gridcount;
-	gridcount.resize(grid.get_grid_num()+1);
+	double x_buffer = config.reach_distance/1000*degree_per_kilometer_longitude(mbr.low[1]);
+	double y_buffer = config.reach_distance/1000*degree_per_kilometer_latitude;
+
 	for(int t=0;t<config.duration;t++){
 		int diff = 0;
 		for(int o=0;o<config.num_objects;o++){
 			Point *p = trace+t*config.num_objects+o;
-			int gid = grid.getgrid(p);
-//			if(gid!=formergrid[o]){
-//				diff++;
-//				formergrid[o] = gid;
-//			}
-			grids[gid].push_back(p);
-			gridcount[gid]++;
-		}
-		sort(gridcount.begin(),gridcount.end(),greater<int>());
-		for(int i=0;i<10;i++){
-			cout<<i<<" "<<gridcount[i]<<endl;
-		}
-		//  cout<<diff<<endl;
-		for(int y=0;y<grid.dimy;y++){
-			for(int x=0;x<=grid.dimx;x++){
-				//cout<<y*grid.dimx+x<<" "<<grids[y*grid.dimx+x].size()<<endl;
-				int len = grids[y*grid.dimx+x].size();
-				// current grid
-				for(int i=0;i<len-1;i++){
-					for(int j=i+1;j<len;j++){
-						double dist = grids[y*grid.dimx+x][i]->distance(*grids[y*grid.dimx+x][j], true)*1000;
-						if(dist<config.reach_distance){
-							reached++;
-						}
-						counter++;
-					}
-				}
-				// grid above
-				if(y+1<=grid.dimy){
-					for(Point *p1:grids[y*grid.dimx+x]){
-						for(Point *p2:grids[(y+1)*grid.dimx+x]){
-							double dist = p1->distance(*p2, true)*1000;
-							if(dist<config.reach_distance){
-								reached++;
-							}
-							counter++;
-						}
-					}
-				}
-				// grids at right
-				for(int ry=y-1;ry<=y+1;ry++){
-					if(ry>=0&&ry<=grid.dimy&&x+1<=grid.dimx){
-						for(Point *p1:grids[y*grid.dimx+x]){
-							for(Point *p2:grids[ry*grid.dimx+x+1]){
-								double dist = p1->distance(*p2, true)*1000;
-								if(dist<config.reach_distance){
-									reached++;
-								}
-								counter++;
-							}
-						}
-					}
-				}
+			vector<int> gids= grid.getgrids(p,x_buffer,y_buffer);
+			for(int gid:gids){
+				grids[gid].push_back(p);
 			}
+			gids.clear();
 		}
-		for(vector<Point *> &ps:grids){
-			ps.clear();
+		query_context tctx;
+		tctx.config = config;
+		tctx.target[0] = (void *)&grids;
+		tctx.counter = grids.size();
+		tctx.target[1] = (void *)&checked;
+		tctx.target[2] = (void *)&reached;
+		process_grids(tctx);
+
+		for(int i=0;i<grids.size();i++){
+			grids[i].clear();
 		}
 	}
 	grids.clear();
-	logt("contact trace with %ld calculation use fixed grid %ld connected",start,counter,reached);
+	logt("contact trace with %ld calculation use fixed grid %ld connected",start,checked,reached);
 }
 
 

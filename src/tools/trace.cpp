@@ -19,6 +19,10 @@ int main(int argc, char **argv){
 	configuration config = get_parameters(argc, argv);
 	config.print();
 	tracer *tr = new tracer(config);
+
+//	Map *m = new Map(config.map_path);
+//	m->print_region(tr->mbr);
+//	delete m;
 	if(config.method == QTREE){
 		tr->process_qtree();
 	}else if(config.method == FIX_GRID){

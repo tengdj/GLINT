@@ -17,6 +17,7 @@ using namespace std;
 
 class Grid{
 	void rasterize(double step);
+	int getgridid(double x, double y);
 public:
 	double step_x = 0;
 	double step_y = 0;
@@ -27,12 +28,16 @@ public:
 		space = mbr;
 		rasterize(s);
 	}
-	int getgrid(Point *p);
-	int getgrid(double x, double y);
+	int getgridid(Point *p);
+	vector<int> getgrids(Point *p, double x_buffer, double y_buffer);
 	int get_grid_num(){
 		return dimx*dimy;
 	}
+	box getgrid(int x, int y);
+	box getgrid(Point *p);
 	Point get_random_point(int xoff=-1, int yoff=-1);
+
+
 };
 
 /*
@@ -92,11 +97,9 @@ public:
 
     Map *map = NULL;
     configuration config;
-	int counter = 0;
 
 	// construct with some parameters
 	trace_generator(configuration &c, Map *m){
-		counter = c.num_objects;
 		config = c;
 		assert(config.num_threads>0);
 		map = m;
