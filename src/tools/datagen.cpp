@@ -7,10 +7,10 @@
 
 
 #include "../geometry/Map.h"
-#include "../tracing/tracing.h"
 #include "../util/config.h"
 #include <vector>
 #include <stdlib.h>
+#include "../tracing/trace.h"
 
 using namespace std;
 

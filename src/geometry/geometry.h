@@ -208,6 +208,109 @@ public:
 	}
 };
 
+
+class Grid{
+
+public:
+	double step_x = 0;
+	double step_y = 0;
+	int dimx = 0;
+	int dimy = 0;
+	box space;
+	Grid(box &mbr, double s){
+		space = mbr;
+		rasterize(s);
+	}
+
+	int get_grid_num(){
+		return dimx*dimy;
+	}
+	/*
+	 *
+	 * member functions for grid class
+	 *
+	 * */
+
+	void rasterize(double s){
+		dimy = space.height(true)/s+1;
+		dimx = dimy;
+		step_x = space.width()/dimx;
+		step_y = space.height()/dimy;
+
+	}
+
+	int getgridid(double x, double y){
+		assert(step_x>0&&step_y>0);
+		int offsety = (y-space.low[1])/step_y;
+		int offsetx = (x-space.low[0])/step_x;
+		int gid = dimx*offsety+offsetx;
+		assert(gid<=dimx*dimy && gid>=0);
+		return gid;
+	}
+
+	int getgridid(Point *p){
+		return getgridid(p->x, p->y);
+	}
+
+	box getgrid(int x, int y){
+		double lowx = space.low[0] + x*step_x;
+		double highx = lowx + step_x;
+		double lowy = space.low[1] + y*step_y;
+		double highy = lowy + step_y;
+		return box(lowx,lowy,highx,highy);
+	}
+
+	box getgrid(Point *p){
+		int gid = getgridid(p);
+		return getgrid(gid%dimx,gid/dimx);
+	}
+
+	vector<int> getgrids(Point *p, double x_buffer, double y_buffer){
+		vector<int> ret;
+		int offsety = (p->y-space.low[1])/step_y;
+		int offsetx = (p->x-space.low[0])/step_x;
+		int gid = dimx*offsety+offsetx;
+		ret.push_back(gid);
+		bool right = offsetx+1<=dimx&&(offsetx+1)*step_x+space.low[0]<p->x+x_buffer;
+		bool top = offsety+1<=dimy&&(offsety+1)*step_y+space.low[1]<p->y+y_buffer;
+		bool bottom = offsety-1>=0&&(offsety-1)*step_y+space.low[1]>p->y-y_buffer;
+		if(right){
+			// top right
+			if(top){
+				ret.push_back(dimx*(offsety+1)+offsetx+1);
+			}
+			// right
+			ret.push_back(dimx*offsety+offsetx+1);
+			// bottom right
+			if(bottom){
+				ret.push_back(dimx*(offsety-1)+offsetx+1);
+			}
+		}
+		if(top){
+			ret.push_back(dimx*(offsety+1)+offsetx);
+		}
+		return ret;
+	}
+
+
+
+	Point get_random_point(int xoff = -1, int yoff = -1){
+		double xrand = get_rand_double();
+		double yrand = get_rand_double();
+		double xval,yval;
+		if(xoff==-1||yoff==-1){
+			xval = space.low[0]+xrand*(space.high[0]-space.low[0]);
+			yval = space.low[1]+yrand*(space.high[1]-space.low[1]);
+		}else{
+			xval = space.low[0]+xoff*step_x+xrand*step_x;
+			yval = space.low[1]+yoff*step_y+yrand*step_y;
+		}
+		return Point(xval, yval);
+	}
+
+};
+
+
 /*
  * some utility functions shared by other classes
  *

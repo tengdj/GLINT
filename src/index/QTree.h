@@ -40,7 +40,13 @@ public:
 	double y_buffer = 0;
 	// counter
 	int num_leafs = 0;
-	int num_objects = 0;
+	// thread safe
+	pthread_mutex_t insert_locks[20];
+	QConfig(){
+		for(int i=0;i<20;i++){
+			pthread_mutex_init(&insert_locks[i],NULL);
+		}
+	}
 };
 
 class QTNode{
@@ -50,6 +56,7 @@ class QTNode{
 	QTNode *children[4] = {NULL,NULL,NULL,NULL};
 	QConfig *config = NULL;
 	box mbr;
+	pthread_mutex_t lk;
 public:
 	int max_objects = 100;
 	vector<Point *> objects;
@@ -65,6 +72,7 @@ public:
 		assert(mbr.low[1]!=mbr.high[1]);
 		assert(mbr.low[0]!=mid_x);
 		assert(mbr.low[1]!=mid_y);
+		pthread_mutex_init(&lk, NULL);
 	}
 	QTNode(box m):QTNode(m.low[0], m.low[1], m.high[0], m.high[1]){
 	}
@@ -99,10 +107,25 @@ public:
 			children[i]->config = config;
 		}
 		for(Point *p:objects){
-			insert(p);
+			// could be possibly in multiple children
+			bool top = (p->y>mid_y-config->y_buffer);
+			bool bottom = (p->y<mid_y+config->y_buffer);
+			bool left = (p->x<mid_x+config->x_buffer);
+			bool right = (p->x>mid_x-config->x_buffer);
+			if(bottom&&left){
+				children[0]->objects.push_back(p);
+			}
+			if(bottom&&right){
+				children[1]->objects.push_back(p);
+			}
+			if(top&&left){
+				children[2]->objects.push_back(p);
+			}
+			if(top&&right){
+				children[3]->objects.push_back(p);
+			}
 		}
 		config->num_leafs += 3;
-		config->num_objects -= objects.size();
 		objects.clear();
 	}
 	inline int which_region(Point *p){
@@ -110,10 +133,12 @@ public:
 	}
 	void insert(Point *p){
 		if(isleaf()){
+			int hashid = (((size_t)this)/64)%20;
+			pthread_mutex_lock(&config->insert_locks[hashid]);
 			objects.push_back(p);
-			config->num_objects++;
+			pthread_mutex_unlock(&config->insert_locks[hashid]);
 			if(should_split()){
-				this->split();
+				split();
 			}
 		}else{
 			// could be possibly in multiple children
@@ -138,6 +163,17 @@ public:
 
 	int leaf_count(){
 		return config->num_leafs;
+	}
+	size_t num_objects(){
+		if(isleaf()){
+			return objects.size();
+		}else{
+			size_t num = 0;
+			for(int i=0;i<4;i++){
+				num += children[i]->num_objects();
+			}
+			return num;
+		}
 	}
 	void get_leafs(vector<QTNode *> &leafs, bool skip_empty = true){
 
@@ -173,7 +209,6 @@ public:
 			}
 		}
 		config->max_objects = INT_MAX;
-		config->num_objects = 0;
 	}
 
 	void print(){

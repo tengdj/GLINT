@@ -5,40 +5,16 @@
  *      Author: teng
  */
 
-#ifndef SRC_TRACING_TRACING_H_
-#define SRC_TRACING_TRACING_H_
+#ifndef SRC_TRACING_TRACE_H_
+#define SRC_TRACING_TRACE_H_
 
 #include "../geometry/Map.h"
 #include "../util/query_context.h"
+#include "partitioner.h"
 #include <map>
 
 using namespace std;
 
-
-class Grid{
-	void rasterize(double step);
-	int getgridid(double x, double y);
-public:
-	double step_x = 0;
-	double step_y = 0;
-	int dimx = 0;
-	int dimy = 0;
-	box space;
-	Grid(box &mbr, double s){
-		space = mbr;
-		rasterize(s);
-	}
-	int getgridid(Point *p);
-	vector<int> getgrids(Point *p, double x_buffer, double y_buffer);
-	int get_grid_num(){
-		return dimx*dimy;
-	}
-	box getgrid(int x, int y);
-	box getgrid(Point *p);
-	Point get_random_point(int xoff=-1, int yoff=-1);
-
-
-};
 
 /*
  *
@@ -139,24 +115,37 @@ class tracer{
 	bool owned_trace = false;
 	// for query
 	configuration config;
+	partitioner *part = NULL;
 public:
 	box mbr;
 	tracer(configuration &conf, box &b, Point *t){
 		trace = t;
 		mbr = b;
 		config = conf;
+		if(config.method == QTREE){
+			part = new qtree_partitioner(mbr,config);
+		}else if(config.method == FIX_GRID){
+			part = new grid_partitioner(mbr,config);
+		}
 	}
 	tracer(configuration &conf){
 		config = conf;
 		loadFrom(conf.trace_path.c_str());
+		if(config.method == QTREE){
+			part = new qtree_partitioner(mbr,config);
+		}else if(config.method == FIX_GRID){
+			part = new grid_partitioner(mbr,config);
+		}
 	};
 	~tracer(){
 		if(owned_trace){
 			free(trace);
 		}
+		if(part){
+			delete part;
+		}
 	}
-	void process_qtree();
-	void process_fixgrid();
+	void process();
 	void dumpTo(const char *path);
 	void loadFrom(const char *path);
 	void print_trace(double sample_rate);
@@ -164,4 +153,4 @@ public:
 
 
 
-#endif /* SRC_TRACING_TRACING_H_ */
+#endif /* SRC_TRACING_TRACE_H_ */

@@ -5,8 +5,9 @@
  *      Author: teng
  */
 
+#include "../tracing/trace.h"
+
 #include "../geometry/Map.h"
-#include "../tracing/tracing.h"
 #include "../util/config.h"
 #include <vector>
 #include <stdlib.h>
@@ -23,11 +24,9 @@ int main(int argc, char **argv){
 //	Map *m = new Map(config.map_path);
 //	m->print_region(tr->mbr);
 //	delete m;
-	if(config.method == QTREE){
-		tr->process_qtree();
-	}else if(config.method == FIX_GRID){
-		tr->process_fixgrid();
-	}
+
+	tr->process();
+
 	delete tr;
 	return 0;
 }
