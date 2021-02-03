@@ -34,10 +34,13 @@ all:	datagen trace
 
 datagen:	tools/datagen.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 	$(CXX) -o ../build/$@ $^ $(LIBS) 
+
+cudatrace:	tools/trace.o $(GEOMETRY_OBJS) $(TRACING_OBJS) $(CU_OBJS)
+	$(CXX) -o ../build/$@ $^ $(LIBS) $(CUDALIBS)
 	
 trace:	tools/trace.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 	$(CXX) -o ../build/$@ $^ $(LIBS) 
-
+	
 cudatest:	tools/cudatest.o $(CU_OBJS)
 	$(CXX) -o ../build/$@ $^ $(LIBS) $(CUDALIBS)
 	

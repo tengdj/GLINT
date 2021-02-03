@@ -12,14 +12,22 @@
 
 #define MAX_LOCK_NUM 100
 class query_context{
+	size_t max_counter = 0;
+	size_t next_report = 0;
+	size_t step = 0;
 public:
 	configuration config;
-	void *target[4] = {NULL,NULL,NULL,NULL};
-	double *data = NULL;
-	uint *offset_size = NULL;
-	int *result = NULL;
 	size_t counter = 0;
+	int report_gap = 1;
 	pthread_mutex_t lk[MAX_LOCK_NUM];
+
+	// query source
+	void *target[4] = {NULL,NULL,NULL,NULL};
+
+	// query results
+	size_t checked = 0;
+	size_t found = 0;
+
 	~query_context(){
 	}
 	query_context(){
@@ -36,7 +44,16 @@ public:
 	int fetch_one(){
 		int gt = 0;
 		pthread_mutex_lock(&lk[0]);
+		if(step == 0){
+			step = counter/report_gap;
+			next_report = counter - step;
+			max_counter = counter;
+		}
 		gt = --counter;
+		if(counter==next_report){
+			log("%d%%",(max_counter-next_report)*100/max_counter);
+			next_report -= step;
+		}
 		pthread_mutex_unlock(&lk[0]);
 		return gt;
 	}
@@ -49,6 +66,14 @@ public:
 		pthread_mutex_lock(&lk[0]);
 		counter++;
 		pthread_mutex_unlock(&lk[0]);
+	}
+	void clear(){
+		for(int i=0;i<4;i++){
+			if(target[i]!=NULL){
+				free(target[i]);
+				target[i] = NULL;
+			}
+		}
 	}
 };
 

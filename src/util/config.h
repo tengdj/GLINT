@@ -32,6 +32,7 @@ public:
 	int max_objects_per_grid = 100;
 	double reach_distance = 5;
 	double grid_width = 5;
+
 	string map_path = "/gisdata/chicago/streets";
 	string taxi_path = "/gisdata/chicago/taxi.csv";
 	string trace_path = "/gisdata/chicago/traces";

@@ -21,7 +21,9 @@
 
 void *process_grid_unit(void *arg){
 	query_context *ctx = (query_context *)arg;
-	vector<vector<Point *>> *grids = (vector<vector<Point *>> *)ctx->target[0];
+	Point *points = (Point *)ctx->target[0];
+	uint *offset_size = (uint *)ctx->target[1];
+	int *result = (int *)ctx->target[2];
 	size_t checked = 0;
 	size_t reached = 0;
 	while(true){
@@ -30,24 +32,24 @@ void *process_grid_unit(void *arg){
 		if(gid<0){
 			break;
 		}
-		int len = (*grids)[gid].size();
+		int len = offset_size[2*gid+1];
+		Point *cur_points = points + offset_size[2*gid];
 		//n->print_node();
 		if(len>2){
 			for(int i=0;i<len-1;i++){
 				for(int j=i+1;j<len;j++){
-					double dist = (*grids)[gid][i]->distance(*(*grids)[gid][j], true)*1000;
+					double dist = cur_points[i].distance(cur_points[j], true)*1000;
 					//log("%f",dist);
-					if(dist<ctx->config.reach_distance){
-						reached++;
-					}
+					result[gid] += dist<ctx->config.reach_distance;
 					checked++;
 				}
 			}
+			reached += result[gid];
 		}
 	}
 	lock();
-	*(size_t *)ctx->target[1] += checked;
-	*(size_t *)ctx->target[2] += reached;
+	ctx->checked += checked;
+	ctx->found += reached;
 	unlock();
 	return NULL;
 }
@@ -66,25 +68,64 @@ void process_grids(query_context &tctx){
 	logt("compute",start);
 }
 
+void pack_grids(query_context &ctx, vector<vector<Point *>> &grids){
+	struct timeval start = get_cur_time();
+	size_t total_objects = 0;
+	for(vector<Point *> &ps:grids){
+		total_objects += ps.size();
+	}
+	Point *data = (Point *)new double[2*total_objects];
+	uint *offset_size = new uint[grids.size()*2];
+	int *result = new int[grids.size()];
+	ctx.target[0] = (void *)data;
+	ctx.target[1] = (void *)offset_size;
+	ctx.target[2] = (void *)result;
+	ctx.counter = grids.size();
+	uint cur_offset = 0;
+	for(int i=0;i<grids.size();i++){
+		offset_size[i*2] = cur_offset;
+		offset_size[i*2+1] = grids[i].size();
+		for(int j=0;j<grids[i].size();j++){
+			data[cur_offset++] = *grids[i][j];
+		}
+	}
+	logt("packing data",start);
+}
+
+void process_with_gpu(query_context &ctx);
+
 void tracer::process(){
 
 	struct timeval start = get_cur_time();
 	// test contact tracing
 	size_t checked = 0;
 	size_t reached = 0;
+	query_context tctx;
+	tctx.config = config;
+	tctx.report_gap = 10;
 	for(int t=0;t<config.duration;t++){
 		vector<vector<Point *>> grids = part->partition(trace+t*config.num_objects, config.num_objects);
-		query_context tctx;
-		tctx.config = config;
-		tctx.target[0] = (void *)&grids;
-		tctx.counter = grids.size();
-		tctx.target[1] = (void *)&checked;
-		tctx.target[2] = (void *)&reached;
-		process_grids(tctx);
-
 		part->clear();
+		// now pack the grids assignment
+		pack_grids(tctx, grids);
+		// process the objects in the packed partitions
+		map<size_t, int> gcount;
+		for(vector<Point *> &ps:grids){
+			if(gcount.find(ps.size())==gcount.end()){
+				gcount[ps.size()] = 1;
+			}else{
+				gcount[ps.size()]++;
+			}
+		}
+		for(auto g:gcount){
+			cout<<g.first<<" "<<g.second<<endl;
+		}
+		process_grids(tctx);
+		//process_with_gpu(tctx);
+
+		tctx.clear();
 	}
-	logt("contact trace with %ld calculation use QTree %ld connected",start,checked,reached);
+	logt("contact trace with %ld calculation use QTree %ld connected",start,tctx.checked,tctx.found);
 }
 
 void tracer::dumpTo(const char *path) {
@@ -109,8 +150,7 @@ void tracer::loadFrom(const char *path) {
 	in.read((char *)&total_duration, sizeof(total_duration));
 	in.read((char *)&mbr, sizeof(mbr));
 	mbr.to_squre(true);
-	assert(config.duration<=total_duration);
-	assert(config.num_objects<=total_num_objects);
+	assert(config.duration*config.num_objects<=total_duration*total_num_objects);
 
 	trace = (Point *)malloc(config.duration*config.num_objects*sizeof(Point));
 	for(int i=0;i<config.duration;i++){
@@ -119,7 +159,6 @@ void tracer::loadFrom(const char *path) {
 			in.seekg((total_num_objects-config.num_objects)*sizeof(Point), ios_base::cur);
 		}
 	}
-
 	in.close();
 	logt("loaded %d objects last for %d seconds from %s",start_time, config.num_objects, config.duration, path);
 	owned_trace = true;

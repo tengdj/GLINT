@@ -214,7 +214,7 @@ void *gentrace(void *arg){
 		if(obj<0){
 			break;
 		}
-		//log("%d",obj);
+//		log("%d",obj);
 		vector<Point *> trace = gen->get_trace(mymap);
 		// copy to target
 		for(int i=0;i<gen->config.duration;i++){
@@ -232,14 +232,13 @@ Point *trace_generator::generate_trace(){
 	struct timeval start = get_cur_time();
 	Point *ret = (Point *)malloc(config.duration*config.num_objects*sizeof(Point));
 	pthread_t threads[config.num_threads];
-	query_context tctx[config.num_threads];
+	query_context tctx;
+	tctx.config = config;
+	tctx.target[0] = (void *)this;
+	tctx.target[1] = (void *)ret;
+	tctx.counter = config.num_objects;
 	for(int i=0;i<config.num_threads;i++){
-		tctx[i].config = config;
-		tctx[i].target[0] = (void *)this;
-		tctx[i].target[1] = (void *)ret;
-	}
-	for(int i=0;i<config.num_threads;i++){
-		pthread_create(&threads[i], NULL, gentrace, (void *)&tctx[i]);
+		pthread_create(&threads[i], NULL, gentrace, (void *)&tctx);
 	}
 	for(int i = 0; i < config.num_threads; i++ ){
 		void *status;

@@ -19,38 +19,41 @@ int main(int argc, char **argv){
 
 	struct timeval start = get_cur_time();
 	query_context ctx;
-	ctx.config.num_grids =   100000;
+	ctx.config.num_grids =   1000000;
 	ctx.config.num_objects = 10000000;
-	ctx.data = new double[2*ctx.config.num_objects];
-	ctx.result = new int[ctx.config.num_grids];
-	ctx.offset_size = new uint[ctx.config.num_grids*2];
+	double *data = new double[2*ctx.config.num_objects];
+	int *result = new int[ctx.config.num_grids];
+	uint *offset_size = new uint[ctx.config.num_grids*2];
+	ctx.target[0] = (void *)data;
+	ctx.target[1] = (void *)offset_size;
+	ctx.target[2] = (void *)result;
 	int num_objects_per_grid = ctx.config.num_objects/ctx.config.num_grids;
 	int cur_offset = 0;
 
 	for(int i=0;i<ctx.config.num_grids;i++){
-		ctx.offset_size[i*2] = cur_offset;
-		ctx.offset_size[i*2+1] = num_objects_per_grid;
-		for(int k=0;k<num_objects_per_grid-1;k++){
-			for(int t = k+1;t<num_objects_per_grid;t++){
-				Point *p1 = (Point *)(ctx.data+cur_offset*2+k*2);
-				Point *p2 = (Point *)(ctx.data+cur_offset*2+t*2);
-				double dist = p1->distance(*p2,true);
-				if(dist<ctx.config.reach_distance){
-					ctx.result[i]++;
-				}
-			}
-		}
+		offset_size[i*2] = cur_offset;
+		offset_size[i*2+1] = num_objects_per_grid;
+//		for(int k=0;k<num_objects_per_grid-1;k++){
+//			for(int t = k+1;t<num_objects_per_grid;t++){
+//				Point *p1 = (Point *)(data+cur_offset*2+k*2);
+//				Point *p2 = (Point *)(data+cur_offset*2+t*2);
+//				double dist = p1->distance(*p2,true);
+//				if(dist<ctx.config.reach_distance){
+//					result[i]++;
+//				}
+//			}
+//		}
 		cur_offset += num_objects_per_grid;
 	}
 	logt("compute with cpu",start);
-	ctx.offset_size[1] = 100;
+	offset_size[1] = 100;
 	process_with_gpu(gpus[0], &ctx);
 	for(gpu_info *g:gpus){
 		delete g;
 	}
-	delete []ctx.data;
-	delete []ctx.result;
-	delete []ctx.offset_size;
+	delete []data;
+	delete []result;
+	delete []offset_size;
 
 }
 

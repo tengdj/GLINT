@@ -46,6 +46,7 @@ vector<vector<Point *>> grid_partitioner::partition(Point *points, size_t num_ob
 	tctx.target[2] = (void *)&grids;
 
 	tctx.counter = num_objects;
+	tctx.report_gap = 10;
 	pthread_t threads[config.num_threads];
 	for(int i=0;i<config.num_threads;i++){
 		pthread_create(&threads[i], NULL, grid_partition, (void *)&tctx);
@@ -94,6 +95,7 @@ void split_qtree(QTNode *qtree, Point *points, size_t num_objects, int num_threa
 	queue<QTNode *> qq;
 	qq.push(qtree);
 	tctx.target[0] = (void *)&qq;
+	tctx.report_gap = 10;
 	pthread_t threads[num_threads];
 	for(int i=0;i<num_threads;i++){
 		pthread_create(&threads[i], NULL, split_qtree_unit, (void *)&tctx);
@@ -116,7 +118,7 @@ vector<vector<Point *>> qtree_partitioner::partition(Point *points, size_t num_o
 	split_qtree(qtree, points, num_objects,config.num_threads);
 	qtree->get_leafs(grids, true);
 	logt("space is partitioned into %d grids %ld objects",start,qtree->leaf_count(),qtree->num_objects());
-	qtree->print();
+	//qtree->print();
 	return grids;
 }
 
