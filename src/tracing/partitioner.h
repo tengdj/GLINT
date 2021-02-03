@@ -21,16 +21,8 @@ public:
 	partitioner(){}
 	virtual ~partitioner(){};
 
-	void clear(){
-		for(vector<Point *> &ps:grids){
-			ps.clear();
-		}
-	};
-	virtual void index(Point *objects, size_t num_objects) = 0;
-	virtual void partition(Point *objects, size_t num_objects) = 0;
-	vector<vector<Point *>> get_grids(){
-		return grids;
-	}
+	virtual void clear() = 0;
+	virtual vector<vector<Point *>> partition(Point *objects, size_t num_objects) = 0;
 };
 
 class grid_partitioner:public partitioner{
@@ -39,15 +31,22 @@ public:
 	grid_partitioner(box &m, configuration &conf){
 		mbr = m;
 		config = conf;
+		grid = new Grid(mbr, config.grid_width);
+		grids.resize(grid->get_grid_num()+1);
 	}
 	~grid_partitioner(){
 		clear();
+		grids.clear();
 		if(grid){
 			delete grid;
 		}
 	};
-	void index(Point *objects, size_t num_objects);
-	void partition(Point *objects, size_t num_objects);
+	void clear(){
+		for(vector<Point *> &ps:grids){
+			ps.clear();
+		}
+	};
+	vector<vector<Point *>> partition(Point *objects, size_t num_objects);
 };
 
 class qtree_partitioner:public partitioner{
@@ -57,6 +56,10 @@ public:
 	qtree_partitioner(box &m, configuration &conf){
 		mbr = m;
 		config = conf;
+		qconfig.grid_width = config.grid_width;
+		qconfig.max_objects = config.max_objects_per_grid;
+		qconfig.x_buffer = config.reach_distance*degree_per_kilometer_longitude(mbr.low[1])/1000;
+		qconfig.y_buffer = config.reach_distance*degree_per_kilometer_latitude/1000;
 	}
 	~qtree_partitioner(){
 		clear();
@@ -65,8 +68,7 @@ public:
 		}
 	}
 	void clear();
-	void index(Point *objects, size_t num_objects);
-	void partition(Point *objects, size_t num_objects);
+	vector<vector<Point *>> partition(Point *objects, size_t num_objects);
 };
 
 

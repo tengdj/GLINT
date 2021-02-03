@@ -69,15 +69,11 @@ void process_grids(query_context &tctx){
 void tracer::process(){
 
 	struct timeval start = get_cur_time();
-	// build the index
-	part->index(trace, config.num_objects);
 	// test contact tracing
 	size_t checked = 0;
 	size_t reached = 0;
 	for(int t=0;t<config.duration;t++){
-		part->partition(trace+t*config.num_objects, config.num_objects);
-		vector<vector<Point *>> grids = part->get_grids();
-
+		vector<vector<Point *>> grids = part->partition(trace+t*config.num_objects, config.num_objects);
 		query_context tctx;
 		tctx.config = config;
 		tctx.target[0] = (void *)&grids;
