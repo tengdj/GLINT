@@ -404,7 +404,7 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 		s->father_from_origin = NULL;
 	}
 	Street *s = o->breadthFirst(d);
-	assert(s);
+	assert(s && s==d);
 	do{
 		ret.push_back(s);
 		s = s->father_from_origin;
