@@ -12,13 +12,15 @@
 
 #define MAX_LOCK_NUM 100
 class query_context{
-	size_t max_counter = 0;
 	size_t next_report = 0;
 	size_t step = 0;
+	size_t counter = 0;
+
 public:
 	configuration config;
-	size_t counter = 0;
-	int report_gap = 1;
+	size_t num_objects = 0;
+	size_t batch_size = 10;
+	size_t report_gap = 1;
 	pthread_mutex_t lk[MAX_LOCK_NUM];
 
 	// query source
@@ -41,21 +43,18 @@ public:
 	void unlock(int hashid=0){
 		pthread_mutex_unlock(&lk[hashid%MAX_LOCK_NUM]);
 	}
-	int fetch_one(){
+	bool next_batch(size_t &start, size_t &end){
 		int gt = 0;
 		pthread_mutex_lock(&lk[0]);
-		if(step == 0){
-			step = counter/report_gap;
-			next_report = counter - step;
-			max_counter = counter;
-		}
-		gt = --counter;
-		if(counter==next_report){
-			log("%d%%",(max_counter-next_report)*100/max_counter);
-			next_report -= step;
+		start = counter;
+		counter += batch_size;
+		end = counter;
+		if(start>next_report){
+			log("%ld%%",start*100/num_objects);
+			next_report += num_objects/report_gap;
 		}
 		pthread_mutex_unlock(&lk[0]);
-		return gt;
+		return start<num_objects;
 	}
 	void idle(){
 		pthread_mutex_lock(&lk[0]);
@@ -67,6 +66,9 @@ public:
 		counter++;
 		pthread_mutex_unlock(&lk[0]);
 	}
+	bool all_idle(){
+		return counter == 0;
+	}
 	void clear(){
 		for(int i=0;i<4;i++){
 			if(target[i]!=NULL){
@@ -74,6 +76,8 @@ public:
 				target[i] = NULL;
 			}
 		}
+		next_report = 0;
+		counter = 0;
 	}
 };
 

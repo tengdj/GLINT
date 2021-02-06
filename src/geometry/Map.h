@@ -45,6 +45,8 @@ public:
 	Node *end = NULL;
 	// cache for Euclid distance of vector start->end
 	double length = -1.0;
+	//meters per second
+	double speed = 10;
 	// other streets this street connects
 	vector<Street *> connected;
 	// temporary storage for breadth first search

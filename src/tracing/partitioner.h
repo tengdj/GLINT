@@ -22,7 +22,11 @@ public:
 	virtual ~partitioner(){};
 
 	virtual void clear() = 0;
-	virtual vector<vector<Point *>> partition(Point *objects, size_t num_objects) = 0;
+	virtual void partition(Point *objects, size_t num_objects) = 0;
+	vector<vector<Point *>> get_grids(){
+		return grids;
+	}
+	void pack_grids(query_context &);
 };
 
 class grid_partitioner:public partitioner{
@@ -46,7 +50,7 @@ public:
 			ps.clear();
 		}
 	};
-	vector<vector<Point *>> partition(Point *objects, size_t num_objects);
+	void partition(Point *objects, size_t num_objects);
 };
 
 class qtree_partitioner:public partitioner{
@@ -68,7 +72,7 @@ public:
 		}
 	}
 	void clear();
-	vector<vector<Point *>> partition(Point *objects, size_t num_objects);
+	void partition(Point *objects, size_t num_objects);
 };
 
 

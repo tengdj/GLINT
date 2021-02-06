@@ -210,18 +210,22 @@ void *gentrace(void *arg){
 	Map *mymap = gen->map->clone();
 	while(true){
 		// pick one object for generating
-		int obj = ctx->fetch_one();
-		if(obj<0){
+		size_t start = 0;
+		size_t end = 0;
+		if(!ctx->next_batch(start,end)){
 			break;
 		}
 //		log("%d",obj);
-		vector<Point *> trace = gen->get_trace(mymap);
-		// copy to target
-		for(int i=0;i<gen->config.duration;i++){
-			result[i*gen->config.num_objects+obj] = *trace[i];
-			delete trace[i];
+		for(int obj=start;obj<end;obj++){
+			vector<Point *> trace = gen->get_trace(mymap);
+			// copy to target
+			for(int i=0;i<gen->config.duration;i++){
+				result[i*gen->config.num_objects+obj] = *trace[i];
+				delete trace[i];
+			}
+			trace.clear();
 		}
-		trace.clear();
+
 	}
 	delete mymap;
 	return NULL;
@@ -236,7 +240,7 @@ Point *trace_generator::generate_trace(){
 	tctx.config = config;
 	tctx.target[0] = (void *)this;
 	tctx.target[1] = (void *)ret;
-	tctx.counter = config.num_objects;
+	tctx.num_objects = config.num_objects;
 	for(int i=0;i<config.num_threads;i++){
 		pthread_create(&threads[i], NULL, gentrace, (void *)&tctx);
 	}

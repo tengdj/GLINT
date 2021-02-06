@@ -26,26 +26,31 @@ void *process_grid_unit(void *arg){
 	int *result = (int *)ctx->target[2];
 	size_t checked = 0;
 	size_t reached = 0;
+	ctx->batch_size = 1000;
 	while(true){
 		// pick one object for generating
-		int gid = ctx->fetch_one();
-		if(gid<0){
+		size_t start = 0;
+		size_t end = 0;
+		if(!ctx->next_batch(start,end)){
 			break;
 		}
-		int len = offset_size[2*gid+1];
-		Point *cur_points = points + offset_size[2*gid];
-		//n->print_node();
-		if(len>2){
-			for(int i=0;i<len-1;i++){
-				for(int j=i+1;j<len;j++){
-					double dist = cur_points[i].distance(cur_points[j], true)*1000;
-					//log("%f",dist);
-					result[gid] += dist<ctx->config.reach_distance;
-					checked++;
+		for(int gid=start;gid<end;gid++){
+			int len = offset_size[2*gid+1];
+			Point *cur_points = points + offset_size[2*gid];
+			//n->print_node();
+			if(len>2){
+				for(int i=0;i<len-1;i++){
+					for(int j=i+1;j<len;j++){
+						double dist = cur_points[i].distance(cur_points[j], true)*1000;
+						//log("%f",dist);
+						result[gid] += dist<ctx->config.reach_distance;
+						checked++;
+					}
 				}
+				reached += result[gid];
 			}
-			reached += result[gid];
 		}
+
 	}
 	lock();
 	ctx->checked += checked;
@@ -68,29 +73,7 @@ void process_grids(query_context &tctx){
 	logt("compute",start);
 }
 
-void pack_grids(query_context &ctx, vector<vector<Point *>> &grids){
-	struct timeval start = get_cur_time();
-	size_t total_objects = 0;
-	for(vector<Point *> &ps:grids){
-		total_objects += ps.size();
-	}
-	Point *data = (Point *)new double[2*total_objects];
-	uint *offset_size = new uint[grids.size()*2];
-	int *result = new int[grids.size()];
-	ctx.target[0] = (void *)data;
-	ctx.target[1] = (void *)offset_size;
-	ctx.target[2] = (void *)result;
-	ctx.counter = grids.size();
-	uint cur_offset = 0;
-	for(int i=0;i<grids.size();i++){
-		offset_size[i*2] = cur_offset;
-		offset_size[i*2+1] = grids[i].size();
-		for(int j=0;j<grids[i].size();j++){
-			data[cur_offset++] = *grids[i][j];
-		}
-	}
-	logt("packing data",start);
-}
+
 
 void process_with_gpu(query_context &ctx);
 
@@ -103,29 +86,28 @@ void tracer::process(){
 	query_context tctx;
 	tctx.config = config;
 	tctx.report_gap = 10;
+
 	for(int t=0;t<config.duration;t++){
-		vector<vector<Point *>> grids = part->partition(trace+t*config.num_objects, config.num_objects);
-		part->clear();
+		part->partition(trace+t*config.num_objects, config.num_objects);
 		// now pack the grids assignment
-		pack_grids(tctx, grids);
+		part->pack_grids(tctx);
 		// process the objects in the packed partitions
-		map<size_t, int> gcount;
-		for(vector<Point *> &ps:grids){
-			if(gcount.find(ps.size())==gcount.end()){
-				gcount[ps.size()] = 1;
-			}else{
-				gcount[ps.size()]++;
-			}
-		}
-		for(auto g:gcount){
-			cout<<g.first<<" "<<g.second<<endl;
-		}
+//		map<size_t, int> gcount;
+//		for(vector<Point *> &ps:grids){
+//			if(gcount.find(ps.size())==gcount.end()){
+//				gcount[ps.size()] = 1;
+//			}else{
+//				gcount[ps.size()]++;
+//			}
+//		}
+//		for(auto g:gcount){
+//			cout<<g.first<<" "<<g.second<<endl;
+//		}
+		part->clear();
 		process_grids(tctx);
 		//process_with_gpu(tctx);
-
-		tctx.clear();
 	}
-	logt("contact trace with %ld calculation use QTree %ld connected",start,tctx.checked,tctx.found);
+	logt("contact trace with %ld calculation %ld connected",start,tctx.checked,tctx.found);
 }
 
 void tracer::dumpTo(const char *path) {

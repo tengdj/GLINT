@@ -8,6 +8,37 @@
 #include "trace.h"
 
 
+void partitioner::pack_grids(query_context &ctx){
+	struct timeval start = get_cur_time();
+	size_t total_objects = 0;
+	for(vector<Point *> &ps:grids){
+		total_objects += ps.size();
+	}
+	Point *data = (Point *)new double[2*total_objects];
+	uint *offset_size = new uint[grids.size()*2];
+	int *result = new int[grids.size()];
+	uint cur_offset = 0;
+	size_t num_objects = 0;
+	size_t calculation = 0;
+	for(int i=0;i<grids.size();i++){
+		offset_size[i*2] = cur_offset;
+		offset_size[i*2+1] = grids[i].size();
+		for(int j=0;j<grids[i].size();j++){
+			data[cur_offset++] = *grids[i][j];
+		}
+		num_objects += grids[i].size();
+		calculation += grids[i].size()*grids[i].size();
+	}
+	calculation /= 2;
+	//pack the grids into array
+	ctx.target[0] = (void *)data;
+	ctx.target[1] = (void *)offset_size;
+	ctx.target[2] = (void *)result;
+	ctx.num_objects = grids.size();
+	logt("packed into %ld grids %ld objects %ld calculations",start,grids.size(),num_objects, calculation);
+}
+
+
 void *grid_partition(void *arg){
 	query_context *ctx = (query_context *)arg;
 	Grid *grid = (Grid *)ctx->target[0];
@@ -18,24 +49,30 @@ void *grid_partition(void *arg){
 	double y_buffer = ctx->config.reach_distance/1000*degree_per_kilometer_latitude;
 	while(true){
 		// pick one object for generating
-		int pid = ctx->fetch_one();
-		if(pid<0){
+		size_t start = 0;
+		size_t end = 0;
+		if(!ctx->next_batch(start,end)){
 			break;
 		}
-		Point *p = points+pid;
-		vector<int> gids= grid->getgrids(p,x_buffer,y_buffer);
-		for(int gid:gids){
-			ctx->lock(gid);
-			(*grids)[gid].push_back(p);
-			ctx->unlock(gid);
+
+		for(int pid=start;pid<end;pid++){
+			Point *p = points+pid;
+			vector<int> gids = grid->getgrids(p,x_buffer,y_buffer);
+			for(int gid:gids){
+				ctx->lock(gid);
+				(*grids)[gid].push_back(p);
+				ctx->unlock(gid);
+			}
+			gids.clear();
 		}
-		gids.clear();
 	}
 	return NULL;
 }
 
-vector<vector<Point *>> grid_partitioner::partition(Point *points, size_t num_objects){
+void grid_partitioner::partition(Point *points, size_t num_objects){
 	struct timeval start = get_cur_time();
+	clear();
+
 	double x_buffer = config.reach_distance/1000*degree_per_kilometer_longitude(mbr.low[1]);
 	double y_buffer = config.reach_distance/1000*degree_per_kilometer_latitude;
 
@@ -45,8 +82,9 @@ vector<vector<Point *>> grid_partitioner::partition(Point *points, size_t num_ob
 	tctx.target[1] = (void *)points;
 	tctx.target[2] = (void *)&grids;
 
-	tctx.counter = num_objects;
+	tctx.num_objects = num_objects;
 	tctx.report_gap = 10;
+	tctx.batch_size = 100;
 	pthread_t threads[config.num_threads];
 	for(int i=0;i<config.num_threads;i++){
 		pthread_create(&threads[i], NULL, grid_partition, (void *)&tctx);
@@ -56,13 +94,12 @@ vector<vector<Point *>> grid_partitioner::partition(Point *points, size_t num_ob
 		pthread_join(threads[i], &status);
 	}
 	logt("space is partitioned into %d grids",start,grid->get_grid_num());
-	return grids;
 }
 
 void *split_qtree_unit(void *arg){
 	query_context *ctx = (query_context *)arg;
 	queue<QTNode *> *qq = (queue<QTNode *> *)ctx->target[0];
-	while(!qq->empty()||ctx->counter>0){
+	while(!qq->empty()||!ctx->all_idle()){
 		QTNode *node = NULL;
 		ctx->lock();
 		if(!qq->empty()){
@@ -106,9 +143,9 @@ void split_qtree(QTNode *qtree, Point *points, size_t num_objects, int num_threa
 	}
 }
 
-vector<vector<Point *>> qtree_partitioner::partition(Point *points, size_t num_objects){
+void qtree_partitioner::partition(Point *points, size_t num_objects){
 	struct timeval start = get_cur_time();
-	grids.clear();
+	clear();
 	assert(qtree==NULL);
 	qtree = new QTNode(mbr, &qconfig);
 	qtree->objects.resize(num_objects);
@@ -119,7 +156,6 @@ vector<vector<Point *>> qtree_partitioner::partition(Point *points, size_t num_o
 	qtree->get_leafs(grids, true);
 	logt("space is partitioned into %d grids %ld objects",start,qtree->leaf_count(),qtree->num_objects());
 	//qtree->print();
-	return grids;
 }
 
 

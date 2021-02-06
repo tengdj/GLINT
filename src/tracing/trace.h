@@ -79,7 +79,7 @@ public:
 		config = c;
 		assert(config.num_threads>0);
 		map = m;
-		grid = new Grid(*m->getMBR(),config.num_grids);
+		grid = new Grid(*m->getMBR(),10000);
 		zones.resize(grid->dimx*grid->dimy+1);
 		for(int i=0;i<zones.size();i++){
 			zones[i] = new ZoneStats(i);

@@ -236,7 +236,6 @@ public:
 		dimx = dimy;
 		step_x = space.width()/dimx;
 		step_y = space.height()/dimy;
-
 	}
 
 	int getgridid(double x, double y){

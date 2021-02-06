@@ -19,18 +19,18 @@ int main(int argc, char **argv){
 
 	struct timeval start = get_cur_time();
 	query_context ctx;
-	ctx.config.num_grids =   1000000;
+	int num_grids = 1000000;
 	ctx.config.num_objects = 10000000;
 	double *data = new double[2*ctx.config.num_objects];
-	int *result = new int[ctx.config.num_grids];
-	uint *offset_size = new uint[ctx.config.num_grids*2];
+	int *result = new int[num_grids];
+	uint *offset_size = new uint[num_grids*2];
 	ctx.target[0] = (void *)data;
 	ctx.target[1] = (void *)offset_size;
 	ctx.target[2] = (void *)result;
-	int num_objects_per_grid = ctx.config.num_objects/ctx.config.num_grids;
+	int num_objects_per_grid = ctx.config.num_objects/num_grids;
 	int cur_offset = 0;
 
-	for(int i=0;i<ctx.config.num_grids;i++){
+	for(int i=0;i<num_grids;i++){
 		offset_size[i*2] = cur_offset;
 		offset_size[i*2+1] = num_objects_per_grid;
 //		for(int k=0;k<num_objects_per_grid-1;k++){
