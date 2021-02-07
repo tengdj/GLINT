@@ -264,31 +264,39 @@ public:
 		return getgrid(gid%dimx,gid/dimx);
 	}
 
-	vector<int> getgrids(Point *p, double x_buffer, double y_buffer){
-		vector<int> ret;
+	inline size_t getgrids(Point *p, double x_buffer, double y_buffer){
 		int offsety = (p->y-space.low[1])/step_y;
 		int offsetx = (p->x-space.low[0])/step_x;
-		int gid = dimx*offsety+offsetx;
-		ret.push_back(gid);
+		size_t gid = dimx*offsety+offsetx;
 		bool right = offsetx+1<=dimx&&(offsetx+1)*step_x+space.low[0]<p->x+x_buffer;
 		bool top = offsety+1<=dimy&&(offsety+1)*step_y+space.low[1]<p->y+y_buffer;
 		bool bottom = offsety-1>=0&&(offsety-1)*step_y+space.low[1]>p->y-y_buffer;
-		if(right){
-			// top right
-			if(top){
-				ret.push_back(dimx*(offsety+1)+offsetx+1);
-			}
-			// right
-			ret.push_back(dimx*offsety+offsetx+1);
-			// bottom right
-			if(bottom){
-				ret.push_back(dimx*(offsety-1)+offsetx+1);
-			}
-		}
-		if(top){
-			ret.push_back(dimx*(offsety+1)+offsetx);
-		}
-		return ret;
+		gid <<= 1;
+		gid |= (top&&right);
+		gid <<= 1;
+		gid |= (right);
+		gid <<= 1;
+		gid |= (bottom&&right);
+		gid <<= 1;
+		gid |= (top);
+		return gid;
+
+//		if(right){
+//			// top right
+//			if(top){
+//				ret.push_back(dimx*(offsety+1)+offsetx+1);
+//			}
+//			// right
+//			ret.push_back(dimx*offsety+offsetx+1);
+//			// bottom right
+//			if(bottom){
+//				ret.push_back(dimx*(offsety-1)+offsetx+1);
+//			}
+//		}
+//		if(top){
+//			ret.push_back(dimx*(offsety+1)+offsetx);
+//		}
+		return gid;
 	}
 
 

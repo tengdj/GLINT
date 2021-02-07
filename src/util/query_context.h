@@ -49,10 +49,14 @@ public:
 		start = counter;
 		counter += batch_size;
 		end = counter;
+		if(end>num_objects){
+			end = num_objects;
+		}
 		if(start>next_report){
 			log("%ld%%",start*100/num_objects);
 			next_report += num_objects/report_gap;
 		}
+
 		pthread_mutex_unlock(&lk[0]);
 		return start<num_objects;
 	}
@@ -70,12 +74,9 @@ public:
 		return counter == 0;
 	}
 	void clear(){
-		for(int i=0;i<4;i++){
-			if(target[i]!=NULL){
-				free(target[i]);
-				target[i] = NULL;
-			}
-		}
+//		for(int i=0;i<4;i++){
+//			target[i] = NULL;
+//		}
 		next_report = 0;
 		counter = 0;
 	}

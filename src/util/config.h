@@ -70,7 +70,7 @@ inline configuration get_parameters(int argc, char **argv){
 		("map_path", po::value<string>(&global_ctx.map_path), "path to the map file")
 		("taxi_path", po::value<string>(&global_ctx.taxi_path), "path to the taxi file")
 		("trace_path", po::value<string>(&global_ctx.trace_path), "path to the trace file")
-		("query_method,q", po::value<string>(&query_method), "query method (qtree|gpu|fix_grid)")
+		("query_method,q", po::value<string>(&query_method), "query method (qtree|gpu|grid)")
 		;
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -81,7 +81,7 @@ inline configuration get_parameters(int argc, char **argv){
 	po::notify(vm);
 	if(query_method=="qtree"){
 		global_ctx.method = QTREE;
-	}else if(query_method=="fix_grid"){
+	}else if(query_method=="grid"){
 		global_ctx.method = FIX_GRID;
 	}else if(query_method=="gpu"){
 		global_ctx.method = GPU;

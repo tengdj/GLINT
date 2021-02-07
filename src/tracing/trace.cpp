@@ -26,7 +26,6 @@ void *process_grid_unit(void *arg){
 	int *result = (int *)ctx->target[2];
 	size_t checked = 0;
 	size_t reached = 0;
-	ctx->batch_size = 1000;
 	while(true){
 		// pick one object for generating
 		size_t start = 0;
@@ -62,6 +61,7 @@ void *process_grid_unit(void *arg){
 void process_grids(query_context &tctx){
 	struct timeval start = get_cur_time();
 	pthread_t threads[tctx.config.num_threads];
+	tctx.clear();
 
 	for(int i=0;i<tctx.config.num_threads;i++){
 		pthread_create(&threads[i], NULL, process_grid_unit, (void *)&tctx);

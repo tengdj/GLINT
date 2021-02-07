@@ -38,6 +38,7 @@ public:
 	double grid_width = 5;// in meters
 	double x_buffer = 0;
 	double y_buffer = 0;
+	bool split_node = true;
 	// counter
 	int num_leafs = 0;
 	QConfig(){}
@@ -50,10 +51,10 @@ class QTNode{
 	QConfig *config = NULL;
 	box mbr;
 	pthread_mutex_t lk;
-public:
-	int max_objects = 100;
-	vector<Point *> objects;
 	QTNode *children[4] = {NULL,NULL,NULL,NULL};
+	vector<Point *> objects;
+
+public:
 
 	QTNode(double low_x, double low_y, double high_x, double high_y, QConfig *conf){
 		mbr.low[0] = low_x;
@@ -86,7 +87,8 @@ public:
 
 	bool split(){
 
-		bool should_split = objects.size()>=2*config->max_objects &&
+		bool should_split = config->split_node &&
+							objects.size()>=2*config->max_objects &&
 				   	   	    level<config->max_level &&
 							//config->num_leafs<config->max_leafs &&
 							mbr.width(true)>config->grid_width;
@@ -130,9 +132,19 @@ public:
 		return 2*(p->y>mid_y)+(p->x>mid_x);
 	}
 	void insert(Point *p){
+		assert(p);
 		if(isleaf()){
-			objects.push_back(p);
-			split();
+			lock();
+			if(isleaf()){
+				objects.push_back(p);
+				split();
+				unlock();
+			}else{
+				// if the node is splitted by another thread
+				// release the lock and recall the insert function
+				unlock();
+				insert(p);
+			}
 		}else{
 			// could be possibly in multiple children
 			bool top = (p->y>mid_y-config->y_buffer);
@@ -232,6 +244,13 @@ public:
 		printf("level: %d objects: %ld width: %f height: %f",level,objects.size(),mbr.width(true),mbr.height(true));
 		mbr.print();
 		print_points(objects);
+	}
+
+	void lock(){
+		pthread_mutex_lock(&lk);
+	}
+	void unlock(){
+		pthread_mutex_unlock(&lk);
 	}
 };
 
