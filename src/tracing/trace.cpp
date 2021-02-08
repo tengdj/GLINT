@@ -22,10 +22,12 @@
 void *process_grid_unit(void *arg){
 	query_context *ctx = (query_context *)arg;
 	Point *points = (Point *)ctx->target[0];
-	uint *offset_size = (uint *)ctx->target[1];
-	int *result = (int *)ctx->target[2];
+	uint *pids = (uint *)ctx->target[1];
+	offset_size *os = (offset_size *)ctx->target[2];
+	uint *result = (uint *)ctx->target[3];
 	size_t checked = 0;
 	size_t reached = 0;
+	int max_len = 0;
 	while(true){
 		// pick one object for generating
 		size_t start = 0;
@@ -34,19 +36,35 @@ void *process_grid_unit(void *arg){
 			break;
 		}
 		for(int gid=start;gid<end;gid++){
-			int len = offset_size[2*gid+1];
-			Point *cur_points = points + offset_size[2*gid];
+			uint len = os[gid].size;
+			uint *cur_pids = pids + os[gid].offset;
+			result[gid] = 0;
 			//n->print_node();
+			if(max_len<len){
+				log("%d %d",gid,len);
+				max_len = len;
+			}
+			//vector<Point *> pts;
 			if(len>2){
-				for(int i=0;i<len-1;i++){
-					for(int j=i+1;j<len;j++){
-						double dist = cur_points[i].distance(cur_points[j], true)*1000;
+				for(uint i=0;i<len-1;i++){
+					//pts.push_back(points + cur_pids[i]);
+					for(uint j=i+1;j<len;j++){
+						Point *p1 = points + cur_pids[i];
+						Point *p2 = points + cur_pids[j];
+						double dist = p1->distance(*p2, true)*1000;
 						//log("%f",dist);
 						result[gid] += dist<ctx->config.reach_distance;
 						checked++;
 					}
 				}
 				reached += result[gid];
+//				if(len>100){
+//					lock();
+//					print_points(pts);
+//					unlock();
+//					exit(0);
+//				}
+
 			}
 		}
 
@@ -83,14 +101,9 @@ void tracer::process(){
 	// test contact tracing
 	size_t checked = 0;
 	size_t reached = 0;
-	query_context tctx;
-	tctx.config = config;
-	tctx.report_gap = 10;
 
 	for(int t=0;t<config.duration;t++){
-		part->partition(trace+t*config.num_objects, config.num_objects);
-		// now pack the grids assignment
-		part->pack_grids(tctx);
+		query_context tctx = part->partition(trace+t*config.num_objects, config.num_objects);
 		// process the objects in the packed partitions
 //		map<size_t, int> gcount;
 //		for(vector<Point *> &ps:grids){
@@ -103,11 +116,12 @@ void tracer::process(){
 //		for(auto g:gcount){
 //			cout<<g.first<<" "<<g.second<<endl;
 //		}
-		part->clear();
 		process_grids(tctx);
+		checked += tctx.checked;
+		reached += tctx.found;
 		//process_with_gpu(tctx);
 	}
-	logt("contact trace with %ld calculation %ld connected",start,tctx.checked,tctx.found);
+	logt("contact trace with %ld calculation %ld connected",start,checked,reached);
 }
 
 void tracer::dumpTo(const char *path) {

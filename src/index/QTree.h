@@ -9,6 +9,7 @@
 #define SRC_INDEX_QTREE_H_
 
 #include "../geometry/geometry.h"
+#include "../util/query_context.h"
 #include <float.h>
 #include <stack>
 using namespace std;
@@ -41,6 +42,9 @@ public:
 	bool split_node = true;
 	// counter
 	int num_leafs = 0;
+
+	// the buffer to all the points
+	Point *points = NULL;
 	QConfig(){}
 };
 
@@ -52,7 +56,10 @@ class QTNode{
 	box mbr;
 	pthread_mutex_t lk;
 	QTNode *children[4] = {NULL,NULL,NULL,NULL};
-	vector<Point *> objects;
+	// the IDs of each point belongs to this node
+	uint *objects = NULL;
+	int object_index = 0;
+	int capacity = 0;
 
 public:
 
@@ -68,6 +75,8 @@ public:
 		assert(mbr.low[0]!=mid_x);
 		assert(mbr.low[1]!=mid_y);
 		config = conf;
+		capacity = conf->max_objects*2+10;
+		objects = (uint *)malloc((capacity)*sizeof(uint));
 		pthread_mutex_init(&lk, NULL);
 	}
 	QTNode(box m, QConfig *conf):QTNode(m.low[0], m.low[1], m.high[0], m.high[1],conf){
@@ -78,7 +87,7 @@ public:
 				delete children[i];
 			}
 		}else{
-			objects.clear();
+			free(objects);
 		}
 	}
 	inline bool isleaf(){
@@ -88,8 +97,8 @@ public:
 	bool split(){
 
 		bool should_split = config->split_node &&
-							objects.size()>=2*config->max_objects &&
-				   	   	    level<config->max_level &&
+							object_index>=2*config->max_objects &&
+				   	   	    level<config->max_level&&
 							//config->num_leafs<config->max_leafs &&
 							mbr.width(true)>config->grid_width;
 		if(!should_split){
@@ -104,7 +113,8 @@ public:
 		for(int i=0;i<4;i++){
 			children[i]->level = level+1;
 		}
-		for(Point *p:objects){
+		for(int i=0;i<object_index;i++){
+			Point *p = config->points+objects[i];
 			// could be possibly in multiple children
 			assert(p);
 			assert(config);
@@ -113,55 +123,61 @@ public:
 			bool left = (p->x<mid_x+config->x_buffer);
 			bool right = (p->x>mid_x-config->x_buffer);
 			if(bottom&&left){
-				children[0]->objects.push_back(p);
+				children[0]->push(objects[i]);
 			}
 			if(bottom&&right){
-				children[1]->objects.push_back(p);
+				children[1]->push(objects[i]);
 			}
 			if(top&&left){
-				children[2]->objects.push_back(p);
+				children[2]->push(objects[i]);
 			}
 			if(top&&right){
-				children[3]->objects.push_back(p);
+				children[3]->push(objects[i]);
 			}
 		}
-		objects.clear();
+		free(objects);
+		object_index = 0;
 		return true;
 	}
-	inline int which_region(Point *p){
-		return 2*(p->y>mid_y)+(p->x>mid_x);
+
+	void push(uint pid){
+		// avoid overflow the buffer
+		// happens when the grid is too condense
+		if(object_index==capacity){
+			capacity += config->max_objects;
+			uint *newobjects = (uint *)malloc(capacity*sizeof(uint));
+			memcpy(newobjects,objects,(capacity-config->max_objects)*sizeof(uint));
+			free(objects);
+			objects = newobjects;
+		}
+		objects[object_index++] = pid;
 	}
-	void insert(Point *p){
-		assert(p);
+	void insert(uint pid){
+		lock();
 		if(isleaf()){
-			lock();
-			if(isleaf()){
-				objects.push_back(p);
-				split();
-				unlock();
-			}else{
-				// if the node is splitted by another thread
-				// release the lock and recall the insert function
-				unlock();
-				insert(p);
-			}
+			push(pid);
+			split();
+			unlock();
 		}else{
+			// no need to lock other nodes
+			unlock();
+			Point *p = config->points+pid;
 			// could be possibly in multiple children
 			bool top = (p->y>mid_y-config->y_buffer);
 			bool bottom = (p->y<mid_y+config->y_buffer);
 			bool left = (p->x<mid_x+config->x_buffer);
 			bool right = (p->x>mid_x-config->x_buffer);
 			if(bottom&&left){
-				children[0]->insert(p);
+				children[0]->insert(pid);
 			}
 			if(bottom&&right){
-				children[1]->insert(p);
+				children[1]->insert(pid);
 			}
 			if(top&&left){
-				children[2]->insert(p);
+				children[2]->insert(pid);
 			}
 			if(top&&right){
-				children[3]->insert(p);
+				children[3]->insert(pid);
 			}
 		}
 	}
@@ -179,7 +195,7 @@ public:
 	}
 	size_t num_objects(){
 		if(isleaf()){
-			return objects.size();
+			return object_index;
 		}else{
 			size_t num = 0;
 			for(int i=0;i<4;i++){
@@ -191,7 +207,7 @@ public:
 	void get_leafs(vector<QTNode *> &leafs, bool skip_empty = true){
 
 		if(isleaf()){
-			if(!skip_empty||objects.size()>0){
+			if(!skip_empty||object_index>0){
 				leafs.push_back(this);
 			}
 		}else{
@@ -201,27 +217,28 @@ public:
 		}
 	}
 
-	void get_leafs(vector<vector<Point *>> &grids, bool skip_empty = true){
+	void get_leafs(vector<QTNode *> &grids, vector<size_t> &object_num,bool skip_empty = true){
 
 		if(isleaf()){
-			if(!skip_empty||objects.size()>0){
-				grids.push_back(objects);
+			if(!skip_empty||object_index>0){
+				grids.push_back(this);
+				object_num.push_back(object_index);
 			}
 		}else{
 			for(int i=0;i<4;i++){
-				children[i]->get_leafs(grids, skip_empty);
+				children[i]->get_leafs(grids, object_num, skip_empty);
 			}
 		}
 	}
 
 	void fix_structure(){
-		objects.clear();
+		object_index = 0;
 		if(!isleaf()){
 			for(int i=0;i<4;i++){
 				children[i]->fix_structure();
 			}
 		}
-		config->max_objects = INT_MAX;
+		config->split_node = false;
 	}
 
 	void print(){
@@ -240,11 +257,30 @@ public:
 		nodes.clear();
 	}
 
-	void print_node(){
-		printf("level: %d objects: %ld width: %f height: %f",level,objects.size(),mbr.width(true),mbr.height(true));
-		mbr.print();
-		print_points(objects);
+	void pack_data(uint *points, offset_size *os, int &curnode){
+		if(isleaf()){
+			if(curnode==0){
+				os[curnode].offset = 0;
+			}else{
+				os[curnode].offset = os[curnode-1].offset+os[curnode-1].size;
+			}
+			os[curnode].size = object_index;
+			if(object_index>0){
+				memcpy((void *)(points+os[curnode].offset),(void *)objects,os[curnode].size*sizeof(uint));
+			}
+			curnode++;
+		}else{
+			for(int i=0;i<4;i++){
+				children[i]->pack_data(points, os, curnode);
+			}
+		}
 	}
+
+//	void print_node(){
+//		printf("level: %d objects: %ld width: %f height: %f",level,object_index,mbr.width(true),mbr.height(true));
+//		mbr.print();
+//		print_points(objects,object_index);
+//	}
 
 	void lock(){
 		pthread_mutex_lock(&lk);

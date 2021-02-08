@@ -11,6 +11,13 @@
 #include <pthread.h>
 
 #define MAX_LOCK_NUM 100
+
+class offset_size{
+public:
+	uint offset;
+	uint size;
+};
+
 class query_context{
 	size_t next_report = 0;
 	size_t step = 0;
@@ -20,7 +27,7 @@ public:
 	configuration config;
 	size_t num_objects = 0;
 	size_t batch_size = 10;
-	size_t report_gap = 1;
+	size_t report_gap = 10;
 	pthread_mutex_t lk[MAX_LOCK_NUM];
 
 	// query source
@@ -52,6 +59,7 @@ public:
 		if(end>num_objects){
 			end = num_objects;
 		}
+		//log("%d %d %d %d",start,next_report,num_objects,report_gap);
 		if(start>next_report){
 			log("%ld%%",start*100/num_objects);
 			next_report += num_objects/report_gap;

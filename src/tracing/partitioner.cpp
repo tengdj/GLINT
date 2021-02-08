@@ -8,44 +8,44 @@
 #include "trace.h"
 
 
-void partitioner::pack_grids(query_context &ctx){
-	struct timeval start = get_cur_time();
-	size_t total_objects = 0;
-	for(vector<Point *> &ps:grids){
-		total_objects += ps.size();
-	}
-	Point *data = (Point *)new double[2*total_objects];
-	uint *offset_size = new uint[grids.size()*2];
-	int *result = new int[grids.size()];
-	uint cur_offset = 0;
-	size_t num_objects = 0;
-	size_t calculation = 0;
-	int max_one = 0;
-	int have_count = 0;
-	for(int i=0;i<grids.size();i++){
-		offset_size[i*2] = cur_offset;
-		offset_size[i*2+1] = grids[i].size();
-		for(int j=0;j<grids[i].size();j++){
-			data[cur_offset++] = *grids[i][j];
-		}
-		num_objects += grids[i].size();
-		calculation += grids[i].size()*grids[i].size();
-		if(grids[i].size()>grids[max_one].size()){
-			max_one = i;
-		}
-		have_count += grids[i].size()>0;
-	}
-	//cout<<max_one<<" "<<grids[max_one].size()<<" "<<have_count<<endl;
-	calculation /= 2;
-	//pack the grids into array
-	ctx.target[0] = (void *)data;
-	ctx.target[1] = (void *)offset_size;
-	ctx.target[2] = (void *)result;
-	ctx.num_objects = grids.size();
-	logt("packed into %ld grids %ld objects %ld calculations",start,grids.size(),num_objects, calculation);
-}
-
-
+//void partitioner::pack_grids(query_context &ctx){
+//	struct timeval start = get_cur_time();
+//	size_t total_objects = 0;
+//	for(vector<Point *> &ps:grids){
+//		total_objects += ps.size();
+//	}
+//	Point *data = (Point *)new double[2*total_objects];
+//	uint *offset_size = new uint[grids.size()*2];
+//	int *result = new int[grids.size()];
+//	uint cur_offset = 0;
+//	size_t num_objects = 0;
+//	size_t calculation = 0;
+//	int max_one = 0;
+//	int have_count = 0;
+//	for(int i=0;i<grids.size();i++){
+//		offset_size[i*2] = cur_offset;
+//		offset_size[i*2+1] = grids[i].size();
+//		for(int j=0;j<grids[i].size();j++){
+//			data[cur_offset++] = *grids[i][j];
+//		}
+//		num_objects += grids[i].size();
+//		calculation += grids[i].size()*grids[i].size();
+//		if(grids[i].size()>grids[max_one].size()){
+//			max_one = i;
+//		}
+//		have_count += grids[i].size()>0;
+//	}
+//	//cout<<max_one<<" "<<grids[max_one].size()<<" "<<have_count<<endl;
+//	calculation /= 2;
+//	//pack the grids into array
+//	ctx.target[0] = (void *)data;
+//	ctx.target[1] = (void *)offset_size;
+//	ctx.target[2] = (void *)result;
+//	ctx.num_objects = grids.size();
+//	logt("packed into %ld grids %ld objects %ld calculations",start,grids.size(),num_objects, calculation);
+//}
+//
+//
 void *grid_partition(void *arg){
 	query_context *ctx = (query_context *)arg;
 	Grid *grid = (Grid *)ctx->target[0];
@@ -78,8 +78,8 @@ void *grid_partition(void *arg){
 	}
 	return NULL;
 }
-
-void grid_partitioner::partition(Point *points, size_t num_objects){
+//
+query_context grid_partitioner::partition(Point *points, size_t num_objects){
 	struct timeval start = get_cur_time();
 	clear();
 
@@ -87,7 +87,7 @@ void grid_partitioner::partition(Point *points, size_t num_objects){
 
 	tctx.target[0] = (void *)grid;
 	tctx.target[1] = (void *)points;
-	tctx.target[2] = (void *)&grids;
+	//tctx.target[2] = (void *)&grids;
 
 	tctx.num_objects = num_objects;
 	tctx.report_gap = 10;
@@ -101,6 +101,7 @@ void grid_partitioner::partition(Point *points, size_t num_objects){
 		pthread_join(threads[i], &status);
 	}
 	logt("space is partitioned into %d grids",start,grid->get_grid_num());
+	return tctx;
 }
 
 //void *split_qtree_unit(void *arg){
@@ -174,9 +175,9 @@ void *insert_qtree_unit(void *arg){
 	size_t end = 0;
 	// pick one object for inserting
 	while(ctx->next_batch(start,end)){
-		for(int pid=start;pid<end;pid++){
+		for(uint pid=start;pid<end;pid++){
 			//log("%d",pid);
-			qtree->insert(points+pid);
+			qtree->insert(pid);
 		}
 	}
 	return NULL;
@@ -198,25 +199,42 @@ void build_qtree(QTNode *qtree, Point *points, size_t num_objects, int num_threa
 	}
 }
 
-void qtree_partitioner::partition(Point *points, size_t num_objects){
+query_context qtree_partitioner::partition(Point *points, size_t num_objects){
 	struct timeval start = get_cur_time();
+	query_context ctx;
+	ctx.config = config;
 	clear();
-	if(qtree==NULL){
-		qtree = new QTNode(mbr, &qconfig);
-	}
+	qtree = new QTNode(mbr, &qconfig);
+	qconfig.points = points;
 	build_qtree(qtree, points, num_objects,config.num_threads);
-	qtree->get_leafs(grids, true);
-	logt("space is partitioned into %d grids %ld objects",start,qtree->leaf_count(),qtree->num_objects());
+	//qtree->get_leafs(grids, true);
+	size_t total_objects = qtree->num_objects();
+	size_t num_grids = qtree->leaf_count();
+	logt("space is partitioned into %d grids %ld objects",start,num_grids,total_objects);
+
+	uint *data = new uint[total_objects];
+	offset_size *os = new offset_size[num_grids];
+	uint *result = new uint[num_grids];
+	int curnode = 0;
+	qtree->pack_data(data, os, curnode);
+
+	//pack the grids into array
+	ctx.target[0] = (void *)points;
+	ctx.target[1] = (void *)data;
+	ctx.target[2] = (void *)os;
+	ctx.target[3] = (void *)result;
+	ctx.num_objects = num_grids;
+	logt("packed into %ld grids %ld objects",start,num_grids,total_objects);
+
 	//qtree->print();
+	return ctx;
 }
 
 
 void qtree_partitioner::clear(){
-	for(vector<Point *> &ps:grids){
-		ps.clear();
+	if(qtree){
+		delete qtree;
+		qtree = NULL;
 	}
-	grids.clear();
-	delete qtree;
-	qtree = NULL;
 }
 

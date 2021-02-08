@@ -14,7 +14,6 @@
 
 class partitioner{
 protected:
-	vector<vector<Point *>> grids;
 	configuration config;
 	box mbr;
 public:
@@ -22,11 +21,8 @@ public:
 	virtual ~partitioner(){};
 
 	virtual void clear() = 0;
-	virtual void partition(Point *objects, size_t num_objects) = 0;
-	vector<vector<Point *>> get_grids(){
-		return grids;
-	}
-	void pack_grids(query_context &);
+	virtual query_context partition(Point *objects, size_t num_objects) = 0;
+	//void pack_grids(query_context &);
 };
 
 class grid_partitioner:public partitioner{
@@ -36,21 +32,14 @@ public:
 		mbr = m;
 		config = conf;
 		grid = new Grid(mbr, config.grid_width);
-		grids.resize(grid->get_grid_num()+1);
 	}
 	~grid_partitioner(){
-		clear();
-		grids.clear();
 		if(grid){
 			delete grid;
 		}
 	};
-	void clear(){
-		for(vector<Point *> &ps:grids){
-			ps.clear();
-		}
-	};
-	void partition(Point *objects, size_t num_objects);
+	void clear(){};
+	query_context partition(Point *objects, size_t num_objects);
 };
 
 class qtree_partitioner:public partitioner{
@@ -72,7 +61,7 @@ public:
 		}
 	}
 	void clear();
-	void partition(Point *objects, size_t num_objects);
+	query_context partition(Point *objects, size_t num_objects);
 };
 
 
