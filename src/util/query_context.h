@@ -60,9 +60,9 @@ public:
 			end = num_objects;
 		}
 		//log("%d %d %d %d",start,next_report,num_objects,report_gap);
-		if(start>next_report){
+		if(start>next_report&&start<=num_objects){
 			log("%ld%%",start*100/num_objects);
-			next_report += num_objects/report_gap;
+			next_report += num_objects*report_gap/100;
 		}
 
 		pthread_mutex_unlock(&lk[0]);
