@@ -39,11 +39,15 @@ void *process_grid_unit(void *arg){
 			uint len = os[gid].size;
 			uint *cur_pids = pids + os[gid].offset;
 			result[gid] = 0;
-			//n->print_node();
-			if(max_len<len){
-				log("%d %d",gid,len);
-				max_len = len;
-			}
+//			if(max_len<len){
+//				log("%d %d",gid,len);
+//				max_len = len;
+//			}
+			//log("%d %d",gid,len);
+//			if(len>1000){
+//				len=1000;
+//				invalid++;
+//			}
 			//vector<Point *> pts;
 			if(len>2){
 				for(uint i=0;i<len-1;i++){

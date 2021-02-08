@@ -268,8 +268,8 @@ public:
 		int offsety = (p->y-space.low[1])/step_y;
 		int offsetx = (p->x-space.low[0])/step_x;
 		size_t gid = dimx*offsety+offsetx;
-		bool right = offsetx+1<=dimx&&(offsetx+1)*step_x+space.low[0]<p->x+x_buffer;
-		bool top = offsety+1<=dimy&&(offsety+1)*step_y+space.low[1]<p->y+y_buffer;
+		bool right = offsetx+1<dimx&&(offsetx+1)*step_x+space.low[0]<p->x+x_buffer;
+		bool top = offsety+1<dimy&&(offsety+1)*step_y+space.low[1]<p->y+y_buffer;
 		bool bottom = offsety-1>=0&&(offsety-1)*step_y+space.low[1]>p->y-y_buffer;
 		gid <<= 1;
 		gid |= (top&&right);
