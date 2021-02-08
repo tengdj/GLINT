@@ -96,7 +96,6 @@ void process_grids(query_context &tctx){
 }
 
 
-
 void process_with_gpu(query_context &ctx);
 
 void tracer::process(){
@@ -106,24 +105,22 @@ void tracer::process(){
 	size_t checked = 0;
 	size_t reached = 0;
 
+	// first level of partition
+	uint *pids = new uint[config.num_objects];
+	for(int i=0;i<config.num_objects;i++){
+		pids[i] = i;
+	}
+
 	for(int t=0;t<config.duration;t++){
-		query_context tctx = part->partition(trace+t*config.num_objects, config.num_objects);
+		query_context tctx = part->partition(trace+t*config.num_objects, pids, config.num_objects);
 		// process the objects in the packed partitions
-//		map<size_t, int> gcount;
-//		for(vector<Point *> &ps:grids){
-//			if(gcount.find(ps.size())==gcount.end()){
-//				gcount[ps.size()] = 1;
-//			}else{
-//				gcount[ps.size()]++;
-//			}
-//		}
-//		for(auto g:gcount){
-//			cout<<g.first<<" "<<g.second<<endl;
-//		}
-		process_grids(tctx);
+		if(!config.gpu){
+			process_grids(tctx);
+		}else{
+			process_with_gpu(tctx);
+		}
 		checked += tctx.checked;
 		reached += tctx.found;
-		//process_with_gpu(tctx);
 	}
 	logt("contact trace with %ld calculation %ld connected",start,checked,reached);
 }

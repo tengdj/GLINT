@@ -54,7 +54,6 @@ class QTNode{
 	int level = 0;
 	QConfig *config = NULL;
 	box mbr;
-	pthread_mutex_t lk;
 	QTNode *children[4] = {NULL,NULL,NULL,NULL};
 	// the IDs of each point belongs to this node
 	uint *objects = NULL;
@@ -77,7 +76,6 @@ public:
 		config = conf;
 		capacity = conf->max_objects*2+10;
 		objects = (uint *)malloc((capacity)*sizeof(uint));
-		pthread_mutex_init(&lk, NULL);
 	}
 	QTNode(box m, QConfig *conf):QTNode(m.low[0], m.low[1], m.high[0], m.high[1],conf){
 	}
@@ -153,14 +151,11 @@ public:
 		objects[object_index++] = pid;
 	}
 	void insert(uint pid){
-		lock();
 		if(isleaf()){
 			push(pid);
 			split();
-			unlock();
 		}else{
 			// no need to lock other nodes
-			unlock();
 			Point *p = config->points+pid;
 			// could be possibly in multiple children
 			bool top = (p->y>mid_y-config->y_buffer);
@@ -257,7 +252,11 @@ public:
 		nodes.clear();
 	}
 
-	void pack_data(uint *points, offset_size *os, int &curnode){
+	Point *get_point(uint pid){
+		return config->points+objects[pid];
+	}
+
+	void pack_data(uint *grid_assignment, uint *pids, offset_size *os, uint &curnode){
 		if(isleaf()){
 			if(curnode==0){
 				os[curnode].offset = 0;
@@ -266,12 +265,17 @@ public:
 			}
 			os[curnode].size = object_index;
 			if(object_index>0){
-				memcpy((void *)(points+os[curnode].offset),(void *)objects,os[curnode].size*sizeof(uint));
+				memcpy((void *)(pids+os[curnode].offset),(void *)objects,os[curnode].size*sizeof(uint));
+				for(int i=0;i<object_index;i++){
+					if(mbr.contain(*get_point(i))){
+						grid_assignment[objects[i]] = curnode;
+					}
+				}
 			}
 			curnode++;
 		}else{
 			for(int i=0;i<4;i++){
-				children[i]->pack_data(points, os, curnode);
+				children[i]->pack_data(grid_assignment, pids, os, curnode);
 			}
 		}
 	}
@@ -282,12 +286,6 @@ public:
 //		print_points(objects,object_index);
 //	}
 
-	void lock(){
-		pthread_mutex_lock(&lk);
-	}
-	void unlock(){
-		pthread_mutex_unlock(&lk);
-	}
 };
 
 #endif /* SRC_INDEX_QTREE_H_ */

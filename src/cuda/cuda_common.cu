@@ -50,84 +50,36 @@ void print_gpus(){
 
 
 void gpu_info::init(){
+	for(int i=0;i<MAX_DATA_SPACE;i++){
+		data_size[i] = 0;
+		d_data[i] = NULL;
+	}
 }
 
-double *gpu_info::get_source(size_t ss){
+void *gpu_info::get_data(int did, size_t ss){
+	assert(did<MAX_DATA_SPACE);
 	cudaSetDevice(this->device_id);
-	if(this->source_data&&this->source_size<ss){
-		CUDA_SAFE_CALL(cudaFree(this->source_data));
-		this->source_size = 0;
-		this->source_data = NULL;
+	if(this->d_data[did]&&this->data_size[did]<ss){
+		CUDA_SAFE_CALL(cudaFree(this->d_data[did]));
+		this->data_size[did] = 0;
+		this->d_data[did] = NULL;
 	}
-	if(!this->source_data){
-		CUDA_SAFE_CALL(cudaMalloc((void **)&source_data, ss));
-		assert(this->source_data);
-		this->source_size = ss;
+	if(!this->d_data[did]){
+		CUDA_SAFE_CALL(cudaMalloc((void **)&d_data[did], ss));
+		assert(this->d_data[did]);
+		this->data_size[did] = ss;
 	}
-	return this->source_data;
+	return this->d_data[did];
 }
-double *gpu_info::get_data(size_t ds){
-	cudaSetDevice(this->device_id);
-	if(this->d_data&&this->data_size<ds){
-		CUDA_SAFE_CALL(cudaFree(this->d_data));
-		this->data_size = 0;
-		this->d_data = NULL;
-	}
-	if(!this->d_data){
-		CUDA_SAFE_CALL(cudaMalloc((void **)&this->d_data, ds));
-		assert(this->d_data);
-		this->data_size = ds;
-	}
-	return this->d_data;
-}
-int *gpu_info::get_result(size_t rs){
-	cudaSetDevice(this->device_id);
-	if(this->result&&this->result_size<rs){
-		CUDA_SAFE_CALL(cudaFree(this->result));
-		this->result_size = 0;
-		this->result = NULL;
-	}
-	if(!this->result){
-		CUDA_SAFE_CALL(cudaMalloc((void **)&this->result, rs));
-		assert(this->result);
-		this->result_size = rs;
-	}
-	return this->result;
-}
-uint *gpu_info::get_os(size_t os){
-	cudaSetDevice(this->device_id);
-	if(this->offset_size&&this->os_size<os){
-		CUDA_SAFE_CALL(cudaFree(this->offset_size));
-		this->os_size = 0;
-		this->offset_size = NULL;
-	}
-	if(!this->offset_size){
-		CUDA_SAFE_CALL(cudaMalloc((void **)&this->offset_size, os));
-		assert(this->offset_size);
-		this->os_size = os;
-	}
-	return this->offset_size;
-}
-
-
 
 gpu_info::~gpu_info(){
 	cudaSetDevice(this->device_id);
-	if(this->d_data){
-		CUDA_SAFE_CALL(cudaFree(this->d_data));
-		this->d_data = NULL;
-	}
-	if(this->source_data){
-		CUDA_SAFE_CALL(cudaFree(this->source_data));
-		this->source_data = NULL;
-	}
-	if(this->result){
-		CUDA_SAFE_CALL(cudaFree(this->result));
-		this->result = NULL;
-	}
-	if(this->offset_size){
-		CUDA_SAFE_CALL(cudaFree(this->offset_size));
-		this->offset_size = NULL;
+	for(int i=0;i<MAX_DATA_SPACE;i++){
+		if(d_data[i]){
+			CUDA_SAFE_CALL(cudaFree(this->d_data[i]));
+			d_data[i] = NULL;
+			data_size[i] = 0;
+		}
 	}
 }
 

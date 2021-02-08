@@ -13,29 +13,21 @@
 using namespace std;
 typedef unsigned int uint;
 
+#define MAX_DATA_SPACE 10
+
 class gpu_info{
 public:
 	int device_id;
 	size_t mem_size;
 	bool busy;
 	pthread_mutex_t lock;
-	double *d_data = NULL;
-	size_t data_size = 0;
-	double *source_data = NULL;
-	size_t source_size = 0;
-	int *result = NULL;
-	size_t result_size = 0;
-	uint *offset_size = NULL;
-	size_t os_size = 0;
+	void *d_data[MAX_DATA_SPACE];
+	size_t data_size[MAX_DATA_SPACE];
 
 
 	void init();
 	~gpu_info();
-	double *get_source(size_t ss);
-	double *get_data(size_t ds);
-	int *get_result(size_t rs);
-	uint *get_os(size_t os);
-
+	void *get_data(int did, size_t ss);
 };
 
 vector<gpu_info *> get_gpus();

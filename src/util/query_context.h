@@ -31,7 +31,8 @@ public:
 	pthread_mutex_t lk[MAX_LOCK_NUM];
 
 	// query source
-	void *target[4] = {NULL,NULL,NULL,NULL};
+	void *target[5] = {NULL,NULL,NULL,NULL,NULL};
+	uint target_length[5] = {0,0,0,0,0};
 
 	// query results
 	size_t checked = 0;
@@ -51,7 +52,6 @@ public:
 		pthread_mutex_unlock(&lk[hashid%MAX_LOCK_NUM]);
 	}
 	bool next_batch(size_t &start, size_t &end){
-		int gt = 0;
 		pthread_mutex_lock(&lk[0]);
 		start = counter;
 		counter += batch_size;

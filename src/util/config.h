@@ -31,6 +31,7 @@ public:
 	int max_objects_per_grid = 100;
 	double reach_distance = 5;
 	double grid_width = 5;
+	bool gpu = false;
 
 	string map_path = "/gisdata/chicago/streets";
 	string taxi_path = "/gisdata/chicago/taxi.csv";
@@ -60,6 +61,7 @@ inline configuration get_parameters(int argc, char **argv){
 	po::options_description desc("query usage");
 	desc.add_options()
 		("help,h", "produce help message")
+		("gpu,g", "use gpu for processing")
 		("threads,n", po::value<int>(&global_ctx.num_threads), "number of threads")
 		("num_objects_grid", po::value<int>(&global_ctx.max_objects_per_grid), "maximum number of objects per grid")
 		("trips,t", po::value<int>(&global_ctx.num_trips), "number of trips")
@@ -89,6 +91,9 @@ inline configuration get_parameters(int argc, char **argv){
 		cerr <<"invalid query method "<<query_method<<endl;
 		cerr << desc << "\n";
 		exit(0);
+	}
+	if(vm.count("gpu")){
+		global_ctx.gpu = true;
 	}
 
 	global_ctx.grid_width = max(global_ctx.grid_width, global_ctx.reach_distance/sqrt(2));
