@@ -105,13 +105,14 @@ void tracer::process(){
 	size_t checked = 0;
 	size_t reached = 0;
 
-	// first level of partition
-	uint *pids = new uint[config.num_objects];
-	for(int i=0;i<config.num_objects;i++){
-		pids[i] = i;
-	}
-
 	for(int t=0;t<config.duration;t++){
+
+		// first level of partition
+		uint *pids = new uint[config.num_objects];
+		for(int i=0;i<config.num_objects;i++){
+			pids[i] = i;
+		}
+
 		query_context tctx = part->partition(trace+t*config.num_objects, pids, config.num_objects);
 		// process the objects in the packed partitions
 		if(!config.gpu){
