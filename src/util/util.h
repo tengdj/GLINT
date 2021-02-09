@@ -31,15 +31,15 @@ namespace{
 
 // some utility function
 
-const double degree_per_kilometer_latitude = 360.0/40076.0;
+const double degree_per_meter_latitude = 360.0/(40076.0*1000.0);
 
-inline double degree_per_kilometer_longitude(double latitude){
+inline double degree_per_meter_longitude(double latitude){
 	double absla = abs(latitude);
 	if(absla==90){
 		absla = 89;
 	}
 	assert(absla<90);
-	return 360.0/(sin((90-absla)*PI/180)*40076);
+	return 360.0/(sin((90-absla)*PI/180)*40076.0*1000.0);
 }
 
 inline int double_to_int(double val){

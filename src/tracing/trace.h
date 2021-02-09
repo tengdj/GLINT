@@ -27,8 +27,8 @@ public:
 	int zoneid;
 	long count = 0;
 	long duration = 0;
-	double length = 0;
-	double rate_sleep = 0;
+	double length = 0.0;
+	double rate_sleep = 0.0;
 	int max_sleep_time = 0;
 	map<int,int> target_count;
 	ZoneStats(int id){
@@ -38,7 +38,7 @@ public:
 		target_count.clear();
 	}
 	double get_speed(){
-		assert(length&&duration);
+		assert(length>0&&duration>0);
 		return length/duration;
 	}
 
@@ -79,7 +79,7 @@ public:
 		config = c;
 		assert(config.num_threads>0);
 		map = m;
-		grid = new Grid(*m->getMBR(),10000);
+		grid = new Grid(*m->getMBR(),config.grid_width);
 		zones.resize(grid->dimx*grid->dimy+1);
 		for(int i=0;i<zones.size();i++){
 			zones[i] = new ZoneStats(i);

@@ -32,8 +32,8 @@ all:	datagen trace
 
 # for macro queries
 
-datagen:	tools/datagen.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
-	$(CXX) -o ../build/$@ $^ $(LIBS) 
+datagen:	tools/datagen.o $(GEOMETRY_OBJS) $(TRACING_OBJS) $(CU_OBJS)
+	$(CXX) -o ../build/$@ $^ $(LIBS) $(CUDALIBS)
 
 cudatrace:	tools/trace.o $(GEOMETRY_OBJS) $(TRACING_OBJS) $(CU_OBJS)
 	$(CXX) -o ../build/$@ $^ $(LIBS) $(CUDALIBS)

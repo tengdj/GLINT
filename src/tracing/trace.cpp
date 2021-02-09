@@ -25,6 +25,7 @@ void *process_grid_unit(void *arg){
 	uint *pids = (uint *)ctx->target[1];
 	offset_size *os = (offset_size *)ctx->target[2];
 	uint *result = (uint *)ctx->target[3];
+	uint *gridassign = (uint *)ctx->target[4];
 	size_t checked = 0;
 	size_t reached = 0;
 	int max_len = 0;
@@ -35,40 +36,24 @@ void *process_grid_unit(void *arg){
 		if(!ctx->next_batch(start,end)){
 			break;
 		}
-		for(int gid=start;gid<end;gid++){
+		for(int pid=start;pid<end;pid++){
+			uint gid = gridassign[pid];
 			uint len = os[gid].size;
 			uint *cur_pids = pids + os[gid].offset;
-			result[gid] = 0;
-//			if(max_len<len){
-//				log("%d %d",gid,len);
-//				max_len = len;
-//			}
-			//log("%d %d",gid,len);
-//			if(len>1000){
-//				len=1000;
-//				invalid++;
-//			}
+			result[pid] = 0;
 			//vector<Point *> pts;
 			if(len>2){
-				for(uint i=0;i<len-1;i++){
+				Point *p1 = points+pid;
+				for(uint i=0;i<os[gid].size;i++){
 					//pts.push_back(points + cur_pids[i]);
-					for(uint j=i+1;j<len;j++){
-						Point *p1 = points + cur_pids[i];
-						Point *p2 = points + cur_pids[j];
-						double dist = p1->distance(*p2, true)*1000;
+					Point *p2 = points + cur_pids[i];
+					if(p1!=p2){
 						//log("%f",dist);
-						result[gid] += dist<ctx->config.reach_distance;
+						result[pid] += p1->distance(*p2, true)<ctx->config.reach_distance;
 						checked++;
 					}
 				}
 				reached += result[gid];
-//				if(len>100){
-//					lock();
-//					print_points(pts);
-//					unlock();
-//					exit(0);
-//				}
-
 			}
 		}
 
@@ -104,7 +89,6 @@ void tracer::process(){
 	// test contact tracing
 	size_t checked = 0;
 	size_t reached = 0;
-
 	for(int t=0;t<config.duration;t++){
 
 		// first level of partition
@@ -112,8 +96,11 @@ void tracer::process(){
 		for(int i=0;i<config.num_objects;i++){
 			pids[i] = i;
 		}
+		Point *cur_trace = trace+t*config.num_objects;
 
-		query_context tctx = part->partition(trace+t*config.num_objects, pids, config.num_objects);
+		print_points(cur_trace,config.num_objects,(10000.0/config.num_objects));
+		return;
+		query_context tctx = part->partition(cur_trace, pids, config.num_objects);
 		// process the objects in the packed partitions
 		if(!config.gpu){
 			process_grids(tctx);
@@ -122,7 +109,65 @@ void tracer::process(){
 		}
 		checked += tctx.checked;
 		reached += tctx.found;
+
+
+		/*
+		 *
+		 * some statistics printing for debuging only
+		 *
+		 * */
+//		map<int, uint> connected;
+//
+//		uint *data = (uint *)tctx.target[1];
+//		offset_size *os = (offset_size *)tctx.target[2];
+//		uint *result = (uint *)tctx.target[3];
+//		uint *gridassign = (uint *)tctx.target[4];
+//
+//		uint max_one = 0;
+//		for(int i=0;i<config.num_objects;i++){
+//			if(connected.find(result[i])==connected.end()){
+//				connected[result[i]] = 1;
+//			}else{
+//				connected[result[i]]++;
+//			}
+//			if(result[max_one]<result[i]){
+//				max_one = i;
+//			}
+//		}
+//
+//		for(auto a:connected){
+//			cout<<a.first<<" "<<a.second<<endl;
+//		}
+
+//		cout<<max_one<<" "<<result[max_one]<<endl;
+//		uint gid = gridassign[max_one];
+//		uint *cur_pid = data + os[gid].offset;
+//		vector<Point *> all_points;
+//		vector<Point *> valid_points;
+//		Point *p1 = cur_trace + max_one;
+//		for(uint i=0;i<os[gid].size;i++){
+//			Point *p2 = cur_trace+cur_pid[i];
+//			if(p1==p2){
+//				continue;
+//			}
+//			all_points.push_back(p2);
+//			double dist = p1->distance(*p2,true);
+//			if(i<10){
+//				cout<<dist<<endl;
+//				p1->print();
+//				p2->print();
+//			}
+//
+//			if(dist<config.reach_distance){
+//				valid_points.push_back(p2);
+//			}
+//		}
+//		print_points(all_points);
+//		print_points(valid_points);
+//		p1->print();
+//		cout<<all_points.size()<<" "<<valid_points.size()<<endl;
 	}
+
 	logt("contact trace with %ld calculation %ld connected",start,checked,reached);
 }
 

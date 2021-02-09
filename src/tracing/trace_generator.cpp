@@ -71,39 +71,81 @@ void trace_generator::analyze_trips(const char *path, int limit){
 		   map->getMBR()->contain(t->end.coordinate)&&
 		   t->length()>0&&
 		   t->duration()>0){
-			int zid = grid->getgridid(&t->start.coordinate);
-			zones[zid]->count++;
-			zones[zid]->duration += t->duration();
+			int gids[2];
+			gids[0] = grid->getgridid(&t->start.coordinate);
+			gids[1] = grid->getgridid(&t->end.coordinate);
 			double dist = t->start.coordinate.distance(t->end.coordinate, true);
-			zones[zid]->length += dist;
-			total->count++;
-			total->duration += t->duration();
-			total->length += dist;
+			for(int i=0;i<2;i++){
+				int zid = gids[i];
+				int ezid = gids[!i];
+				zones[zid]->count++;
+				zones[zid]->duration += t->duration();
+				zones[zid]->length += dist;
+				total->count++;
+				total->duration += t->duration();
+				total->length += dist;
 
-			int ezid = grid->getgridid(&t->end.coordinate);
-			if(zones[zid]->target_count.find(ezid)==zones[zid]->target_count.end()){
-				zones[zid]->target_count[ezid] = 1;
-			}else{
-				zones[zid]->target_count[ezid]++;
+				if(zones[zid]->target_count.find(ezid)==zones[zid]->target_count.end()){
+					zones[zid]->target_count[ezid] = 1;
+				}else{
+					zones[zid]->target_count[ezid]++;
+				}
 			}
 		}
 		delete t;
 	}
 	file.close();
-	for(int y=0;y<grid->dimy;y++){
-		for(int x=0;x<=grid->dimx;x++){
-			int zid = y*grid->dimx+x;
-			assert(zid<=grid->get_grid_num());
-			if(zones[zid]->count==0){
-				zones[zid]->count = 1;
-				zones[zid]->duration = total->duration/total->count;
-				zones[zid]->length = total->length/total->count;
+	int num_not_assigned = 0;
+	do{
+		num_not_assigned = 0;
+		for(int y=0;y<grid->dimy;y++){
+			for(int x=0;x<grid->dimx;x++){
+				int zid = y*grid->dimx+x;
+				assert(zid<grid->get_grid_num());
+				// if no statistics can be collected for this zone
+				// simply gather the average statistics of its neighbours
+				if(zones[zid]->count==0){
+					int nb_count = 0;
+					zones[zid]->duration = 0;
+					zones[zid]->length = 0;
+					for(int yshift=-1;yshift<=1;yshift++){
+						for(int xshift=-1;xshift<=1;xshift++){
+							int cur_zid = (y+yshift)*grid->dimx+x+xshift;
+							if(cur_zid!=zid&&cur_zid>=0&&cur_zid<grid->get_grid_num()){
+								nb_count++;
+								if(zones[cur_zid]->count){
+									zones[zid]->count += zones[cur_zid]->count;
+									zones[zid]->duration += zones[cur_zid]->duration;
+									zones[zid]->length += zones[cur_zid]->length;
+									//printf("%d %ld %ld %f\n",cur_zid,zones[cur_zid]->count,zones[cur_zid]->duration,zones[cur_zid]->length);
+								}
+							}
+						}
+					}
+					if(zones[zid]->count!=0){
+						//printf("%d\n",nb_count);
+						//printf("%d %ld %ld %f\n\n",zid,zones[zid]->count,zones[zid]->duration,zones[zid]->length);
+						if(zones[zid]->count > nb_count){
+							nb_count = zones[zid]->count;
+						}
+						zones[zid]->count /= nb_count;
+						zones[zid]->duration /= nb_count;
+						zones[zid]->length /= nb_count;
+						assert(zones[zid]->length>0);
+						assert(zones[zid]->duration>0);
+						total->count += zones[zid]->count;
+						total->duration += zones[zid]->duration;
+						total->length += zones[zid]->length;
+					}else{
+						num_not_assigned++;
+					}
+				}
 			}
-			assert(zones[zid]->length/zones[zid]->duration>0);
-			//printf("%.3f\t",zones[zid]->length*1000.0/zones[zid]->duration);
+			//printf("\n");
 		}
-		//printf("\n");
-	}
+		//exit(0);
+		cout<<num_not_assigned<<endl;
+	}while(num_not_assigned>0);
 	logt("analyze trips in %s",start, path);
 }
 
@@ -117,21 +159,20 @@ int outside = 0;
 Trip *trace_generator::next_trip(Trip *former){
 	Trip *next = new Trip();
 	if(former==NULL){
+		// get a start location
 		do{
 			next->start.timestamp = 0;
 			int start_x = -1;
 			int start_y = -1;
-			do{
-				for(int i=0;i<=grid->dimx&&start_x<0;i++){
-					for(int j=0;j<grid->dimy;j++){
-						if(zones[j*grid->dimx+i]->count>1&&tryluck(zones[j*grid->dimx+i]->count*1.0/total->count)){
-							start_x = i;
-							start_y = j;
-							break;
-						}
+			for(int i=0;i<=grid->dimx&&start_x<0;i++){
+				for(int j=0;j<grid->dimy;j++){
+					if(zones[j*grid->dimx+i]->count>1&&tryluck(zones[j*grid->dimx+i]->count*0.8/total->count)){
+						start_x = i;
+						start_y = j;
+						break;
 					}
 				}
-			}while(start_x<0);
+			}
 			next->start.coordinate = grid->get_random_point(start_x, start_y);
 		}while(false);
 	}else{
@@ -165,6 +206,7 @@ Trip *trace_generator::next_trip(Trip *former){
 		next->end.timestamp = next->start.timestamp+next->length(true)/zones[locstart]->get_speed();
 		int gid = grid->getgridid(&next->end.coordinate);
 	}
+	assert(next->end.timestamp>=next->start.timestamp);
 
 	return next;
 }
@@ -187,6 +229,10 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 			}
 		}else{
 			double speed = trip->end.coordinate.distance(trip->start.coordinate, true)/trip->duration();
+			//if(speed==0)
+			{
+				printf("%f %d\n",trip->end.coordinate.distance(trip->start.coordinate, true),trip->duration());
+			}
 			mymap->navigate(ret, &trip->start.coordinate, &trip->end.coordinate, speed, config.duration);
 		}
 		// move to another
@@ -225,7 +271,6 @@ void *gentrace(void *arg){
 			}
 			trace.clear();
 		}
-
 	}
 	delete mymap;
 	return NULL;

@@ -44,8 +44,8 @@ public:
 		printf("num objects per grids:\t%d\n",max_objects_per_grid);
 		printf("num trips:\t%d\n",num_trips);
 		printf("duration:\t%d\n",duration);
-		printf("reach threshold:\t%f\n",reach_distance);
-		printf("grid width:\t%f\n",grid_width);
+		printf("reach threshold:\t%f m\n",reach_distance);
+		printf("grid width:\t%f m\n",grid_width);
 
 		printf("map path:\t%s\n",map_path.c_str());
 		printf("taxi path:\t%s\n",taxi_path.c_str());

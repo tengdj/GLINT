@@ -37,8 +37,8 @@ public:
 		double dx = x-p.x;
 		double dy = y-p.y;
 		if(geography){
-			dy = dy/degree_per_kilometer_latitude;
-			dx = dx/degree_per_kilometer_longitude(y);
+			dy = dy/degree_per_meter_latitude;
+			dx = dx/degree_per_meter_longitude(y);
 		}
 		return sqrt(dx*dx+dy*dy);
 	}
@@ -111,9 +111,9 @@ public:
 		if(!geography){
 			return (high[0]-low[0])*(high[1]-low[1]);
 		}else{
-			double h = (high[1]-low[1])*1000.0/degree_per_kilometer_latitude;
-			double top = (high[0]-low[0])*1000.0/degree_per_kilometer_longitude(high[1]);
-			double bot = (high[0]-low[0])*1000.0/degree_per_kilometer_longitude(low[1]);
+			double h = (high[1]-low[1])/degree_per_meter_latitude;
+			double top = (high[0]-low[0])/degree_per_meter_longitude(high[1]);
+			double bot = (high[0]-low[0])/degree_per_meter_longitude(low[1]);
 			return (top+bot)*h/2;
 		}
 	}
@@ -123,14 +123,14 @@ public:
 		if(!geography){
 			return high[1]-low[1];
 		}else{
-			return (high[1]-low[1])*1000.0/degree_per_kilometer_latitude;
+			return (high[1]-low[1])/degree_per_meter_latitude;
 		}
 	}
 	double width(bool geography = false){
 		if(!geography){
 			return high[0]-low[0];
 		}else{
-			return (high[0]-low[0])*1000.0/degree_per_kilometer_longitude(low[1]);
+			return (high[0]-low[0])/degree_per_meter_longitude(low[1]);
 		}
 	}
 
@@ -143,8 +143,8 @@ public:
 		double dx = max(abs(p.x-(low[0]+high[0])/2) - (high[0]-low[0])/2, 0.0);
 		double dy = max(abs(p.y-(low[1]+high[1])/2) - (high[1]-low[1])/2, 0.0);
 		if(geography){
-			dy = dy/degree_per_kilometer_latitude;
-			dx = dx/degree_per_kilometer_longitude(p.y);
+			dy = dy/degree_per_meter_latitude;
+			dx = dx/degree_per_meter_longitude(p.y);
 		}
 		return sqrt(dx * dx + dy * dy);
 	}
@@ -194,12 +194,12 @@ public:
 		double difference = (high[bigger_one]-low[bigger_one])-(high[!bigger_one]-low[!bigger_one]);
 
 		if(geography){
-			dy = dy/degree_per_kilometer_latitude;
-			dx = dx/degree_per_kilometer_longitude(low[1]);
+			dy = dy/degree_per_meter_latitude;
+			dx = dx/degree_per_meter_longitude(low[1]);
 			if(dy>dx){//extend horizontal dimension
-				difference = (dy-dx)*degree_per_kilometer_longitude(low[1]);
+				difference = (dy-dx)*degree_per_meter_longitude(low[1]);
 			}else{
-				difference = (dx-dy)*degree_per_kilometer_latitude;
+				difference = (dx-dy)*degree_per_meter_latitude;
 			}
 			bigger_one = dy>dx;
 		}
@@ -228,9 +228,9 @@ public:
 	/*
 	 *
 	 * member functions for grid class
+	 * each grid with width and height s
 	 *
 	 * */
-
 	void rasterize(double s){
 		dimy = space.height(true)/s+1;
 		dimx = dimy;

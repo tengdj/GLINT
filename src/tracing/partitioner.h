@@ -51,8 +51,8 @@ public:
 		config = conf;
 		qconfig.grid_width = config.grid_width;
 		qconfig.max_objects = config.max_objects_per_grid;
-		qconfig.x_buffer = config.reach_distance*degree_per_kilometer_longitude(mbr.low[1])/1000;
-		qconfig.y_buffer = config.reach_distance*degree_per_kilometer_latitude/1000;
+		qconfig.x_buffer = config.reach_distance*degree_per_meter_longitude(mbr.low[1]);
+		qconfig.y_buffer = config.reach_distance*degree_per_meter_latitude;
 	}
 	~qtree_partitioner(){
 		clear();

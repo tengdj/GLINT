@@ -448,7 +448,7 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 	for(int i=0;i<trajectory.size()-1&&positions.size()<max_duration;i++) {
 		Node *cur_start = trajectory[i];
 		Node *cur_end = trajectory[i+1];
-		double length = cur_start->distance(*cur_end, true)*1000;
+		double length = cur_start->distance(*cur_end, true);
 		double cur_dis = (point_index+1)*speed-dist_from_origin;
 		while(cur_dis<length) {
 			//have other position can be reported in this street

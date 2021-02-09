@@ -17,8 +17,8 @@ query_context grid_partitioner::partition(Point *points, uint *pids, size_t num_
 	vector<vector<uint>> exact_grids;
 	exact_grids.resize(grid->get_grid_num()+1);
 
-	double x_buffer = config.reach_distance/1000*degree_per_kilometer_longitude(grid->space.low[1]);
-	double y_buffer = config.reach_distance/1000*degree_per_kilometer_latitude;
+	double x_buffer = config.reach_distance*degree_per_meter_longitude(grid->space.low[1]);
+	double y_buffer = config.reach_distance*degree_per_meter_latitude;
 
 	// pick one object for generating
 	for(int pid=0;pid<num_objects;pid++){
@@ -122,7 +122,7 @@ query_context qtree_partitioner::partition(Point *points, uint *pids, size_t num
 	uint *grid_assignment = new uint[num_objects];
 	uint *data = new uint[total_objects];
 	offset_size *os = new offset_size[num_grids];
-	uint *result = new uint[num_grids];
+	uint *result = new uint[total_objects];
 	uint curnode = 0;
 	qtree->pack_data(grid_assignment, data, os, curnode);
 	size_t calculation = 0;
@@ -140,11 +140,11 @@ query_context qtree_partitioner::partition(Point *points, uint *pids, size_t num
 	ctx.target[2] = (void *)os;
 	ctx.target_length[2] = num_grids;
 	ctx.target[3] = (void *)result;
-	ctx.target_length[3] = num_grids;
+	ctx.target_length[3] = num_objects;
 	ctx.target[4] = (void *)grid_assignment;
 	ctx.target_length[4] = num_objects;
 
-	ctx.num_objects = num_grids;
+	ctx.num_objects = num_objects;
 	logt("packed into %ld grids %ld objects %ld calculation",start,num_grids,total_objects,calculation);
 
 	//qtree->print();
