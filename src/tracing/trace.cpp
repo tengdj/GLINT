@@ -105,7 +105,9 @@ void tracer::process(){
 		if(!config.gpu){
 			process_grids(tctx);
 		}else{
+#ifdef USE_GPU
 			process_with_gpu(tctx);
+#endif
 		}
 		checked += tctx.checked;
 		reached += tctx.found;
@@ -116,56 +118,55 @@ void tracer::process(){
 		 * some statistics printing for debuging only
 		 *
 		 * */
-//		map<int, uint> connected;
-//
-//		uint *data = (uint *)tctx.target[1];
-//		offset_size *os = (offset_size *)tctx.target[2];
-//		uint *result = (uint *)tctx.target[3];
-//		uint *gridassign = (uint *)tctx.target[4];
-//
-//		uint max_one = 0;
-//		for(int i=0;i<config.num_objects;i++){
-//			if(connected.find(result[i])==connected.end()){
-//				connected[result[i]] = 1;
-//			}else{
-//				connected[result[i]]++;
-//			}
-//			if(result[max_one]<result[i]){
-//				max_one = i;
-//			}
-//		}
-//
-//		for(auto a:connected){
-//			cout<<a.first<<" "<<a.second<<endl;
-//		}
+		map<int, uint> connected;
 
-//		cout<<max_one<<" "<<result[max_one]<<endl;
-//		uint gid = gridassign[max_one];
-//		uint *cur_pid = data + os[gid].offset;
-//		vector<Point *> all_points;
-//		vector<Point *> valid_points;
-//		Point *p1 = cur_trace + max_one;
-//		for(uint i=0;i<os[gid].size;i++){
-//			Point *p2 = cur_trace+cur_pid[i];
-//			if(p1==p2){
-//				continue;
-//			}
-//			all_points.push_back(p2);
-//			double dist = p1->distance(*p2,true);
-//			if(i<10){
-//				cout<<dist<<endl;
-//				p1->print();
-//				p2->print();
-//			}
-//
-//			if(dist<config.reach_distance){
-//				valid_points.push_back(p2);
-//			}
-//		}
-//		print_points(all_points);
-//		print_points(valid_points);
-//		p1->print();
-//		cout<<all_points.size()<<" "<<valid_points.size()<<endl;
+		uint *data = (uint *)tctx.target[1];
+		offset_size *os = (offset_size *)tctx.target[2];
+		uint *result = (uint *)tctx.target[3];
+		uint *gridassign = (uint *)tctx.target[4];
+
+		uint max_one = 0;
+		for(int i=0;i<config.num_objects;i++){
+			if(connected.find(result[i])==connected.end()){
+				connected[result[i]] = 1;
+			}else{
+				connected[result[i]]++;
+			}
+			if(result[max_one]<result[i]){
+				max_one = i;
+			}
+		}
+		for(auto a:connected){
+			cout<<a.first<<" "<<a.second<<endl;
+		}
+
+		cout<<max_one<<" "<<result[max_one]<<endl;
+		uint gid = gridassign[max_one];
+		uint *cur_pid = data + os[gid].offset;
+		vector<Point *> all_points;
+		vector<Point *> valid_points;
+		Point *p1 = cur_trace + max_one;
+		for(uint i=0;i<os[gid].size;i++){
+			Point *p2 = cur_trace+cur_pid[i];
+			if(p1==p2){
+				continue;
+			}
+			all_points.push_back(p2);
+			double dist = p1->distance(*p2,true);
+			if(i<10){
+				cout<<dist<<endl;
+				p1->print();
+				p2->print();
+			}
+
+			if(dist<config.reach_distance){
+				valid_points.push_back(p2);
+			}
+		}
+		print_points(all_points);
+		print_points(valid_points);
+		p1->print();
+		cout<<all_points.size()<<" "<<valid_points.size()<<endl;
 	}
 
 	logt("contact trace with %ld calculation %ld connected",start,checked,reached);

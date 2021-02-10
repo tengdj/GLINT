@@ -38,7 +38,8 @@ public:
 		target_count.clear();
 	}
 	double get_speed(){
-		assert(length>0&&duration>0);
+		assert(length>0);
+		assert(duration>0);
 		return length/duration;
 	}
 
@@ -68,6 +69,7 @@ public:
 class trace_generator{
 	Grid *grid = NULL;
 	vector<ZoneStats *> zones;
+	vector<ZoneStats *> ordered_zones;
 	ZoneStats *total = NULL;
 public:
 
@@ -80,9 +82,11 @@ public:
 		assert(config.num_threads>0);
 		map = m;
 		grid = new Grid(*m->getMBR(),config.grid_width);
-		zones.resize(grid->dimx*grid->dimy+1);
+		zones.resize(grid->get_grid_num());
+		ordered_zones.resize(grid->get_grid_num());
 		for(int i=0;i<zones.size();i++){
 			zones[i] = new ZoneStats(i);
+			ordered_zones[i] = zones[i];
 		}
 	}
 	~trace_generator(){
@@ -97,6 +101,7 @@ public:
 		if(total){
 			delete total;
 		}
+		ordered_zones.clear();
 	}
 	// generate the destination with the given source point
 	Trip *next_trip(Trip *former=NULL);
@@ -149,6 +154,9 @@ public:
 	void dumpTo(const char *path);
 	void loadFrom(const char *path);
 	void print_trace(double sample_rate);
+	Point *get_trace(){
+		return trace;
+	}
 };
 
 

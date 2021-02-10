@@ -52,6 +52,8 @@ void Trip::print_trip(){
  *
  * */
 
+bool orderzone(ZoneStats *i, ZoneStats *j) { return (i->count>j->count); }
+
 void trace_generator::analyze_trips(const char *path, int limit){
 	struct timeval start = get_cur_time();
 
@@ -63,6 +65,8 @@ void trace_generator::analyze_trips(const char *path, int limit){
 	//skip the head
 	std::getline(file, str);
 	total = new ZoneStats(0);
+	vector<Point *> ps;
+
 	while (std::getline(file, str)&&--limit>0){
 		Trip *t = new Trip(str);
 		// a valid trip should be covered by the map,
@@ -71,6 +75,9 @@ void trace_generator::analyze_trips(const char *path, int limit){
 		   map->getMBR()->contain(t->end.coordinate)&&
 		   t->length()>0&&
 		   t->duration()>0){
+			ps.push_back(new Point(t->start.coordinate.x,t->start.coordinate.y));
+			ps.push_back(new Point(t->end.coordinate.x,t->end.coordinate.y));
+
 			int gids[2];
 			gids[0] = grid->getgridid(&t->start.coordinate);
 			gids[1] = grid->getgridid(&t->end.coordinate);
@@ -95,57 +102,59 @@ void trace_generator::analyze_trips(const char *path, int limit){
 		delete t;
 	}
 	file.close();
-	int num_not_assigned = 0;
-	do{
-		num_not_assigned = 0;
-		for(int y=0;y<grid->dimy;y++){
-			for(int x=0;x<grid->dimx;x++){
-				int zid = y*grid->dimx+x;
-				assert(zid<grid->get_grid_num());
-				// if no statistics can be collected for this zone
-				// simply gather the average statistics of its neighbours
-				if(zones[zid]->count==0){
-					int nb_count = 0;
-					zones[zid]->duration = 0;
-					zones[zid]->length = 0;
-					for(int yshift=-1;yshift<=1;yshift++){
-						for(int xshift=-1;xshift<=1;xshift++){
-							int cur_zid = (y+yshift)*grid->dimx+x+xshift;
-							if(cur_zid!=zid&&cur_zid>=0&&cur_zid<grid->get_grid_num()){
-								nb_count++;
-								if(zones[cur_zid]->count){
-									zones[zid]->count += zones[cur_zid]->count;
-									zones[zid]->duration += zones[cur_zid]->duration;
-									zones[zid]->length += zones[cur_zid]->length;
-									//printf("%d %ld %ld %f\n",cur_zid,zones[cur_zid]->count,zones[cur_zid]->duration,zones[cur_zid]->length);
+	print_points(ps,10000.0/ps.size());
+	// process the empty ones
+
+	if(false){
+		int num_not_assigned = 0;
+		do{
+			num_not_assigned = 0;
+			for(int y=0;y<grid->dimy;y++){
+				for(int x=0;x<grid->dimx;x++){
+					int zid = y*grid->dimx+x;
+					assert(zid<grid->get_grid_num());
+					// if no statistics can be collected for this zone
+					// simply gather the average statistics of its neighbours
+					if(zones[zid]->count==0){
+						int nb_count = 0;
+						zones[zid]->duration = 0;
+						zones[zid]->length = 0;
+
+						for(int yshift=-1;yshift<=1;yshift++){
+							for(int xshift=-1;xshift<=1;xshift++){
+								int cur_zid = (y+yshift)*grid->dimx+x+xshift;
+								if(cur_zid!=zid&&cur_zid>=0&&cur_zid<grid->get_grid_num()){
+									if(zones[cur_zid]->count>0){
+										nb_count++;
+										zones[zid]->count += zones[cur_zid]->count;
+										zones[zid]->duration += zones[cur_zid]->duration;
+										zones[zid]->length += zones[cur_zid]->length;
+									}
 								}
 							}
 						}
-					}
-					if(zones[zid]->count!=0){
-						//printf("%d\n",nb_count);
-						//printf("%d %ld %ld %f\n\n",zid,zones[zid]->count,zones[zid]->duration,zones[zid]->length);
-						if(zones[zid]->count > nb_count){
-							nb_count = zones[zid]->count;
+
+						if(zones[zid]->count!=0){
+							assert(zones[zid]->count >= nb_count);
+							zones[zid]->count /= nb_count;
+							zones[zid]->duration /= nb_count;
+							zones[zid]->length /= nb_count;
+							assert(zones[zid]->length>0);
+							assert(zones[zid]->duration>0);
+							total->count += zones[zid]->count;
+							total->duration += zones[zid]->duration;
+							total->length += zones[zid]->length;
+						}else{
+							num_not_assigned++;
 						}
-						zones[zid]->count /= nb_count;
-						zones[zid]->duration /= nb_count;
-						zones[zid]->length /= nb_count;
-						assert(zones[zid]->length>0);
-						assert(zones[zid]->duration>0);
-						total->count += zones[zid]->count;
-						total->duration += zones[zid]->duration;
-						total->length += zones[zid]->length;
-					}else{
-						num_not_assigned++;
 					}
 				}
 			}
-			//printf("\n");
-		}
-		//exit(0);
-		cout<<num_not_assigned<<endl;
-	}while(num_not_assigned>0);
+		}while(num_not_assigned>0);
+	}
+
+	// reorganize
+	sort(ordered_zones.begin(),ordered_zones.end(),orderzone);
 	logt("analyze trips in %s",start, path);
 }
 
@@ -164,15 +173,23 @@ Trip *trace_generator::next_trip(Trip *former){
 			next->start.timestamp = 0;
 			int start_x = -1;
 			int start_y = -1;
-			for(int i=0;i<=grid->dimx&&start_x<0;i++){
-				for(int j=0;j<grid->dimy;j++){
-					if(zones[j*grid->dimx+i]->count>1&&tryluck(zones[j*grid->dimx+i]->count*0.8/total->count)){
-						start_x = i;
-						start_y = j;
+			if(tryluck(0.6)){
+				double target = get_rand_double();
+				//log("%f",target);
+				double cum = 0;
+				for(ZoneStats *z:ordered_zones){
+					//log("%d",z->count);
+					double next_cum = cum + z->count*1.0/total->count;
+					if(target>=cum&&target<=next_cum){
+						start_x = z->zoneid%grid->dimx;
+						start_y = z->zoneid/grid->dimx;
 						break;
 					}
+					cum = next_cum;
 				}
+				assert(start_x>=0);
 			}
+
 			next->start.coordinate = grid->get_random_point(start_x, start_y);
 		}while(false);
 	}else{
@@ -201,9 +218,12 @@ Trip *trace_generator::next_trip(Trip *former){
 		int x = dest%grid->dimx;
 		int y = dest/grid->dimx;
 
-
 		next->end.coordinate = grid->get_random_point(x, y);
-		next->end.timestamp = next->start.timestamp+next->length(true)/zones[locstart]->get_speed();
+		double speed = total->get_speed();
+		if(zones[locstart]->count>0){
+			speed = zones[locstart]->get_speed();
+		}
+		next->end.timestamp = next->start.timestamp+next->length(true)/speed;
 		int gid = grid->getgridid(&next->end.coordinate);
 	}
 	assert(next->end.timestamp>=next->start.timestamp);
@@ -220,8 +240,10 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 	assert(mymap);
 	vector<Point *> ret;
 	Trip *trip = next_trip();
+	Point *first_point = new Point(trip->start.coordinate.x,trip->start.coordinate.y);
+	ret.push_back(first_point);
+	return ret;
 	while(ret.size()<config.duration){
-		//trip->print_trip();
 		// stay here
 		if(trip->start.coordinate.equals(trip->end.coordinate)){
 			for(int i=0;i<trip->duration()&&ret.size()<config.duration;i++){
@@ -229,10 +251,6 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 			}
 		}else{
 			double speed = trip->end.coordinate.distance(trip->start.coordinate, true)/trip->duration();
-			//if(speed==0)
-			{
-				printf("%f %d\n",trip->end.coordinate.distance(trip->start.coordinate, true),trip->duration());
-			}
 			mymap->navigate(ret, &trip->start.coordinate, &trip->end.coordinate, speed, config.duration);
 		}
 		// move to another
@@ -287,6 +305,7 @@ Point *trace_generator::generate_trace(){
 	tctx.target[1] = (void *)ret;
 	tctx.num_objects = config.num_objects;
 	tctx.report_gap = 1;
+	tctx.batch_size = 100;
 	tctx.clear();
 	for(int i=0;i<config.num_threads;i++){
 		pthread_create(&threads[i], NULL, gentrace, (void *)&tctx);

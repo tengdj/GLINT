@@ -33,7 +33,9 @@
 *.csv
 data/
 *.wkt
+*.tr
 build/
+
 
 .cproject
 .project
