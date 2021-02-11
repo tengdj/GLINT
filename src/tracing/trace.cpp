@@ -97,9 +97,6 @@ void tracer::process(){
 			pids[i] = i;
 		}
 		Point *cur_trace = trace+t*config.num_objects;
-
-		print_points(cur_trace,config.num_objects,(10000.0/config.num_objects));
-		return;
 		query_context tctx = part->partition(cur_trace, pids, config.num_objects);
 		// process the objects in the packed partitions
 		if(!config.gpu){
@@ -140,7 +137,6 @@ void tracer::process(){
 			cout<<a.first<<" "<<a.second<<endl;
 		}
 
-		cout<<max_one<<" "<<result[max_one]<<endl;
 		uint gid = gridassign[max_one];
 		uint *cur_pid = data + os[gid].offset;
 		vector<Point *> all_points;
@@ -153,12 +149,6 @@ void tracer::process(){
 			}
 			all_points.push_back(p2);
 			double dist = p1->distance(*p2,true);
-			if(i<10){
-				cout<<dist<<endl;
-				p1->print();
-				p2->print();
-			}
-
 			if(dist<config.reach_distance){
 				valid_points.push_back(p2);
 			}

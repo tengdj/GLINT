@@ -25,6 +25,7 @@ using namespace std;
 class ZoneStats{
 public:
 	int zoneid;
+	int updated_round = 0;
 	long count = 0;
 	long duration = 0;
 	double length = 0.0;

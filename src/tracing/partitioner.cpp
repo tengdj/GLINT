@@ -129,6 +129,7 @@ query_context qtree_partitioner::partition(Point *points, uint *pids, size_t num
 	for(int i=0;i<num_objects;i++){
 		calculation += os[grid_assignment[i]].size;
 	}
+	//qtree->print();
 
 	//pack the grids into array
 	query_context ctx;

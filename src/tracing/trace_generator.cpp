@@ -65,7 +65,6 @@ void trace_generator::analyze_trips(const char *path, int limit){
 	//skip the head
 	std::getline(file, str);
 	total = new ZoneStats(0);
-	vector<Point *> ps;
 
 	while (std::getline(file, str)&&--limit>0){
 		Trip *t = new Trip(str);
@@ -75,8 +74,6 @@ void trace_generator::analyze_trips(const char *path, int limit){
 		   map->getMBR()->contain(t->end.coordinate)&&
 		   t->length()>0&&
 		   t->duration()>0){
-			ps.push_back(new Point(t->start.coordinate.x,t->start.coordinate.y));
-			ps.push_back(new Point(t->end.coordinate.x,t->end.coordinate.y));
 
 			int gids[2];
 			gids[0] = grid->getgridid(&t->start.coordinate);
@@ -102,11 +99,11 @@ void trace_generator::analyze_trips(const char *path, int limit){
 		delete t;
 	}
 	file.close();
-	print_points(ps,10000.0/ps.size());
-	// process the empty ones
 
+	// process the empty ones
 	if(true){
 		int num_not_assigned = 0;
+		int update_round = 1;
 		do{
 			num_not_assigned = 0;
 			for(int y=0;y<grid->dimy;y++){
@@ -114,7 +111,7 @@ void trace_generator::analyze_trips(const char *path, int limit){
 					int zid = y*grid->dimx+x;
 					assert(zid<grid->get_grid_num());
 					// if no statistics can be collected for this zone
-					// simply gather the average statistics of its neighbours
+					// simply gather the average statistics of its neighbors
 					if(zones[zid]->count==0){
 						long nb_count = 0;
 						zones[zid]->duration = 0;
@@ -125,7 +122,8 @@ void trace_generator::analyze_trips(const char *path, int limit){
 								int cur_zid = (y+yshift)*grid->dimx+x+xshift;
 								if(cur_zid!=zid&&cur_zid>=0&&cur_zid<grid->get_grid_num()){
 									nb_count++;
-									if(zones[cur_zid]->count>0){
+									if(zones[cur_zid]->count>0&&
+									   zones[cur_zid]->updated_round<update_round){
 										zones[zid]->count += zones[cur_zid]->count;
 										zones[zid]->duration += zones[cur_zid]->duration;
 										zones[zid]->length += zones[cur_zid]->length;
@@ -136,7 +134,7 @@ void trace_generator::analyze_trips(const char *path, int limit){
 
 						if(zones[zid]->count!=0){
 							nb_count = min(zones[zid]->count, nb_count);
-
+							zones[zid]->updated_round = update_round;
 							//assert(zones[zid]->count >= nb_count);
 							zones[zid]->count /= nb_count;
 							zones[zid]->duration /= nb_count;
@@ -152,7 +150,8 @@ void trace_generator::analyze_trips(const char *path, int limit){
 					}
 				}
 			}
-		}while(false&&num_not_assigned>0);
+			update_round++;
+		}while(num_not_assigned>0);
 	}
 
 	// reorganize
@@ -175,7 +174,7 @@ Trip *trace_generator::next_trip(Trip *former){
 			next->start.timestamp = 0;
 			int start_x = -1;
 			int start_y = -1;
-			if(tryluck(0.6)){
+			if(tryluck(0.7)){
 				double target = get_rand_double();
 				//log("%f",target);
 				double cum = 0;
