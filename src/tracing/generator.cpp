@@ -44,6 +44,15 @@ void Trip::print_trip(){
 	printf("position: (%f %f) to (%f %f)\n",start.coordinate.x,start.coordinate.y,end.coordinate.x,end.coordinate.y);
 }
 
+void Trip::resize(int md){
+	if(md>0&&duration()>md){
+		double portion = md*1.0/duration();
+		end.coordinate.x = (end.coordinate.x-start.coordinate.x)*portion+start.coordinate.x;
+		end.coordinate.y = (end.coordinate.y-start.coordinate.y)*portion+start.coordinate.y;
+		end.timestamp = start.timestamp + md;
+	}
+}
+
 
 /*
  *
@@ -174,7 +183,9 @@ Trip *trace_generator::next_trip(Trip *former){
 			next->start.timestamp = 0;
 			int start_x = -1;
 			int start_y = -1;
-			if(tryluck(0.7)){
+			// certain portion follows the distribution
+			// of analyzed dataset, the rest randomly generate
+			if(tryluck(0.2)){
 				double target = get_rand_double();
 				//log("%f",target);
 				double cum = 0;
@@ -224,11 +235,11 @@ Trip *trace_generator::next_trip(Trip *former){
 		if(zones[locstart]->count>0){
 			speed = zones[locstart]->get_speed();
 		}
-		next->end.timestamp = next->start.timestamp+next->length(true)/speed;
-		int gid = grid->getgridid(&next->end.coordinate);
+		// randomly set the speed to [50%, 150%]
+		speed *= (1.5-get_rand_double());
+		next->end.timestamp = next->start.timestamp+next->length()/speed;
 	}
 	assert(next->end.timestamp>=next->start.timestamp);
-
 	return next;
 }
 
@@ -241,9 +252,9 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 	assert(mymap);
 	vector<Point *> ret;
 	Trip *trip = next_trip();
+	trip->resize(config.duration);
 	Point *first_point = new Point(trip->start.coordinate.x,trip->start.coordinate.y);
 	ret.push_back(first_point);
-	return ret;
 	while(ret.size()<config.duration){
 		// stay here
 		if(trip->start.coordinate.equals(trip->end.coordinate)){
@@ -251,13 +262,13 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 				ret.push_back(new Point(&trip->start.coordinate));
 			}
 		}else{
-			double speed = trip->end.coordinate.distance(trip->start.coordinate, true)/trip->duration();
-			mymap->navigate(ret, &trip->start.coordinate, &trip->end.coordinate, speed, config.duration);
+			mymap->navigate(ret, &trip->start.coordinate, &trip->end.coordinate, trip->speed());
 		}
-		// move to another
+		// move to another trip following last trip
 		Trip *newtrip = next_trip(trip);
 		delete trip;
 		trip = newtrip;
+		trip->resize(config.duration-ret.size());
 	}
 	for(int i=config.duration;i<ret.size();i++){
 		delete ret[i];

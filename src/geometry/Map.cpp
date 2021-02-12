@@ -388,7 +388,7 @@ Street *Map::nearest(Point *target){
  * that the taxi may appear at a given time
  *
  * */
-int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double speed, int max_duration){
+int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double speed){
 
 	assert(origin);
 	assert(dest);
@@ -440,12 +440,11 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 	trajectory.push_back(cur);
 	trajectory.push_back(destnode);
 
-
 	// quantify the street sequence to generate a list of
 	// points with fixed gap
 	double dist_from_origin = 0;
 	int point_index = 0;
-	for(int i=0;i<trajectory.size()-1&&positions.size()<max_duration;i++) {
+	for(int i=0;i<trajectory.size()-1;i++) {
 		Node *cur_start = trajectory[i];
 		Node *cur_end = trajectory[i+1];
 		double length = cur_start->distance(*cur_end, true);
@@ -473,11 +472,14 @@ int Map::navigate(vector<Point *> &positions, Point *origin, Point *dest, double
 }
 
 
-void Map::print_region(box region){
+void Map::print_region(box *region){
+	if(region==NULL){
+		region = mbr;
+	}
 	printf("MULTILINESTRING(");
 	bool first = true;
 	for(int i=0;i<streets.size();i++){
-		if(region.contain(*streets[i]->start)||region.contain(*streets[i]->end)){
+		if(region->contain(*streets[i]->start)||region->contain(*streets[i]->end)){
 			if(!first){
 				printf(",");
 			}else{

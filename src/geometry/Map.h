@@ -126,8 +126,8 @@ public:
 	~Map();
 	box *getMBR();
 	Street * nearest(Point *target);
-	int navigate(vector<Point *> &result, Point *origin, Point *dest, double speed, int max_duration=INT_MAX);
-	void print_region(box region);
+	int navigate(vector<Point *> &result, Point *origin, Point *dest, double speed);
+	void print_region(box *region = NULL);
 	// clone the map for multiple thread support
 	Map *clone();
 };

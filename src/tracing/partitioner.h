@@ -21,7 +21,7 @@ public:
 	virtual ~partitioner(){};
 
 	virtual void clear() = 0;
-	virtual query_context partition(Point *objects, uint *pids, size_t num_objects) = 0;
+	virtual query_context partition(Point *objects, size_t num_objects) = 0;
 	//void pack_grids(query_context &);
 };
 
@@ -39,7 +39,7 @@ public:
 		}
 	};
 	void clear(){};
-	query_context partition(Point *objects, uint *pids, size_t num_objects);
+	query_context partition(Point *objects, size_t num_objects);
 };
 
 class qtree_partitioner:public partitioner{
@@ -61,7 +61,7 @@ public:
 		}
 	}
 	void clear();
-	query_context partition(Point *objects, uint *pids, size_t num_objects);
+	query_context partition(Point *objects, size_t num_objects);
 };
 
 

@@ -53,12 +53,23 @@ class QTNode{
 	double mid_y = 0;
 	int level = 0;
 	QConfig *config = NULL;
+	uint node_id = 0;
 	box mbr;
 	QTNode *children[4] = {NULL,NULL,NULL,NULL};
 	// the IDs of each point belongs to this node
 	uint *objects = NULL;
 	int object_index = 0;
 	int capacity = 0;
+
+	void set_id(uint &id){
+		if(isleaf()){
+			node_id = id++;
+		}else{
+			for(int i=0;i<4;i++){
+				children[i]->set_id(id);
+			}
+		}
+	}
 
 public:
 
@@ -92,8 +103,31 @@ public:
 		return children[0]==NULL;
 	}
 
-	bool split(){
+	void query(vector<uint> &result, Point *p){
+		if(isleaf()){
+			result.push_back(this->node_id);
+		}else{
+			// could be possibly in multiple children with buffers enabled
+			bool top = (p->y>mid_y-config->y_buffer);
+			bool bottom = (p->y<=mid_y+config->y_buffer);
+			bool left = (p->x<=mid_x+config->x_buffer);
+			bool right = (p->x>mid_x-config->x_buffer);
+			if(bottom&&left){
+				children[0]->query(result, p);
+			}
+			if(bottom&&right){
+				children[1]->query(result, p);
+			}
+			if(top&&left){
+				children[2]->query(result, p);
+			}
+			if(top&&right){
+				children[3]->query(result, p);
+			}
+		}
+	}
 
+	bool split(){
 		bool should_split = config->split_node &&
 							object_index>=2*config->max_objects &&
 				   	   	    level<config->max_level&&
@@ -112,56 +146,35 @@ public:
 			children[i]->level = level+1;
 		}
 		for(int i=0;i<object_index;i++){
-			Point *p = config->points+objects[i];
-			// could be possibly in multiple children
-			assert(p);
-			assert(config);
-			bool top = (p->y>mid_y-config->y_buffer);
-			bool bottom = (p->y<mid_y+config->y_buffer);
-			bool left = (p->x<mid_x+config->x_buffer);
-			bool right = (p->x>mid_x-config->x_buffer);
-			if(bottom&&left){
-				children[0]->push(objects[i]);
-			}
-			if(bottom&&right){
-				children[1]->push(objects[i]);
-			}
-			if(top&&left){
-				children[2]->push(objects[i]);
-			}
-			if(top&&right){
-				children[3]->push(objects[i]);
-			}
+			// reinsert all the objects to next level
+			insert(objects[i]);
 		}
 		free(objects);
 		object_index = 0;
 		return true;
 	}
 
-	void push(uint pid){
-		// avoid overflow the buffer
-		// happens when the grid is too condense
-		if(object_index==capacity){
-			capacity += config->max_objects;
-			uint *newobjects = (uint *)malloc(capacity*sizeof(uint));
-			memcpy(newobjects,objects,(capacity-config->max_objects)*sizeof(uint));
-			free(objects);
-			objects = newobjects;
-		}
-		objects[object_index++] = pid;
-	}
 	void insert(uint pid){
 		if(isleaf()){
-			push(pid);
+			// avoid overflow the buffer
+			// happens when the grid is too condense
+			if(object_index==capacity){
+				capacity += config->max_objects;
+				uint *newobjects = (uint *)malloc(capacity*sizeof(uint));
+				memcpy(newobjects,objects,(capacity-config->max_objects)*sizeof(uint));
+				free(objects);
+				objects = newobjects;
+			}
+			objects[object_index++] = pid;
 			split();
 		}else{
 			// no need to lock other nodes
 			Point *p = config->points+pid;
 			// could be possibly in multiple children
-			bool top = (p->y>mid_y-config->y_buffer);
-			bool bottom = (p->y<mid_y+config->y_buffer);
-			bool left = (p->x<mid_x+config->x_buffer);
-			bool right = (p->x>mid_x-config->x_buffer);
+			bool top = (p->y>mid_y);
+			bool bottom = (p->y<=mid_y);
+			bool left = (p->x<=mid_x);
+			bool right = (p->x>mid_x);
 			if(bottom&&left){
 				children[0]->insert(pid);
 			}
@@ -236,6 +249,11 @@ public:
 		config->split_node = false;
 	}
 
+	void finalize(){
+		uint id = 0;
+		set_id(id);
+	}
+
 	void print(){
 		vector<QTNode *> nodes;
 		get_leafs(nodes,false);
@@ -256,26 +274,20 @@ public:
 		return config->points+objects[pid];
 	}
 
-	void pack_data(uint *grid_assignment, uint *pids, offset_size *os, uint &curnode){
+	void pack_data(uint *pids, offset_size *os){
 		if(isleaf()){
-			if(curnode==0){
-				os[curnode].offset = 0;
+			if(node_id==0){
+				os[node_id].offset = 0;
 			}else{
-				os[curnode].offset = os[curnode-1].offset+os[curnode-1].size;
+				os[node_id].offset = os[node_id-1].offset+os[node_id-1].size;
 			}
-			os[curnode].size = object_index;
+			os[node_id].size = object_index;
 			if(object_index>0){
-				memcpy((void *)(pids+os[curnode].offset),(void *)objects,os[curnode].size*sizeof(uint));
-				for(int i=0;i<object_index;i++){
-					if(mbr.contain(*get_point(i))){
-						grid_assignment[objects[i]] = curnode;
-					}
-				}
+				memcpy((void *)(pids+os[node_id].offset),(void *)objects,os[node_id].size*sizeof(uint));
 			}
-			curnode++;
 		}else{
 			for(int i=0;i<4;i++){
-				children[i]->pack_data(grid_assignment, pids, os, curnode);
+				children[i]->pack_data(pids, os);
 			}
 		}
 	}

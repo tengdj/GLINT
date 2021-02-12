@@ -12,6 +12,8 @@
 
 #define MAX_LOCK_NUM 100
 
+#define MAX_TARGET_NUM 10
+
 class offset_size{
 public:
 	uint offset;
@@ -31,14 +33,18 @@ public:
 	pthread_mutex_t lk[MAX_LOCK_NUM];
 
 	// query source
-	void *target[5] = {NULL,NULL,NULL,NULL,NULL};
-	uint target_length[5] = {0,0,0,0,0};
+	void *target[MAX_TARGET_NUM];
+	uint target_length[MAX_TARGET_NUM];
 
 	// query results
 	size_t checked = 0;
 	size_t found = 0;
 
 	~query_context(){
+		for(int i=0;i<MAX_TARGET_NUM;i++){
+			target[i] = NULL;
+			target_length[i] = 0;
+		}
 	}
 	query_context(){
 		for(int i=0;i<MAX_LOCK_NUM;i++){

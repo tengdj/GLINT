@@ -62,9 +62,13 @@ public:
 	int duration(){
 		return end.timestamp-start.timestamp;
 	}
-	double length(bool geography=true){
-		return end.coordinate.distance(start.coordinate, geography);
+	double speed(){
+		return length()/duration();
 	}
+	double length(){
+		return end.coordinate.distance(start.coordinate, true);
+	}
+	void resize(int max_duration);
 };
 
 class trace_generator{
@@ -152,9 +156,45 @@ public:
 		}
 	}
 	void process();
-	void dumpTo(const char *path);
-	void loadFrom(const char *path);
-	void print_trace(double sample_rate);
+	void dumpTo(const char *path) {
+		struct timeval start_time = get_cur_time();
+		ofstream wf(path, ios::out|ios::binary|ios::trunc);
+		wf.write((char *)&config.num_objects, sizeof(config.num_objects));
+		wf.write((char *)&config.duration, sizeof(config.duration));
+		wf.write((char *)&mbr, sizeof(mbr));
+		size_t num_points = config.duration*config.num_objects;
+		wf.write((char *)trace, sizeof(Point)*num_points);
+		wf.close();
+		logt("dumped to %s",start_time,path);
+	}
+
+	void loadFrom(const char *path) {
+
+		int total_num_objects;
+		int total_duration;
+		struct timeval start_time = get_cur_time();
+		ifstream in(path, ios::in | ios::binary);
+		in.read((char *)&total_num_objects, sizeof(total_num_objects));
+		in.read((char *)&total_duration, sizeof(total_duration));
+		in.read((char *)&mbr, sizeof(mbr));
+		mbr.to_squre(true);
+		assert(config.duration*config.num_objects<=total_duration*total_num_objects);
+
+		trace = (Point *)malloc(config.duration*config.num_objects*sizeof(Point));
+		for(int i=0;i<config.duration;i++){
+			in.read((char *)(trace+i*config.num_objects), config.num_objects*sizeof(Point));
+			if(total_num_objects>config.num_objects){
+				in.seekg((total_num_objects-config.num_objects)*sizeof(Point), ios_base::cur);
+			}
+		}
+		in.close();
+		logt("loaded %d objects last for %d seconds from %s",start_time, config.num_objects, config.duration, path);
+		owned_trace = true;
+	}
+
+	void print_trace(double sample_rate){
+		print_points(trace,config.num_objects,sample_rate);
+	}
 	Point *get_trace(){
 		return trace;
 	}
