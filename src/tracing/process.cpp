@@ -17,42 +17,37 @@
 
 void *process_grid_unit(void *arg){
 	query_context *ctx = (query_context *)arg;
-	Point *points = (Point *)ctx->target[0];
-	uint *partitions = (uint *)ctx->target[1];
-	offset_size *os = (offset_size *)ctx->target[2];
-	uint *result = (uint *)ctx->target[3];
-	uint *grid_check = (uint *)ctx->target[4];
+	partition_info *pinfo = (partition_info *)ctx->target[0];
+	Point *points = pinfo->points;
+	uint *result = (uint *)ctx->target[1];
+	uint *grid_check = pinfo->grid_checkings;
 	size_t checked = 0;
 	size_t reached = 0;
-	int max_len = 0;
 	while(true){
-		// pick one object for generating
+		// pick one batch of point-grid pair for processing
 		size_t start = 0;
 		size_t end = 0;
 		if(!ctx->next_batch(start,end)){
 			break;
 		}
 		for(uint pairid=start;pairid<end;pairid++){
-
 			uint pid = grid_check[2*pairid];
-			uint gid = grid_check[2*pairid+1];
+			uint zid = grid_check[2*pairid+1];
 			//log("%d\t%d",pid,gid);
-			uint *cur_pids = partitions + os[gid].offset;
+			uint *cur_pids = pinfo->get_zone(zid);
 			result[pid] = 0;
 			//vector<Point *> pts;
-			if(os[gid].size>2){
-				Point *p1 = points + pid;
-				for(uint i=0;i<os[gid].size;i++){
-					//pts.push_back(points + cur_pids[i]);
-					Point *p2 = points + cur_pids[i];
-					if(p1!=p2){
-						//log("%f",dist);
-						bool indist = p1->distance(*p2, true)<=ctx->config.reach_distance;
-						result[pid] += indist;
-						result[cur_pids[i]] += indist;
-						reached += 2*indist;
-						checked++;
-					}
+			Point *p1 = points + pid;
+			for(uint i=0;i<pinfo->get_zone_size(zid);i++){
+				//pts.push_back(points + cur_pids[i]);
+				Point *p2 = points + cur_pids[i];
+				if(p1!=p2){
+					//log("%f",dist);
+					bool indist = p1->distance(*p2, true)<=ctx->config.reach_distance;
+					result[pid] += indist;
+					result[cur_pids[i]] += indist;
+					reached += 2*indist;
+					checked++;
 				}
 			}
 		}
@@ -89,20 +84,25 @@ void tracer::process(){
 	// test contact tracing
 	size_t checked = 0;
 	size_t reached = 0;
+	query_context qctx;
+	qctx.config = config;
 	for(int t=0;t<config.duration;t++){
 
 		Point *cur_trace = trace+t*config.num_objects;
-		query_context tctx = part->partition(cur_trace, config.num_objects);
+		partition_info *pinfo = part->partition(cur_trace, config.num_objects);
+		qctx.target[0] = (void *)pinfo;
+		qctx.num_objects = pinfo->num_grid_checkings;
+		qctx.target[1] = result;
 		// process the objects in the packed partitions
 		if(!config.gpu){
-			process_with_cpu(tctx);
+			process_with_cpu(qctx);
 		}else{
 #ifdef USE_GPU
-			process_with_gpu(tctx);
+			//process_with_gpu(qctx);
 #endif
 		}
-		checked += tctx.checked;
-		reached += tctx.found;
+		checked += qctx.checked;
+		reached += qctx.found;
 
 		/*
 		 *
@@ -111,11 +111,7 @@ void tracer::process(){
 		 * */
 		map<int, uint> connected;
 
-		uint *partitions = (uint *)tctx.target[1];
-		offset_size *os = (offset_size *)tctx.target[2];
-		uint *result = (uint *)tctx.target[3];
-		uint *gridchecks = (uint *)tctx.target[4];
-
+		uint *gridchecks = pinfo->grid_checkings;
 		uint max_one = 0;
 		for(int i=0;i<config.num_objects;i++){
 			if(connected.find(result[i])==connected.end()){
@@ -136,11 +132,11 @@ void tracer::process(){
 		vector<Point *> all_points;
 		vector<Point *> valid_points;
 		Point *p1 = cur_trace + max_one;
-		for(uint pairid=0;pairid<tctx.target_length[4];pairid++){
+		for(uint pairid=0;pairid<pinfo->num_grid_checkings;pairid++){
 			if(gridchecks[2*pairid]==max_one){
-				uint gid = gridchecks[2*pairid+1];
-				uint *cur_pid = partitions + os[gid].offset;
-				for(uint i=0;i<os[gid].size;i++){
+				uint zid = gridchecks[2*pairid+1];
+				uint *cur_pid = pinfo->get_zone(zid);
+				for(uint i=0;i<pinfo->get_zone_size(zid);i++){
 					Point *p2 = cur_trace+cur_pid[i];
 					if(p1==p2){
 						continue;
@@ -153,7 +149,6 @@ void tracer::process(){
 				}
 			}
 		}
-
 
 		print_points(all_points);
 		print_points(valid_points);

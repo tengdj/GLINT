@@ -126,6 +126,7 @@ class tracer{
 	// for query
 	configuration config;
 	partitioner *part = NULL;
+	uint *result = NULL;
 public:
 	box mbr;
 	tracer(configuration &conf, box &b, Point *t){
@@ -137,6 +138,7 @@ public:
 		}else if(config.method == FIX_GRID){
 			part = new grid_partitioner(mbr,config);
 		}
+		result = new uint[config.num_objects];
 	}
 	tracer(configuration &conf){
 		config = conf;
@@ -154,6 +156,7 @@ public:
 		if(part){
 			delete part;
 		}
+		delete []result;
 	}
 	void process();
 	void dumpTo(const char *path) {

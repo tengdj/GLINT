@@ -7,45 +7,95 @@
 
 #include "trace.h"
 
-query_context grid_partitioner::partition(Point *points, size_t num_objects){
+
+partition_info::partition_info(size_t ng, size_t no, size_t zs){
+	num_grids = ng;
+	num_objects = no;
+	zone_size = zs;
+
+	// make the capacity half more than the grid number
+	capacity = num_grids+num_grids/2;
+	buffer_zones = new uint[zone_size*capacity];
+	cur_zone = new uint[num_grids];
+	grid_checkings = new uint[2*5*num_objects];
+	pthread_mutex_init(&lk,NULL);
+	for(int i=0;i<50;i++){
+		pthread_mutex_init(&insert_lk[i],NULL);
+	}
+}
+
+bool partition_info::resize(size_t newcapacity){
+	if(newcapacity<capacity){
+		return false;
+	}
+	uint *npart = new uint[zone_size*newcapacity];
+	memcpy(npart,buffer_zones,zone_size*capacity*sizeof(uint));
+	delete []buffer_zones;
+	buffer_zones = npart;
+	capacity = newcapacity;
+	return true;
+}
+
+bool partition_info::insert(uint gid, uint pid){
+	pthread_mutex_lock(&insert_lk[gid%50]);
+	uint cur_loc = get_zone_size(cur_zone[gid]);
+	// one buffer zone is full or no zone is assigned, locate next buffer zone
+	if(cur_loc==0){
+		pthread_mutex_lock(&lk);
+		// enlarge the buffer zone by 50% if the capacity is reached
+		if(cur_free_zone==capacity){
+			enlarge();
+		}
+		// link to the previous zone offset
+		buffer_zones[(zone_size+1)*cur_free_zone] = cur_zone[gid];
+		cur_zone[gid] = cur_free_zone++;
+		pthread_mutex_unlock(&lk);
+	}
+	// the first number in the buffer zone links to the previous zone (0 if no one)
+	// the second number in the buffer zone is the number of objects in current zone
+	buffer_zones[(zone_size+1)*cur_zone[gid]+2+cur_loc] = pid;
+	buffer_zones[(zone_size+1)*cur_zone[gid]+1]++;
+	pthread_mutex_unlock(&insert_lk[gid%50]);
+	return true;
+}
+
+bool partition_info::check(uint gid, uint pid){
+	uint cur_offset = cur_zone[gid];
+	do{
+		assert(num_grid_checkings<2*5*num_objects);
+		grid_checkings[2*num_grid_checkings] = pid;
+		grid_checkings[2*num_grid_checkings+1] = cur_offset;
+		num_grid_checkings++;
+		// the first number in this region point to the previous zone
+		cur_offset = buffer_zones[(zone_size+1)*cur_offset];
+	}while(cur_offset!=0);
+	return true;
+}
+
+
+partition_info *grid_partitioner::partition(Point *points, size_t num_objects){
 	struct timeval start = get_cur_time();
 	clear();
 
 	size_t num_grids = grid->get_grid_num();
-
-	vector<vector<uint>> grids;
-	grids.resize(num_grids);
+	if(!pinfo||pinfo->num_grids!=num_grids||pinfo->num_objects!=num_objects){
+		if(pinfo){
+			delete pinfo;
+		}
+		pinfo = new partition_info(num_grids, num_objects, config.max_objects_per_grid);
+	}
+	pinfo->points = points;
 
 	double x_buffer = config.reach_distance*degree_per_meter_longitude(grid->space.low[1]);
 	double y_buffer = config.reach_distance*degree_per_meter_latitude;
 
-	// pick one object for generating
+	// assign each object to proper grids
 	for(int pid=0;pid<num_objects;pid++){
 		Point *p = points+pid;
 		size_t gid = grid->getgridid(p);
-		grids[gid].push_back(pid);
+		pinfo->insert(gid,pid);
 	}
 	logt("partition %ld objects into %ld grids",start,num_objects, num_grids);
-
-	uint *partitions = new uint[num_objects];
-	offset_size *os = new offset_size[num_grids];
-	uint *result = new uint[num_objects];
-	uint *grid_checks = new uint[2*5*num_objects];
-	size_t num_checks = 0;
-
-	//pack the grids into array
-	for(size_t i=0;i<num_grids;i++){
-		if(i==0){
-			os[i].offset = 0;
-		}else{
-			os[i].offset = os[i-1].offset+os[i-1].size;
-		}
-		os[i].size = grids[i].size();
-		uint *cur_part = partitions + os[i].offset;
-		for(int j=0;j<grids[i].size();j++){
-			cur_part[j] = grids[i][j];
-		}
-	}
 
 	// the query process
 	// each point is associated with a list of grids
@@ -56,52 +106,27 @@ query_context grid_partitioner::partition(Point *points, size_t num_objects){
 		bool right = gid_code & 4;
 		bool bottom_right = gid_code &2;
 		bool top = gid_code &1;
-		grid_checks[2*num_checks] = pid;
-		grid_checks[2*num_checks+1] = gid;
-		num_checks++;
+		pinfo->check(gid,pid);
 		if(top_right){
-			grid_checks[2*num_checks] = pid;
-			grid_checks[2*num_checks+1] = gid+grid->dimx+1;
-			num_checks++;
+			pinfo->check(gid+grid->dimx+1, pid);
 		}
 		if(right){
-			grid_checks[2*num_checks] = pid;
-			grid_checks[2*num_checks+1] = gid+1;
-			num_checks++;
+			pinfo->check(gid+1,pid);
 		}
 		if(top){
-			grid_checks[2*num_checks] = pid;
-			grid_checks[2*num_checks+1] = gid+grid->dimx;
-			num_checks++;
+			pinfo->check(gid+grid->dimx,pid);
 		}
 		if(bottom_right){
-			grid_checks[2*num_checks] = pid;
-			grid_checks[2*num_checks+1] = gid-grid->dimx+1;
-			num_checks++;
+			pinfo->check(gid-grid->dimx+1,pid);
 		}
 	}
 
-	// form a query context object
-	query_context ctx;
-	ctx.config = config;
-	ctx.target[0] = (void *)points;
-	ctx.target_length[0] = num_objects;
-	ctx.target[1] = (void *)partitions;
-	ctx.target_length[1] = num_objects;
-	ctx.target[2] = (void *)os;
-	ctx.target_length[2] = num_grids;
-	ctx.target[3] = (void *)result;
-	ctx.target_length[3] = num_objects;
-	ctx.target[4] = (void *)grid_checks;
-	ctx.target_length[4] = num_checks;
-
-	ctx.num_objects = num_checks;
 	logt("pack",start);
-	return ctx;
+	return pinfo;
 }
 
 
-query_context qtree_partitioner::partition(Point *points, size_t num_objects){
+partition_info *qtree_partitioner::partition(Point *points, size_t num_objects){
 	struct timeval start = get_cur_time();
 	clear();
 	qtree = new QTNode(mbr, &qconfig);
@@ -116,12 +141,15 @@ query_context qtree_partitioner::partition(Point *points, size_t num_objects){
 	size_t num_grids = qtree->leaf_count();
 	logt("partition into %d grids",start,num_grids);
 
-	uint *partitions = new uint[num_objects];
-	offset_size *os = new offset_size[num_grids];
-	uint *result = new uint[num_objects];
-	uint *grid_checks = new uint[2*5*num_objects];
-	size_t num_checks = 0;
-	qtree->pack_data(partitions, os);
+	if(!pinfo||pinfo->num_grids!=num_grids||pinfo->num_objects!=num_objects){
+		if(pinfo){
+			delete pinfo;
+		}
+		pinfo = new partition_info(num_grids, num_objects, config.max_objects_per_grid);
+	}
+	pinfo->points = points;
+
+	//qtree->pack_data(partitions, os);
 	//qtree->print();
 	logt("pack",start);
 
@@ -130,31 +158,13 @@ query_context qtree_partitioner::partition(Point *points, size_t num_objects){
 	for(size_t pid=0;pid<num_objects;pid++){
 		qtree->query(nodes,points+pid);
 		for(uint gid:nodes){
-			grid_checks[2*num_checks] = pid;
-			grid_checks[2*num_checks+1] = gid;
-			num_checks++;
+			pinfo->check(gid,pid);
 		}
 		nodes.clear();
 	}
 
-	//pack the grids into array
-	query_context ctx;
-	ctx.config = config;
-	ctx.target[0] = (void *)points;
-	ctx.target_length[0] = num_objects;
-	ctx.target[1] = (void *)partitions;
-	ctx.target_length[1] = num_objects;
-	ctx.target[2] = (void *)os;
-	ctx.target_length[2] = num_grids;
-	ctx.target[3] = (void *)result;
-	ctx.target_length[3] = num_objects;
-	ctx.target[4] = (void *)grid_checks;
-	ctx.target_length[4] = num_checks;
-
-	ctx.num_objects = num_checks;
 	logt("lookup",start);
-
-	return ctx;
+	return pinfo;
 }
 
 
