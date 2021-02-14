@@ -114,7 +114,7 @@ query_context qtree_partitioner::partition(Point *points, size_t num_objects){
 	// set the ids and other stuff
 	qtree->finalize();
 	size_t num_grids = qtree->leaf_count();
-	logt("partition %ld objects into %d grids",start,num_objects,num_grids);
+	logt("partition into %d grids",start,num_grids);
 
 	uint *partitions = new uint[num_objects];
 	offset_size *os = new offset_size[num_grids];
@@ -123,6 +123,7 @@ query_context qtree_partitioner::partition(Point *points, size_t num_objects){
 	size_t num_checks = 0;
 	qtree->pack_data(partitions, os);
 	//qtree->print();
+	logt("pack",start);
 
 	// tree lookups
 	vector<uint> nodes;
@@ -151,9 +152,8 @@ query_context qtree_partitioner::partition(Point *points, size_t num_objects){
 	ctx.target_length[4] = num_checks;
 
 	ctx.num_objects = num_checks;
-	logt("pack",start);
+	logt("lookup",start);
 
-	//qtree->print();
 	return ctx;
 }
 

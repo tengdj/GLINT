@@ -79,7 +79,9 @@ void process_with_cpu(query_context &tctx){
 	logt("compute",start);
 }
 
+#ifdef USE_GPU
 void process_with_gpu(query_context &ctx);
+#endif
 
 void tracer::process(){
 
