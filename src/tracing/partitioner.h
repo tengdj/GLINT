@@ -56,7 +56,7 @@ public:
 	}
 	// insert point pid to grid gid
 	bool insert(uint gid, uint pid);
-	bool batch_insert(uint gid, uint num_objects, uint *pids);
+	int batch_insert(uint gid, uint num_objects, uint *pids);
 	bool check(uint gid, uint pid);
 
 	// get the object-grid checking pairs
@@ -66,6 +66,24 @@ public:
 		// just reset the cursor, no need to reset the content in the buffer_zone
 		cur_free_zone = 1;
 		num_grid_checkings = 0;
+	}
+	inline uint get_grid_size(uint gid){
+		uint size = 0;
+		uint zid = cur_zone[gid];
+		while(zid>0){
+			size += buffer_zones[(zone_size+2)*zid+1];
+			zid = buffer_zones[(zone_size+2)*zid];
+		}
+		return size;
+	}
+	inline uint get_zone_count(uint gid){
+		uint size = 0;
+		uint zid = cur_zone[gid];
+		while(zid>0){
+			size++;
+			zid = buffer_zones[(zone_size+2)*zid];
+		}
+		return size;
 	}
 	inline uint *get_zone(uint zid){
 		return buffer_zones + zid*(zone_size+2)+2;
@@ -109,7 +127,7 @@ public:
 		config = conf;
 		grid = new Grid(mbr, config.grid_width);
 		//grid->print();
-		pinfo = new partition_info(grid->get_grid_num(),config.num_objects, max(config.grid_capacity,config.num_objects/grid->get_grid_num()));
+		pinfo = new partition_info(grid->get_grid_num(),config.num_objects, config.grid_capacity);
 	}
 	~grid_partitioner(){
 		delete grid;
@@ -126,7 +144,7 @@ public:
 	qtree_partitioner(box &m, configuration &conf){
 		mbr = m;
 		config = conf;
-		qconfig.grid_width = config.grid_width;
+		qconfig.min_width = config.reach_distance;
 		qconfig.max_objects = config.grid_capacity;
 		qconfig.x_buffer = config.reach_distance*degree_per_meter_longitude(mbr.low[1]);
 		qconfig.y_buffer = config.reach_distance*degree_per_meter_latitude;

@@ -30,6 +30,7 @@ public:
 	int num_trips = 100000;
 	int grid_capacity = 100;
 	double reach_distance = 5;
+	// for grid partitioning
 	double grid_width = 5;
 	bool gpu = false;
 
@@ -63,12 +64,12 @@ inline configuration get_parameters(int argc, char **argv){
 		("help,h", "produce help message")
 		("gpu,g", "use gpu for processing")
 		("threads,n", po::value<int>(&global_ctx.num_threads), "number of threads")
-		("num_objects_grid", po::value<int>(&global_ctx.grid_capacity), "maximum number of objects per grid")
+		("grid_capacity", po::value<int>(&global_ctx.grid_capacity), "maximum number of objects per grid zone buffer")
+		("grid_width", po::value<double>(&global_ctx.grid_width), "the width of each grid (in meters)")
 		("trips,t", po::value<int>(&global_ctx.num_trips), "number of trips")
 		("objects,o", po::value<int>(&global_ctx.num_objects), "number of objects")
 		("duration,d", po::value<int>(&global_ctx.duration), "duration of the trace")
 		("reachable_distance,r", po::value<double>(&global_ctx.reach_distance), "reachable distance (in meters)")
-		("grid_width", po::value<double>(&global_ctx.grid_width), "the width of each grid (in meters)")
 		("map_path", po::value<string>(&global_ctx.map_path), "path to the map file")
 		("taxi_path", po::value<string>(&global_ctx.taxi_path), "path to the taxi file")
 		("trace_path", po::value<string>(&global_ctx.trace_path), "path to the trace file")

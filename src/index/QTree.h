@@ -36,7 +36,8 @@ public:
 	int max_level = INT_MAX;
 	int max_leafs = INT_MAX;
 	int max_objects = INT_MAX;
-	double grid_width = 5;// in meters
+	// minimum width of each region in meters
+	double min_width = 5;
 	double x_buffer = 0;
 	double y_buffer = 0;
 	bool split_node = true;
@@ -85,7 +86,7 @@ public:
 		assert(mbr.low[0]!=mid_x);
 		assert(mbr.low[1]!=mid_y);
 		config = conf;
-		capacity = conf->max_objects*2+10;
+		capacity = conf->max_objects*1.5+10;
 		objects = (uint *)malloc((capacity)*sizeof(uint));
 	}
 	QTNode(box m, QConfig *conf):QTNode(m.low[0], m.low[1], m.high[0], m.high[1],conf){
@@ -129,10 +130,10 @@ public:
 
 	bool split(){
 		bool should_split = config->split_node &&
-							object_index>=2*config->max_objects &&
+							object_index>=1.5*config->max_objects &&
 				   	   	    level<config->max_level&&
 							//config->num_leafs<config->max_leafs &&
-							mbr.width(true)>config->grid_width;
+							mbr.width(true)>config->min_width;
 		if(!should_split){
 			return false;
 		}

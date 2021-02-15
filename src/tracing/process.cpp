@@ -46,7 +46,6 @@ void *process_grid_unit(void *arg){
 					//log("%f",dist);
 					bool indist = p1->distance(*p2, true)<=ctx->config.reach_distance;
 					result[pid] += indist;
-					result[cur_pids[i]] += indist;
 					reached += 2*indist;
 					checked++;
 				}
@@ -94,9 +93,8 @@ void tracer::process(){
 		qctx.target[0] = (void *)pinfo;
 		qctx.target[1] = (void *)result;
 		qctx.num_objects = pinfo->num_grid_checkings;
-
-		cout<<pinfo->num_grid_checkings<<endl;
 		// process the objects in the packed partitions
+		log("start processing %ld point-zone checking",pinfo->num_grid_checkings);
 		if(!config.gpu){
 			process_with_cpu(qctx);
 		}else{
@@ -107,7 +105,7 @@ void tracer::process(){
 		checked += qctx.checked;
 		reached += qctx.found;
 
-		if(false){
+		if(true){
 			/*
 			 *
 			 * some statistics printing for debuging only
@@ -139,13 +137,13 @@ void tracer::process(){
 				uint pid = gridchecks[2*pairid];
 				grid_count[pid]++;
 			}
-			max_one = 0;
-			for(int i=0;i<config.num_objects;i++){
-				if(grid_count[max_one]<grid_count[i]){
-					max_one = i;
-				}
-			}
-			cout<<max_one<<" "<<grid_count[max_one]<<endl;
+//			max_one = 0;
+//			for(int i=0;i<config.num_objects;i++){
+//				if(grid_count[max_one]<grid_count[i]){
+//					max_one = i;
+//				}
+//			}
+//			cout<<max_one<<" "<<grid_count[max_one]<<endl;
 
 			vector<Point *> all_points;
 			vector<Point *> valid_points;
