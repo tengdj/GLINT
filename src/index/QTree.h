@@ -49,6 +49,8 @@ public:
 };
 
 class QTNode{
+public:
+
 	double mid_x = 0;
 	double mid_y = 0;
 	int level = 0;
@@ -70,8 +72,6 @@ class QTNode{
 			}
 		}
 	}
-
-public:
 
 	QTNode(double low_x, double low_y, double high_x, double high_y, QConfig *conf){
 		mbr.low[0] = low_x;
@@ -108,10 +108,10 @@ public:
 			result.push_back(this->node_id);
 		}else{
 			// could be possibly in multiple children with buffers enabled
-			bool top = (p->y>mid_y-config->y_buffer);
-			bool bottom = (p->y<=mid_y+config->y_buffer);
-			bool left = (p->x<=mid_x+config->x_buffer);
-			bool right = (p->x>mid_x-config->x_buffer);
+			bool top = (p->y-config->y_buffer>mid_y);
+			bool bottom = (p->y+config->y_buffer<=mid_y);
+			bool left = (p->x+config->x_buffer<=mid_x);
+			bool right = (p->x-config->x_buffer>mid_x);
 			if(bottom&&left){
 				children[0]->query(result, p);
 			}
@@ -274,23 +274,23 @@ public:
 		return config->points+objects[pid];
 	}
 
-	void pack_data(uint *pids, offset_size *os){
-		if(isleaf()){
-			if(node_id==0){
-				os[node_id].offset = 0;
-			}else{
-				os[node_id].offset = os[node_id-1].offset+os[node_id-1].size;
-			}
-			os[node_id].size = object_index;
-			if(object_index>0){
-				memcpy((void *)(pids+os[node_id].offset),(void *)objects,os[node_id].size*sizeof(uint));
-			}
-		}else{
-			for(int i=0;i<4;i++){
-				children[i]->pack_data(pids, os);
-			}
-		}
-	}
+//	void pack_data(uint *pids, offset_size *os){
+//		if(isleaf()){
+//			if(node_id==0){
+//				os[node_id].offset = 0;
+//			}else{
+//				os[node_id].offset = os[node_id-1].offset+os[node_id-1].size;
+//			}
+//			os[node_id].size = object_index;
+//			if(object_index>0){
+//				memcpy((void *)(pids+os[node_id].offset),(void *)objects,os[node_id].size*sizeof(uint));
+//			}
+//		}else{
+//			for(int i=0;i<4;i++){
+//				children[i]->pack_data(pids, os);
+//			}
+//		}
+//	}
 
 //	void print_node(){
 //		printf("level: %d objects: %ld width: %f height: %f",level,object_index,mbr.width(true),mbr.height(true));

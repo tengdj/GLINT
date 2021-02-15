@@ -148,6 +148,7 @@ public:
 		}else if(config.method == FIX_GRID){
 			part = new grid_partitioner(mbr,config);
 		}
+		result = new uint[config.num_objects];
 	};
 	~tracer(){
 		if(owned_trace){

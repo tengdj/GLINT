@@ -9,7 +9,7 @@ INCLUDES	= -I /usr/include -I ./src
 LIBS		= -L/usr/lib/x86_64-linux-gnu -lboost_program_options -lpthread
 CPPFLAGS	= -g -std=c++14 -Wno-cpp
 
-CUDALIBS	= -L/usr/local/cuda/lib64 -lcuda -lcudart
+CUDALIBS	= -L/usr/local/cuda/lib64 -lcudart
 
 GEOMETRY_SRCS := $(wildcard geometry/*.cpp)
 GEOMETRY_OBJS := $(patsubst %.cpp,%.o,$(GEOMETRY_SRCS))

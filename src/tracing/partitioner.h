@@ -55,27 +55,34 @@ public:
 	}
 	// insert point pid to grid gid
 	bool insert(uint gid, uint pid);
+	bool batch_insert(uint gid, uint num_objects, uint *pids);
 	bool check(uint gid, uint pid);
 
 	// get the object-grid checking pairs
 	uint *get_grid_check();
 	void clear(){
 		memset(cur_zone,0,sizeof(uint)*num_grids);
-		for(int i=1;i<cur_free_zone;i++){
-			buffer_zones[(zone_size+2)*i] = 0;
-			buffer_zones[(zone_size+2)*i+1] = 0;
-		}
+		// just reset the cursor, no need to reset the content in the buffer_zone
 		cur_free_zone = 1;
 		num_grid_checkings = 0;
 	}
 	inline uint *get_zone(uint zid){
-		return buffer_zones + zid*(zone_size+2);
+		return buffer_zones + zid*(zone_size+2)+2;
 	}
 	inline uint get_zone_size(uint zid){
 		return *(buffer_zones + zid*(zone_size+2)+1);
 	}
 	inline uint get_prev_zoneid(uint zid){
 		return *(buffer_zones + zid*(zone_size+2));
+	}
+	inline void set_zone_size(uint zid, uint s){
+		*(buffer_zones + zid*(zone_size+2)+1) = s;
+	}
+	inline void increase_zone_size(uint zid){
+		*(buffer_zones + zid*(zone_size+2)+1) += 1;
+	}
+	inline void set_prev_zoneid(uint zid, uint prev_zid){
+		*(buffer_zones + zid*(zone_size+2)) = prev_zid;
 	}
 };
 
@@ -100,7 +107,8 @@ public:
 		mbr = m;
 		config = conf;
 		grid = new Grid(mbr, config.grid_width);
-		pinfo = new partition_info(grid->get_grid_num(),config.num_objects, max(10,config.num_objects/grid->get_grid_num()));
+		//grid->print();
+		pinfo = new partition_info(grid->get_grid_num(),config.num_objects, max(config.grid_capacity,config.num_objects/grid->get_grid_num()));
 	}
 	~grid_partitioner(){
 		delete grid;
@@ -118,7 +126,7 @@ public:
 		mbr = m;
 		config = conf;
 		qconfig.grid_width = config.grid_width;
-		qconfig.max_objects = config.max_objects_per_grid;
+		qconfig.max_objects = config.grid_capacity;
 		qconfig.x_buffer = config.reach_distance*degree_per_meter_longitude(mbr.low[1]);
 		qconfig.y_buffer = config.reach_distance*degree_per_meter_latitude;
 	}

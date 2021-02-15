@@ -28,7 +28,7 @@ public:
 	int duration = 1000;
 	int num_objects = 1000;
 	int num_trips = 100000;
-	int max_objects_per_grid = 100;
+	int grid_capacity = 100;
 	double reach_distance = 5;
 	double grid_width = 5;
 	bool gpu = false;
@@ -41,7 +41,7 @@ public:
 		printf("configuration:");
 		printf("num threads:\t%d\n",num_threads);
 		printf("num objects:\t%d\n",num_objects);
-		printf("num objects per grids:\t%d\n",max_objects_per_grid);
+		printf("num objects per grids:\t%d\n",grid_capacity);
 		printf("num trips:\t%d\n",num_trips);
 		printf("duration:\t%d\n",duration);
 		printf("reach threshold:\t%f m\n",reach_distance);
@@ -63,7 +63,7 @@ inline configuration get_parameters(int argc, char **argv){
 		("help,h", "produce help message")
 		("gpu,g", "use gpu for processing")
 		("threads,n", po::value<int>(&global_ctx.num_threads), "number of threads")
-		("num_objects_grid", po::value<int>(&global_ctx.max_objects_per_grid), "maximum number of objects per grid")
+		("num_objects_grid", po::value<int>(&global_ctx.grid_capacity), "maximum number of objects per grid")
 		("trips,t", po::value<int>(&global_ctx.num_trips), "number of trips")
 		("objects,o", po::value<int>(&global_ctx.num_objects), "number of objects")
 		("duration,d", po::value<int>(&global_ctx.duration), "duration of the trace")

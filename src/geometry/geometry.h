@@ -16,7 +16,7 @@
 #include <string>
 #include <queue>
 #include <iostream>
-#include "util/util.h"
+#include "../util/util.h"
 
 using namespace std;
 class Point{
@@ -264,38 +264,24 @@ public:
 		return getgrid(gid%dimx,gid/dimx);
 	}
 
-	inline size_t getgrids(Point *p, double x_buffer, double y_buffer){
+
+	inline size_t border_grids(Point *p, double x_buffer, double y_buffer){
 		int offsety = (p->y-space.low[1])/step_y;
 		int offsetx = (p->x-space.low[0])/step_x;
-		size_t gid = dimx*offsety+offsetx;
-		bool right = offsetx+1<dimx&&(offsetx+1)*step_x+space.low[0]<p->x+x_buffer;
-		bool top = offsety+1<dimy&&(offsety+1)*step_y+space.low[1]<p->y+y_buffer;
-		bool bottom = offsety-1>=0&&(offsety-1)*step_y+space.low[1]>p->y-y_buffer;
-		gid <<= 1;
-		gid |= (top&&right);
-		gid <<= 1;
-		gid |= (right);
-		gid <<= 1;
-		gid |= (bottom&&right);
-		gid <<= 1;
-		gid |= (top);
-		return gid;
 
-//		if(right){
-//			// top right
-//			if(top){
-//				ret.push_back(dimx*(offsety+1)+offsetx+1);
-//			}
-//			// right
-//			ret.push_back(dimx*offsety+offsetx+1);
-//			// bottom right
-//			if(bottom){
-//				ret.push_back(dimx*(offsety-1)+offsetx+1);
-//			}
-//		}
-//		if(top){
-//			ret.push_back(dimx*(offsety+1)+offsetx);
-//		}
+		bool left = offsetx-1>=0&&offsetx*step_x+space.low[0]>p->x-x_buffer;
+		bool right = offsetx+1<dimx&&(offsetx+1)*step_x+space.low[0]<p->x+x_buffer;
+		bool bottom = offsety-1>=0&&offsety*step_y+space.low[1]>p->y-y_buffer;
+		bool top = offsety+1<dimy&&(offsety+1)*step_y+space.low[1]<p->y+y_buffer;
+		size_t gid = 0;
+		gid <<= 1;
+		gid |= left;
+		gid <<= 1;
+		gid |= right;
+		gid <<= 1;
+		gid |= top;
+		gid <<= 1;
+		gid |= bottom;
 		return gid;
 	}
 
@@ -313,6 +299,24 @@ public:
 			yval = space.low[1]+yoff*step_y+yrand*step_y;
 		}
 		return Point(xval, yval);
+	}
+
+	void print(){
+		printf("MULTIPOLYGON(");
+		for(int i=0;i<dimx;i++){
+			for(int j=0;j<dimy;j++){
+				if(i>0||j>0){
+					printf(",");
+				}
+				printf("((");
+				box mbr(space.low[0]+i*step_x,space.low[1]+j*step_y,space.low[0]+(i+1)*step_x,space.low[1]+(j+1)*step_y);
+				mbr.print_vertices();
+				printf("))");
+			}
+		}
+		printf(")\n");
+
+
 	}
 
 };
