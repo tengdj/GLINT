@@ -108,10 +108,10 @@ public:
 			result.push_back(this->node_id);
 		}else{
 			// could be possibly in multiple children with buffers enabled
-			bool top = (p->y-config->y_buffer>mid_y);
-			bool bottom = (p->y+config->y_buffer<=mid_y);
-			bool left = (p->x+config->x_buffer<=mid_x);
-			bool right = (p->x-config->x_buffer>mid_x);
+			bool top = (p->y>mid_y-config->y_buffer);
+			bool bottom = (p->y<=mid_y+config->y_buffer);
+			bool left = (p->x<=mid_x+config->x_buffer);
+			bool right = (p->x>mid_x-config->x_buffer);
 			if(bottom&&left){
 				children[0]->query(result, p);
 			}
