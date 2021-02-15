@@ -18,8 +18,9 @@
 void *process_grid_unit(void *arg){
 	query_context *ctx = (query_context *)arg;
 	partition_info *pinfo = (partition_info *)ctx->target[0];
-	Point *points = pinfo->points;
 	uint *result = (uint *)ctx->target[1];
+	Point *points = pinfo->points;
+
 	uint *grid_check = pinfo->grid_checkings;
 	size_t checked = 0;
 	size_t reached = 0;
@@ -33,7 +34,7 @@ void *process_grid_unit(void *arg){
 		for(uint pairid=start;pairid<end;pairid++){
 			uint pid = grid_check[2*pairid];
 			uint zid = grid_check[2*pairid+1];
-			//log("%d\t%d",pid,gid);
+			//log("%d\t%d\t%d",pid,zid,pinfo->get_zone_size(zid));
 			uint *cur_pids = pinfo->get_zone(zid);
 			result[pid] = 0;
 			//vector<Point *> pts;
@@ -91,20 +92,22 @@ void tracer::process(){
 		Point *cur_trace = trace+t*config.num_objects;
 		partition_info *pinfo = part->partition(cur_trace, config.num_objects);
 		qctx.target[0] = (void *)pinfo;
-		qctx.num_objects = pinfo->num_grid_checkings;
 		qctx.target[1] = (void *)result;
+		qctx.num_objects = pinfo->num_grid_checkings;
+
+		cout<<pinfo->num_grid_checkings<<endl;
 		// process the objects in the packed partitions
 		if(!config.gpu){
 			process_with_cpu(qctx);
 		}else{
 #ifdef USE_GPU
-			//process_with_gpu(qctx);
+			process_with_gpu(qctx);
 #endif
 		}
 		checked += qctx.checked;
 		reached += qctx.found;
 
-		if(true){
+		if(false){
 			/*
 			 *
 			 * some statistics printing for debuging only
@@ -142,7 +145,7 @@ void tracer::process(){
 					max_one = i;
 				}
 			}
-			cout<<grid_count[max_one]<<endl;
+			cout<<max_one<<" "<<grid_count[max_one]<<endl;
 
 			vector<Point *> all_points;
 			vector<Point *> valid_points;

@@ -180,6 +180,7 @@ public:
 		ifstream in(path, ios::in | ios::binary);
 		in.read((char *)&total_num_objects, sizeof(total_num_objects));
 		in.read((char *)&total_duration, sizeof(total_duration));
+		//cout<<total_num_objects<<" "<<total_duration<<endl;
 		in.read((char *)&mbr, sizeof(mbr));
 		mbr.to_squre(true);
 		assert(config.duration*config.num_objects<=total_duration*total_num_objects);
@@ -196,7 +197,7 @@ public:
 		owned_trace = true;
 	}
 
-	void print_trace(double sample_rate){
+	void print_trace(double sample_rate = 1){
 		print_points(trace,config.num_objects,sample_rate);
 	}
 	Point *get_trace(){

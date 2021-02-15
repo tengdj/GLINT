@@ -3,6 +3,7 @@
 #include "cuda_util.h"
 #include "../geometry/geometry.h"
 #include "../util/query_context.h"
+#include "../tracing/partitioner.h"
 
 // return the distance of two segments
 
@@ -23,7 +24,7 @@ inline double distance(const double x1, const double y1, const double x2, const 
 }
 
 __global__
-void reachability_cuda(const double *points, const uint *gridcheck, uint *pids, const offset_size *os, uint *ret, size_t num_checkes, double max_dist){
+void reachability_cuda(const double *points, uint *zones, const uint *gridcheck, uint *ret, size_t num_checkes, size_t zone_size, double max_dist){
 
 	// the objects in which grid need be processed
 	int pairid = blockIdx.x*blockDim.x+threadIdx.x;
@@ -32,18 +33,18 @@ void reachability_cuda(const double *points, const uint *gridcheck, uint *pids, 
 	}
 
 	uint pid = gridcheck[pairid*2];
-	uint gid = gridcheck[pairid*2+1];
+	uint zid = gridcheck[pairid*2+1];
 
-	const uint *cur_pids = pids+os[gid].offset;
+	uint size = *(zones+(zone_size+2)*zid+1);
+	const uint *cur_pids = zones+(zone_size+2)*zid+2;
 	double curx = *(points+pid*2);
 	double cury = *(points+pid*2+1);
 	//printf("%d %d %d\n",pid,gid,ret[pid]);
-	for(uint i=0;i<os[gid].size;i++){
+	for(uint i=0;i<size;i++){
 		if(pid!=cur_pids[i]){
 			double dist = distance(curx, cury,*(points+cur_pids[i]*2),*(points+cur_pids[i]*2+1));
 			//printf("%d %d %d\n",pid,gid,ret[pid]);
 			ret[pid] += dist<=max_dist;
-			ret[cur_pids[i]] += dist<=max_dist;
 		}
 	}
 	if(ret[pid]>1000){
@@ -66,7 +67,7 @@ __global__ void mykernel(Point *p1, Point *p2, double *dist) {
   //atomicAdd(addr, 10);       // only available on devices with compute capability 6.x
 }
 
-int foo(Point *p1, Point *p2) {
+double foo(Point *p1, Point *p2) {
 	Point *d_p1,*d_p2;
 	double *d_dist;
 	cudaMallocManaged(&d_p1, sizeof(Point));
@@ -79,8 +80,7 @@ int foo(Point *p1, Point *p2) {
 	mykernel<<<1,1>>>(d_p1, d_p2, d_dist);
 	double dist = 0;
 	CUDA_SAFE_CALL(cudaMemcpy(&dist, d_dist, sizeof(double), cudaMemcpyDeviceToHost));
-	int ret = 0;
-	return ret;
+	return dist;
 }
 
 
@@ -95,41 +95,39 @@ void process_with_gpu(query_context &ctx){
 
 	vector<gpu_info *> gpus = get_gpus();
 	gpu_info *gpu = gpus[0];
-
 	pthread_mutex_lock(&gpu->lock);
+
 	assert(gpu);
 	cudaSetDevice(gpu->device_id);
+	gpu->print();
+	partition_info *pinfo = (partition_info *)ctx.target[0];
+	uint *result = (uint *)ctx.target[1];
+	Point *points = pinfo->points;
 
-	Point *points = (Point *)ctx.target[0];
-	uint *partitions = (uint *)ctx.target[1];
-	offset_size *os = (offset_size *)ctx.target[2];
-	uint *result = (uint *)ctx.target[3];
-	uint *grid_checks = (uint *)ctx.target[4];
-
-	size_t num_points = ctx.target_length[0];
-	size_t num_grids = ctx.target_length[2];
-	size_t num_checkes = ctx.target_length[4];
+	size_t num_points = pinfo->num_objects;
+	size_t num_zones = pinfo->cur_free_zone;
+	size_t num_checkes = pinfo->num_grid_checkings;
 
 	// space for the raw points data
-	Point *d_points = (Point *)gpu->get_data(0, sizeof(Point)*num_points);
-	// space for the pids of all the grids
-	uint *d_partitions = (uint *)gpu->get_data(1, num_points*sizeof(uint));
-	// space for the offset and size information in GPU
-	offset_size *d_os = (offset_size *)gpu->get_data(2, sizeof(offset_size)*num_grids);
+	Point *d_points = (Point *)gpu->get_data(0, num_points*sizeof(Point));
+	// space for the pids of all the grid zones
+	uint *d_zones = (uint *)gpu->get_data(1, num_zones*(pinfo->zone_size+2)*sizeof(uint));
+	// space for the pid-zid pairs
+	uint *d_gridcheck = (uint *)gpu->get_data(2, 2*num_checkes*sizeof(uint));
 	// space for the results in GPU
-	uint *d_ret = (uint *)gpu->get_data(3, sizeof(uint)*num_points);
+	uint *d_ret = (uint *)gpu->get_data(3, num_points*sizeof(uint));
 
-	uint *d_gridcheck = (uint *)gpu->get_data(4, 2*sizeof(uint)*num_checkes);
 	logt("allocating space", start);
 
 	CUDA_SAFE_CALL(cudaMemcpy(d_points, points, num_points*sizeof(Point), cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL(cudaMemcpy(d_partitions, partitions, num_points*sizeof(uint), cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL(cudaMemcpy(d_os, os, num_grids*sizeof(offset_size), cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL(cudaMemcpy(d_gridcheck, grid_checks, num_checkes*2*sizeof(uint), cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(d_zones, pinfo->buffer_zones, num_zones*(pinfo->zone_size+2)*sizeof(uint), cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(d_gridcheck, pinfo->grid_checkings, 2*num_checkes*sizeof(uint), cudaMemcpyHostToDevice));
+
+	cout<<(num_points*sizeof(Point)+num_zones*(pinfo->zone_size+2)*sizeof(uint)+2*num_checkes*sizeof(uint))/1024/1024<<endl;
 
 	logt("copying data", start);
 	// compute the reachability of objects in each partitions
-	reachability_cuda<<<num_checkes/1024+1,1024>>>((double *)d_points, d_gridcheck, d_partitions, d_os, d_ret, num_checkes, ctx.config.reach_distance);
+	reachability_cuda<<<num_checkes/1024+1,1024>>>((double *)d_points, d_zones, d_gridcheck, d_ret, num_checkes, pinfo->zone_size, ctx.config.reach_distance);
 
 	check_execution();
 	cudaDeviceSynchronize();

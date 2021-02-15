@@ -20,9 +20,16 @@ vector<gpu_info *> get_gpus(){
 		cudaDeviceProp prop;
 		cudaGetDeviceProperties(&prop, i);
 		gpu_info *info = new gpu_info();
+		strcpy(info->name, prop.name);
 		info->busy = false;
-		info->mem_size = prop.totalGlobalMem/1024/1024*4/5;
+		info->mem_size = prop.totalGlobalMem/1024/1024;
 		info->device_id = i;
+		info->clock_rate = prop.memoryClockRate;
+		info->bus_width = prop.memoryBusWidth;
+		info->compute_capability_major = prop.major;
+		info->compute_capability_minor = prop.minor;
+
+
 		// we allocate 2G mem for each gpu
 //		if(info->mem_size>2048){
 //			info->mem_size = 2048;
@@ -33,21 +40,23 @@ vector<gpu_info *> get_gpus(){
 }
 
 void print_gpus(){
-	int num_gpus = 0;
-	cudaGetDeviceCount(&num_gpus);
-	for (int i = 0; i < num_gpus; i++) {
-		cudaDeviceProp prop;
-		cudaGetDeviceProperties(&prop, i);
-		log("Device ID: %d", i);
-		log("  Device name: %s", prop.name);
-		log("  Memory Clock Rate (KHz): %d", prop.memoryClockRate);
-		log("  Memory Bus Width (bits): %d", prop.memoryBusWidth);
-		log("  Peak Memory Bandwidth (GB/s): %f",
-				2.0*prop.memoryClockRate*(prop.memoryBusWidth/8)/1.0e6);
-		log("  Memory size (MB): %ld", prop.totalGlobalMem/1024/1024);
+	vector<gpu_info *> gpus = get_gpus();
+	for(gpu_info *g:gpus){
+		g->print();
+		delete g;
 	}
+	gpus.clear();
 }
 
+void gpu_info::print(){
+	log("Device ID: %d", device_id);
+	log("  Device name: %s", name);
+	log("  Memory Clock Rate (KHz): %d", clock_rate);
+	log("  Memory Bus Width (bits): %d", bus_width);
+	log("  Peak Memory Bandwidth (GB/s): %f", 2.0*clock_rate*(bus_width/8)/1.0e6);
+	log("  Memory size (MB): %ld", mem_size);
+	log("  Compute Capability: %d.%d", this->compute_capability_major, this->compute_capability_minor);
+}
 
 void gpu_info::init(){
 	for(int i=0;i<MAX_DATA_SPACE;i++){

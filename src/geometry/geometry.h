@@ -409,7 +409,7 @@ inline void print_points(vector<Point *> trajectory, double sample_rate=1.0){
 }
 
 inline void print_points(Point *trajectory, size_t num_objects, double sample_rate=1.0){
-	assert(sample_rate<=1&&sample_rate>0);
+	assert(sample_rate<=1&&sample_rate>=0);
 	printf("MULTIPOINT (");
 	bool first = true;
 	for(int i=0;i<num_objects;i++){

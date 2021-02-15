@@ -24,7 +24,7 @@ int main(int argc, char **argv){
 	Point *traces = gen->generate_trace();
 	//print_points(traces, 1000);
 	tracer *t = new tracer(config,*m->getMBR(),traces);
-	print_points(t->get_trace(),config.num_objects,10000.0/config.num_objects);
+	print_points(t->get_trace(),config.num_objects,min(10000.0/config.num_objects,1.0));
 	t->dumpTo(config.trace_path.c_str());
 
 	free(traces);

@@ -200,7 +200,7 @@ partition_info *qtree_partitioner::partition(Point *points, size_t num_objects){
 		if(pinfo){
 			delete pinfo;
 		}
-		pinfo = new partition_info(num_grids, num_objects, config.grid_capacity);
+		pinfo = new partition_info(num_grids, num_objects, 2*config.grid_capacity);
 	}
 	pinfo->points = points;
 

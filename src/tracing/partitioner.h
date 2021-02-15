@@ -16,9 +16,10 @@
 // the data structure used to pack
 // the partition information
 class partition_info{
+public:
+
 	// next available free partition buffer zone
 	size_t cur_free_zone = 1;
-
 	// total number of partition buffer zone
 	size_t capacity = 0;
 	// size of each partition buffer zone
@@ -32,7 +33,7 @@ class partition_info{
 
 	// which zone each grid is packing into
 	uint *cur_zone = NULL;
-public:
+
 
 	uint *grid_checkings = NULL;
 	size_t num_grid_checkings = 0;
