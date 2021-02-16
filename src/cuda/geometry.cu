@@ -127,6 +127,7 @@ void process_with_gpu(query_context &ctx){
 
 	logt("copying data", start);
 	// compute the reachability of objects in each partitions
+	//todo: repeat call for each zone size to avoid loop in the kernel function
 	reachability_cuda<<<num_checkes/1024+1,1024>>>((double *)d_points, d_zones, d_gridcheck, d_ret, num_checkes, pinfo->zone_size, ctx.config.reach_distance);
 
 	check_execution();
