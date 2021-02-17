@@ -34,8 +34,11 @@ public:
 	}
 	~Point(){}
 	double distance(Point &p, bool geography = false){
-		double dx = x-p.x;
-		double dy = y-p.y;
+		return distance(&p, geography);
+	}
+	double distance(Point *p, bool geography = false){
+		double dx = x-p->x;
+		double dy = y-p->y;
 		if(geography){
 			dy = dy/degree_per_meter_latitude;
 			dx = dx/degree_per_meter_longitude(y);

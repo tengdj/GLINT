@@ -30,7 +30,23 @@ enum QT_Direction{
 };
 class QTNode;
 
-class QConfig{
+/*
+ *
+ * each child is represented as an unsigned integer number
+ * the lowest bit is the sign of whether it is a leaf or not
+ * the rest bits represent the id if it is a leaf,
+ * otherwise point to the offset of the children information
+ * of such child
+ *
+ * */
+typedef struct QTSchema{
+	uint children[4];
+	double mid_x;
+	double mid_y;
+}QTSchema;
+
+
+class QTConfig{
 public:
 	// for regulating the split of nodes
 	int max_level = INT_MAX;
@@ -46,7 +62,7 @@ public:
 
 	// the buffer to all the points
 	Point *points = NULL;
-	QConfig(){}
+	QTConfig(){}
 };
 
 class QTNode{
@@ -55,7 +71,7 @@ public:
 	double mid_x = 0;
 	double mid_y = 0;
 	int level = 0;
-	QConfig *config = NULL;
+	QTConfig *config = NULL;
 	uint node_id = 0;
 	box mbr;
 	QTNode *children[4] = {NULL,NULL,NULL,NULL};
@@ -74,7 +90,7 @@ public:
 		}
 	}
 
-	QTNode(double low_x, double low_y, double high_x, double high_y, QConfig *conf){
+	QTNode(double low_x, double low_y, double high_x, double high_y, QTConfig *conf){
 		mbr.low[0] = low_x;
 		mbr.low[1] = low_y;
 		mbr.high[0] = high_x;
@@ -86,10 +102,10 @@ public:
 		assert(mbr.low[0]!=mid_x);
 		assert(mbr.low[1]!=mid_y);
 		config = conf;
-		capacity = conf->max_objects*1.5+10;
+		capacity = conf->max_objects+1;
 		objects = (uint *)malloc((capacity)*sizeof(uint));
 	}
-	QTNode(box m, QConfig *conf):QTNode(m.low[0], m.low[1], m.high[0], m.high[1],conf){
+	QTNode(box m, QTConfig *conf):QTNode(m.low[0], m.low[1], m.high[0], m.high[1],conf){
 	}
 	~QTNode(){
 		if(!isleaf()){
@@ -130,10 +146,10 @@ public:
 
 	bool split(){
 		bool should_split = config->split_node &&
-							object_index>=1.5*config->max_objects &&
-				   	   	    level<config->max_level&&
+							object_index>=config->max_objects &&
+				   	   	    level<config->max_level;
 							//config->num_leafs<config->max_leafs &&
-							mbr.width(true)>config->min_width;
+				   	   	    //&&mbr.width(true)>config->min_width;
 		if(!should_split){
 			return false;
 		}
@@ -191,13 +207,24 @@ public:
 		}
 	}
 
-	int leaf_count(){
+	size_t leaf_count(){
 		if(isleaf()){
 			return 1;
 		}else{
-			int num = 0;
+			size_t num = 0;
 			for(int i=0;i<4;i++){
 				num += children[i]->leaf_count();
+			}
+			return num;
+		}
+	}
+	size_t node_count(){
+		if(isleaf()){
+			return 0;
+		}else {
+			size_t num = 1;
+			for(int i=0;i<4;i++){
+				num += children[i]->node_count();
 			}
 			return num;
 		}
@@ -273,6 +300,28 @@ public:
 
 	Point *get_point(uint pid){
 		return config->points+objects[pid];
+	}
+
+	void create_schema(QTSchema *schema){
+		uint offset = 0;
+		create_schema(schema, offset);
+	}
+	void create_schema(QTSchema *schema, uint &offset){
+		assert(!isleaf());
+		uint curoff = offset++;
+		schema[curoff].mid_x = mid_x;
+		schema[curoff].mid_y = mid_y;
+		for(int i=0;i<4;i++){
+			if(children[i]->isleaf()){
+				schema[curoff].children[i] = children[i]->node_id;
+				schema[curoff].children[i] <<= 1;
+				schema[curoff].children[i] |= 1;
+			}else{
+				schema[curoff].children[i] = offset;
+				schema[curoff].children[i] <<= 1;
+				children[i]->create_schema(schema, offset);
+			}
+		}
 	}
 
 //	void pack_data(uint *pids, offset_size *os){

@@ -31,4 +31,22 @@ inline void check_execution(){
 	}
 }
 
+// return the distance of two segments
+
+const static double degree_per_meter_latitude_cuda = 360.0/(40076.0*1000);
+
+__device__
+inline double degree_per_meter_longitude_cuda(double latitude){
+	return 360.0/(sin((90-abs(latitude))*PI/180)*40076.0*1000.0);
+}
+
+__device__
+inline double distance(const double x1, const double y1, const double x2, const double y2){
+	double dx = x1-x2;
+	double dy = y1-y2;
+	dx = dx/degree_per_meter_longitude_cuda(y1);
+	dy = dy/degree_per_meter_latitude_cuda;
+	return sqrt(dx*dx+dy*dy);
+}
+
 #endif /* CUDA_UTIL_H_ */

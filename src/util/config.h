@@ -13,11 +13,10 @@
 #include "util.h"
 namespace po = boost::program_options;
 
-const static string process_method[] = {"QTree","GPU","fix grid"};
+const static string process_method[] = {"QTree","fix grid"};
 enum PROCESS_METHOD{
 	QTREE = 0,
-	GPU = 1,
-	FIX_GRID = 2
+	FIX_GRID = 1
 };
 
 class configuration{
@@ -29,6 +28,7 @@ public:
 	int num_objects = 1000;
 	int num_trips = 100000;
 	int grid_capacity = 100;
+	int zone_capacity = 100;
 	double reach_distance = 5;
 	// for grid partitioning
 	double grid_width = 5;
@@ -42,7 +42,8 @@ public:
 		printf("configuration:");
 		printf("num threads:\t%d\n",num_threads);
 		printf("num objects:\t%d\n",num_objects);
-		printf("num objects per grids:\t%d\n",grid_capacity);
+		printf("num objects per grid:\t%d\n",grid_capacity);
+		printf("num objects per zone:\t%d\n",zone_capacity);
 		printf("num trips:\t%d\n",num_trips);
 		printf("duration:\t%d\n",duration);
 		printf("reach threshold:\t%f m\n",reach_distance);
@@ -52,6 +53,7 @@ public:
 		printf("taxi path:\t%s\n",taxi_path.c_str());
 		printf("trace path:\t%s\n",trace_path.c_str());
 		printf("query method:\t%s\n",process_method[method].c_str());
+		printf("use gpu:\t%s\n",gpu?"yes":"no");
 	}
 };
 
@@ -64,7 +66,8 @@ inline configuration get_parameters(int argc, char **argv){
 		("help,h", "produce help message")
 		("gpu,g", "use gpu for processing")
 		("threads,n", po::value<int>(&global_ctx.num_threads), "number of threads")
-		("grid_capacity", po::value<int>(&global_ctx.grid_capacity), "maximum number of objects per grid zone buffer")
+		("grid_capacity", po::value<int>(&global_ctx.grid_capacity), "maximum number of objects per grid ")
+		("zone_capacity", po::value<int>(&global_ctx.zone_capacity), "maximum number of objects per zone buffer")
 		("grid_width", po::value<double>(&global_ctx.grid_width), "the width of each grid (in meters)")
 		("trips,t", po::value<int>(&global_ctx.num_trips), "number of trips")
 		("objects,o", po::value<int>(&global_ctx.num_objects), "number of objects")
@@ -86,8 +89,6 @@ inline configuration get_parameters(int argc, char **argv){
 		global_ctx.method = QTREE;
 	}else if(query_method=="grid"){
 		global_ctx.method = FIX_GRID;
-	}else if(query_method=="gpu"){
-		global_ctx.method = GPU;
 	}else{
 		cerr <<"invalid query method "<<query_method<<endl;
 		cerr << desc << "\n";
@@ -96,8 +97,11 @@ inline configuration get_parameters(int argc, char **argv){
 	if(vm.count("gpu")){
 		global_ctx.gpu = true;
 	}
+	if(!vm.count("zone_capacity")){
+		global_ctx.zone_capacity = global_ctx.grid_capacity;
+	}
 
-	global_ctx.grid_width = max(global_ctx.grid_width, global_ctx.reach_distance/sqrt(2));
+	global_ctx.grid_width = max(global_ctx.grid_width, global_ctx.reach_distance);
 
 	return global_ctx;
 }

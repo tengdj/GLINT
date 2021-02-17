@@ -13,95 +13,69 @@
 #include "../index/QTree.h"
 
 
+typedef struct checking_unit{
+	uint pid;
+	uint gid;
+	uint offset;
+}checking_unit;
+
 // the data structure used to pack
 // the partition information
 class partition_info{
 public:
-
-	// next available free partition buffer zone
-	size_t cur_free_zone = 1;
-	// total number of partition buffer zone
-	size_t capacity = 0;
-	// size of each partition buffer zone
-	size_t zone_size = 0;
-	pthread_mutex_t lk;
 	pthread_mutex_t insert_lk[50];
 
 	// the pool of maintaining objects assignment
-	// each buffer zone: |num_addition_zones|add_zone_id1...add_zone_idn|num_points|point_id1...point_idn|
-	uint *buffer_zones = NULL;
-
-	// which zone each grid is packing into
-	uint *cur_zone = NULL;
-
-
-	uint *grid_checkings = NULL;
-	size_t num_grid_checkings = 0;
+	// each grid buffer: |num_objects|point_id1...point_idn|
+	uint *grids = NULL;
+	size_t grid_capacity = 0;
 	size_t num_grids = 0;
+	// the size of a processing unit
+	size_t unit_size = 0;
+
+
+	// the QTree schema
+	QTSchema *schema = NULL;
+	uint num_nodes = 0;
+
+	checking_unit *checking_units = NULL;
+	size_t num_checking_units = 0;
+	size_t checking_units_capacity = 0;
 
 	// external source
 	Point *points = NULL;
 	size_t num_objects = 0;
 
 
-	partition_info(size_t ng, size_t no, size_t zs);
+	partition_info(size_t ng, size_t no, size_t gs, size_t us);
 	~partition_info(){
-		delete []buffer_zones;
-		delete []cur_zone;
-		delete []grid_checkings;
+		delete []grids;
+		delete []checking_units;
 	}
-	bool resize(size_t new_capacity);
-	bool enlarge(){
-		return resize(1.5*capacity);
-	}
+
 	// insert point pid to grid gid
 	bool insert(uint gid, uint pid);
-	int batch_insert(uint gid, uint num_objects, uint *pids);
+	bool batch_insert(uint gid, uint num_objects, uint *pids);
 	bool check(uint gid, uint pid);
 
-	// get the object-grid checking pairs
-	uint *get_grid_check();
 	void clear(){
-		memset(cur_zone,0,sizeof(uint)*num_grids);
-		// just reset the cursor, no need to reset the content in the buffer_zone
-		cur_free_zone = 1;
-		num_grid_checkings = 0;
+		// reset the number of objects in each grid
+		for(int i=0;i<num_grids;i++){
+			grids[i*(grid_capacity+1)] = 0;
+		}
+		num_checking_units = 0;
 	}
 	inline uint get_grid_size(uint gid){
-		uint size = 0;
-		uint zid = cur_zone[gid];
-		while(zid>0){
-			size += buffer_zones[(zone_size+2)*zid+1];
-			zid = buffer_zones[(zone_size+2)*zid];
-		}
-		return size;
+		return grids[gid*(grid_capacity+1)];
 	}
-	inline uint get_zone_count(uint gid){
-		uint size = 0;
-		uint zid = cur_zone[gid];
-		while(zid>0){
-			size++;
-			zid = buffer_zones[(zone_size+2)*zid];
-		}
-		return size;
+	inline uint *get_grid(uint gid){
+		return grids + gid*(grid_capacity+1)+1;
 	}
-	inline uint *get_zone(uint zid){
-		return buffer_zones + zid*(zone_size+2)+2;
+	inline void reset_grid(uint gid){
+		grids[gid*(grid_capacity+1)] = 0;
 	}
-	inline uint get_zone_size(uint zid){
-		return *(buffer_zones + zid*(zone_size+2)+1);
-	}
-	inline uint get_prev_zoneid(uint zid){
-		return *(buffer_zones + zid*(zone_size+2));
-	}
-	inline void set_zone_size(uint zid, uint s){
-		*(buffer_zones + zid*(zone_size+2)+1) = s;
-	}
-	inline void increase_zone_size(uint zid){
-		*(buffer_zones + zid*(zone_size+2)+1) += 1;
-	}
-	inline void set_prev_zoneid(uint zid, uint prev_zid){
-		*(buffer_zones + zid*(zone_size+2)) = prev_zid;
+	inline void increase_grid_size(uint gid){
+		grids[gid*(grid_capacity+1)]++;
 	}
 };
 
@@ -127,19 +101,21 @@ public:
 		config = conf;
 		grid = new Grid(mbr, config.grid_width);
 		//grid->print();
-		pinfo = new partition_info(grid->get_grid_num(),config.num_objects, config.grid_capacity);
 	}
 	~grid_partitioner(){
 		delete grid;
-		delete pinfo;
+		if(pinfo){
+			delete pinfo;
+		}
 	};
 	void clear(){};
 	partition_info *partition(Point *objects, size_t num_objects);
 };
 
+
 class qtree_partitioner:public partitioner{
 	QTNode *qtree = NULL;
-	QConfig qconfig;
+	QTConfig qconfig;
 public:
 	qtree_partitioner(box &m, configuration &conf){
 		mbr = m;

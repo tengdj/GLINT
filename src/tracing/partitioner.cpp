@@ -8,113 +8,51 @@
 #include "trace.h"
 
 
-partition_info::partition_info(size_t ng, size_t no, size_t zs){
+partition_info::partition_info(size_t ng, size_t no, size_t gc, size_t us){
 	num_grids = ng;
 	num_objects = no;
-	zone_size = zs;
-
+	grid_capacity = gc;
+	unit_size = us;
+	// each object can be checked with up to 5 grids, each with several checking units
+	checking_units_capacity = 5*num_objects*(grid_capacity/unit_size+1);
 	// make the capacity of zones half more than the grid number
-	capacity = num_grids+num_grids/2;
-	buffer_zones = new uint[(zone_size+2)*capacity];
-	cur_zone = new uint[num_grids];
-	grid_checkings = new uint[2*10*num_objects];
-
+	grids = new uint[(grid_capacity+1)*num_grids];
+	checking_units = new checking_unit[checking_units_capacity];
 	clear();
-	pthread_mutex_init(&lk,NULL);
 	for(int i=0;i<50;i++){
 		pthread_mutex_init(&insert_lk[i],NULL);
 	}
-	log("zone size: %d",zone_size);
 }
 
-// resize the zone buffer, should barely called
-bool partition_info::resize(size_t newcapacity){
-	if(newcapacity<capacity){
-		return false;
-	}
-	uint *npart = new uint[(zone_size+2)*newcapacity];
-	memcpy(npart,buffer_zones,(zone_size+2)*capacity*sizeof(uint));
-	delete []buffer_zones;
-	buffer_zones = npart;
-	capacity = newcapacity;
-	return true;
-}
-
-
-int partition_info::batch_insert(uint gid, uint num_objects, uint *pids){
+bool partition_info::batch_insert(uint gid, uint num_objects, uint *pids){
+	assert(num_objects<grid_capacity);
 	pthread_mutex_lock(&insert_lk[gid%50]);
-	// the batch_insert can only be called once for a grid that is not loaded
-	assert(cur_zone[gid]==0);
-	uint inserted = 0;
-	int num_zones = 0;
-	while(inserted<num_objects){
-		pthread_mutex_lock(&lk);
-		// enlarge the buffer zone by 50% if the capacity is reached
-		if(cur_free_zone==capacity){
-			enlarge();
-		}
-		uint new_zid = cur_free_zone++;
-		pthread_mutex_unlock(&lk);
-
-		// link to the previous zone offset
-		set_prev_zoneid(new_zid, cur_zone[gid]);
-
-		cur_zone[gid] = new_zid;
-
-		uint cur_inserted = min(num_objects-inserted, (uint)zone_size);
-		memcpy(buffer_zones+(zone_size+2)*cur_zone[gid]+2,pids+inserted,cur_inserted*sizeof(uint));
-		set_zone_size(cur_zone[gid], cur_inserted);
-
-		buffer_zones[(zone_size+2)*cur_zone[gid]+1] = cur_inserted;
-		inserted += cur_inserted;
-		num_zones++;
-	}
+	memcpy(grids+(grid_capacity+1)*gid+1,pids,num_objects*sizeof(uint));
+	*(grids+(grid_capacity+1)*gid) = num_objects;
 	pthread_mutex_unlock(&insert_lk[gid%50]);
-	return num_zones;
+	return true;
 }
 
 
 bool partition_info::insert(uint gid, uint pid){
 	pthread_mutex_lock(&insert_lk[gid%50]);
-	uint cur_size = get_zone_size(cur_zone[gid])%zone_size;
-	// one buffer zone is full or no zone is assigned, locate next buffer zone
-	if(cur_size==0){
-		pthread_mutex_lock(&lk);
-		// enlarge the buffer zone by 50% if the capacity is reached
-		if(cur_free_zone==capacity){
-			enlarge();
-		}
-		uint new_zid = cur_free_zone++;
-		pthread_mutex_unlock(&lk);
-
-		// link to the previous zone offset
-		set_prev_zoneid(new_zid, cur_zone[gid]);
-		// the size for the newly allocated zone is 0
-		set_zone_size(new_zid, 0);
-		cur_zone[gid] = new_zid;
-	}
-	// the first number in the buffer zone links to the previous zone (0 if no one)
-	// the second number in the buffer zone is the number of objects in current zone
-	buffer_zones[(zone_size+2)*cur_zone[gid]+2+cur_size] = pid;
-	// increase size by one
-	buffer_zones[(zone_size+2)*cur_zone[gid]+1]++;
-	//printf("%d\t%d\t%d\t%d\n",gid,cur_zone[gid],buffer_zones[(zone_size+2)*cur_zone[gid]],buffer_zones[(zone_size+2)*cur_zone[gid]+1]);
-
+	uint cur_size = grids[(grid_capacity+1)*gid]++;
+	grids[(grid_capacity+1)*gid+1+cur_size] = pid;
 	pthread_mutex_unlock(&insert_lk[gid%50]);
 	return true;
 }
 
 bool partition_info::check(uint gid, uint pid){
 	assert(gid<num_grids);
-	uint zid = cur_zone[gid];
-	while(zid){
-		assert(num_grid_checkings<10*num_objects);
-		grid_checkings[2*num_grid_checkings] = pid;
-		grid_checkings[2*num_grid_checkings+1] = zid;
-		num_grid_checkings++;
-		// the first number in this zone point to the previous zone
-		zid = buffer_zones[(zone_size+2)*zid];
-	};
+	uint offset = 0;
+	while(offset<get_grid_size(gid)){
+		assert(num_checking_units<checking_units_capacity);
+		checking_units[num_checking_units].pid = pid;
+		checking_units[num_checking_units].gid = gid;
+		checking_units[num_checking_units].offset = offset;
+		num_checking_units++;
+		offset += unit_size;
+	}
 	return true;
 }
 
@@ -128,8 +66,7 @@ partition_info *grid_partitioner::partition(Point *points, size_t num_objects){
 		if(pinfo){
 			delete pinfo;
 		}
-		size_t zone_size = config.grid_capacity;
-		pinfo = new partition_info(num_grids, num_objects, zone_size);
+		pinfo = new partition_info(num_grids, num_objects, config.grid_capacity, config.zone_capacity);
 	}
 	pinfo->points = points;
 
@@ -144,14 +81,6 @@ partition_info *grid_partitioner::partition(Point *points, size_t num_objects){
 	}
 	logt("partition %ld objects into %ld grids",start,num_objects, num_grids);
 
-	uint total = 0;
-	for(int i=0;i<grid->get_grid_num();i++){
-		uint size = pinfo->get_grid_size(i);
-		uint ct = pinfo->get_zone_count(i);
-		total += size*ct;
-	}
-
-	cout<<total<<endl;
 	// the query process
 	// each point is associated with a list of grids
 	for(size_t pid=0;pid<num_objects;pid++){
@@ -213,9 +142,15 @@ partition_info *qtree_partitioner::partition(Point *points, size_t num_objects){
 		if(pinfo){
 			delete pinfo;
 		}
-		pinfo = new partition_info(num_grids, num_objects, config.grid_capacity);
+		pinfo = new partition_info(num_grids, num_objects, config.grid_capacity, config.zone_capacity);
 	}
 	pinfo->points = points;
+
+	pinfo->num_nodes = qtree->node_count();
+	pinfo->schema = (QTSchema *)malloc(pinfo->num_nodes*sizeof(QTSchema));
+	qtree->create_schema(pinfo->schema);
+
+	logt("create schema",start);
 
 	vector<QTNode *> leafs;
 	qtree->get_leafs(leafs,false);

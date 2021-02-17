@@ -21,9 +21,8 @@ void *process_grid_unit(void *arg){
 	uint *result = (uint *)ctx->target[1];
 	Point *points = pinfo->points;
 
-	uint *grid_check = pinfo->grid_checkings;
+	checking_unit *grid_check = pinfo->checking_units;
 	size_t checked = 0;
-	size_t reached = 0;
 	while(true){
 		// pick one batch of point-grid pair for processing
 		size_t start = 0;
@@ -32,21 +31,24 @@ void *process_grid_unit(void *arg){
 			break;
 		}
 		for(uint pairid=start;pairid<end;pairid++){
-			uint pid = grid_check[2*pairid];
-			uint zid = grid_check[2*pairid+1];
-			//log("%d\t%d\t%d",pid,zid,pinfo->get_zone_size(zid));
-			uint *cur_pids = pinfo->get_zone(zid);
-			result[pid] = 0;
+			uint pid = grid_check[pairid].pid;
+			uint gid = grid_check[pairid].gid;
+			uint size = min(pinfo->get_grid_size(gid)-grid_check[pairid].offset, (uint)pinfo->unit_size);
+			uint *cur_pids = pinfo->get_grid(gid)+grid_check[pairid].offset;
+			if(pid==99527&&gid==791){
+				log("%d\t%d\t%d\t%d",pid,gid,size,pinfo->get_grid_size(gid));
+			}
 			//vector<Point *> pts;
 			Point *p1 = points + pid;
-			for(uint i=0;i<pinfo->get_zone_size(zid);i++){
+			for(uint i=0;i<size;i++){
 				//pts.push_back(points + cur_pids[i]);
 				Point *p2 = points + cur_pids[i];
+				//p2->print();
 				if(p1!=p2){
 					//log("%f",dist);
-					bool indist = p1->distance(*p2, true)<=ctx->config.reach_distance;
-					result[pid] += indist;
-					reached += 2*indist;
+					if(p1->distance(p2, true)<=ctx->config.reach_distance){
+						result[pid]++;
+					}
 					checked++;
 				}
 			}
@@ -54,7 +56,6 @@ void *process_grid_unit(void *arg){
 	}
 	lock();
 	ctx->checked += checked;
-	ctx->found += reached;
 	unlock();
 	return NULL;
 }
@@ -92,15 +93,18 @@ void tracer::process(){
 		partition_info *pinfo = part->partition(cur_trace, config.num_objects);
 		qctx.target[0] = (void *)pinfo;
 		qctx.target[1] = (void *)result;
-		qctx.num_objects = pinfo->num_grid_checkings;
+		qctx.num_objects = pinfo->num_checking_units;
 		// process the objects in the packed partitions
-		log("start processing %ld point-zone checking",pinfo->num_grid_checkings);
+		log("start processing %ld point-zone checking",pinfo->num_checking_units);
 		if(!config.gpu){
 			process_with_cpu(qctx);
 		}else{
 #ifdef USE_GPU
 			process_with_gpu(qctx);
 #endif
+		}
+		for(int i=0;i<config.num_objects;i++){
+			qctx.found += result[i];
 		}
 		checked += qctx.checked;
 		reached += qctx.found;
@@ -113,9 +117,8 @@ void tracer::process(){
 			 * */
 			map<int, uint> connected;
 
-			uint *gridchecks = pinfo->grid_checkings;
+			checking_unit *gridchecks = pinfo->checking_units;
 			uint max_one = 0;
-			uint *grid_count = new uint[config.num_objects];
 			for(int i=0;i<config.num_objects;i++){
 				if(connected.find(result[i])==connected.end()){
 					connected[result[i]] = 1;
@@ -125,7 +128,6 @@ void tracer::process(){
 				if(result[max_one]<result[i]){
 					max_one = i;
 				}
-				grid_count[i] = 0;
 			}
 			double cum_portion = 0;
 			for(auto a:connected){
@@ -133,26 +135,28 @@ void tracer::process(){
 				printf("%d\t%d\t%f\n",a.first,a.second,cum_portion);
 			}
 			connected.clear();
-			for(uint pairid=0;pairid<pinfo->num_grid_checkings;pairid++){
-				uint pid = gridchecks[2*pairid];
-				grid_count[pid]++;
-			}
+
+//			uint *unit_count = new uint[config.num_objects];
+//			memset(unit_count,0,config.num_objects*sizeof(uint));
+//			for(uint pairid=0;pairid<pinfo->num_checking_units;pairid++){
+//				unit_count[gridchecks[pairid].pid]++;
+//			}
 //			max_one = 0;
 //			for(int i=0;i<config.num_objects;i++){
-//				if(grid_count[max_one]<grid_count[i]){
+//				if(unit_count[max_one]<unit_count[i]){
 //					max_one = i;
 //				}
 //			}
-//			cout<<max_one<<" "<<grid_count[max_one]<<endl;
+//			cout<<max_one<<" "<<unit_count[max_one]<<endl;
+//			delete []unit_count;
 
 			vector<Point *> all_points;
 			vector<Point *> valid_points;
 			Point *p1 = cur_trace + max_one;
-			for(uint pairid=0;pairid<pinfo->num_grid_checkings;pairid++){
-				if(gridchecks[2*pairid]==max_one){
-					uint zid = gridchecks[2*pairid+1];
-					uint *cur_pid = pinfo->get_zone(zid);
-					for(uint i=0;i<pinfo->get_zone_size(zid);i++){
+			for(uint pairid=0;pairid<pinfo->num_checking_units;pairid++){
+				if(gridchecks[pairid].pid==max_one&&gridchecks[pairid].offset==0){
+					uint *cur_pid = pinfo->get_grid(gridchecks[pairid].gid);
+					for(uint i=0;i<pinfo->get_grid_size(gridchecks[pairid].gid);i++){
 						Point *p2 = cur_trace+cur_pid[i];
 						if(p1==p2){
 							continue;
@@ -169,7 +173,7 @@ void tracer::process(){
 			print_points(all_points);
 			print_points(valid_points);
 			p1->print();
-			cout<<all_points.size()<<" "<<valid_points.size()<<endl;
+			cout<<max_one<<" "<<all_points.size()<<" "<<valid_points.size()<<endl;
 			all_points.clear();
 			valid_points.clear();
 		}
