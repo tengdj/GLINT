@@ -10,6 +10,7 @@
 
 #include <pthread.h>
 #include <vector>
+#include "../util/util.h"
 using namespace std;
 typedef unsigned int uint;
 
@@ -34,6 +35,13 @@ public:
 	~gpu_info();
 	void *get_data(int did, size_t ss);
 	void print();
+	uint size_allocated(){
+		uint size = 0;
+		for(int i=0;i<MAX_DATA_SPACE;i++){
+			size += data_size[i];
+		}
+		return size;
+	}
 };
 
 vector<gpu_info *> get_gpus();

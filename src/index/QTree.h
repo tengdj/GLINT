@@ -304,7 +304,7 @@ public:
 
 	QTSchema * create_schema(){
 		uint offset = 0;
-		QTSchema *schema = (QTSchema *)malloc(this->node_count()*sizeof(QTSchema));
+		QTSchema *schema = new QTSchema[this->node_count()];
 		create_schema(schema, offset);
 		return schema;
 	}

@@ -30,11 +30,8 @@ void *process_grid_unit(void *arg){
 		for(uint pairid=start;pairid<end;pairid++){
 			uint pid = grid_check[pairid].pid;
 			uint gid = grid_check[pairid].gid;
-			uint size = min(pinfo->get_grid_size(gid)-grid_check[pairid].offset, (uint)pinfo->unit_size);
+			uint size = min(pinfo->get_grid_size(gid)-grid_check[pairid].offset, (uint)pinfo->config.zone_capacity);
 			uint *cur_pids = pinfo->get_grid(gid)+grid_check[pairid].offset;
-			if(pid==99527&&gid==791){
-				log("%d\t%d\t%d\t%d",pid,gid,size,pinfo->get_grid_size(gid));
-			}
 			//vector<Point *> pts;
 			Point *p1 = points + pid;
 			for(uint i=0;i<size;i++){
@@ -93,7 +90,6 @@ void tracer::process(){
 		qctx.target[1] = (void *)result;
 		qctx.num_objects = pinfo->num_checking_units;
 		// process the objects in the packed partitions
-		log("start processing %ld point-zone checking",pinfo->num_checking_units);
 		if(!config.gpu){
 			process_with_cpu(qctx);
 		}else{
@@ -107,7 +103,7 @@ void tracer::process(){
 		checked += qctx.checked;
 		reached += qctx.found;
 
-		if(true){
+		if(false){
 			/*
 			 *
 			 * some statistics printing for debuging only

@@ -10,8 +10,6 @@
 
 using namespace std;
 
-
-
 vector<gpu_info *> get_gpus(){
 	vector<gpu_info *> gpus;
 	int num_gpus = 0;
@@ -29,8 +27,6 @@ vector<gpu_info *> get_gpus(){
 		info->compute_capability_major = prop.major;
 		info->compute_capability_minor = prop.minor;
 
-
-		// we allocate 2G mem for each gpu
 //		if(info->mem_size>2048){
 //			info->mem_size = 2048;
 //		}
@@ -65,27 +61,27 @@ void gpu_info::init(){
 	}
 }
 
-void *gpu_info::get_data(int did, size_t ss){
-	assert(did<MAX_DATA_SPACE);
+void *gpu_info::get_data(int device_id, size_t ss){
+	assert(device_id<MAX_DATA_SPACE);
 	cudaSetDevice(this->device_id);
-	if(this->d_data[did]&&this->data_size[did]<ss){
-		CUDA_SAFE_CALL(cudaFree(this->d_data[did]));
-		this->data_size[did] = 0;
-		this->d_data[did] = NULL;
+	if(this->d_data[device_id]&&this->data_size[device_id]<ss){
+		CUDA_SAFE_CALL(cudaFree(this->d_data[device_id]));
+		this->data_size[device_id] = 0;
+		this->d_data[device_id] = NULL;
 	}
-	if(!this->d_data[did]){
-		CUDA_SAFE_CALL(cudaMalloc((void **)&d_data[did], ss));
-		assert(this->d_data[did]);
-		this->data_size[did] = ss;
+	if(!this->d_data[device_id]){
+		CUDA_SAFE_CALL(cudaMalloc((void **)&d_data[device_id], ss));
+		assert(this->d_data[device_id]);
+		this->data_size[device_id] = ss;
 	}
-	return this->d_data[did];
+	return this->d_data[device_id];
 }
 
 gpu_info::~gpu_info(){
 	cudaSetDevice(this->device_id);
 	for(int i=0;i<MAX_DATA_SPACE;i++){
 		if(d_data[i]){
-			CUDA_SAFE_CALL(cudaFree(this->d_data[i]));
+			CUDA_SAFE_CALL(cudaFree(d_data[i]));
 			d_data[i] = NULL;
 			data_size[i] = 0;
 		}

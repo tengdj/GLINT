@@ -8,27 +8,20 @@
 #include "trace.h"
 
 
-partition_info::partition_info(size_t ng, size_t no, size_t gc, size_t us){
-	num_grids = ng;
-	num_objects = no;
-	grid_capacity = gc;
-	unit_size = us;
+partition_info::partition_info(configuration conf){
+	config = conf;
 	// each object can be checked with up to 5 grids, each with several checking units
-	checking_units_capacity = 5*num_objects*(grid_capacity/unit_size+1);
-	// make the capacity of zones half more than the grid number
-	grids = new uint[(grid_capacity+1)*num_grids];
-	checking_units = new checking_unit[checking_units_capacity];
-	clear();
+	checking_units_capacity = config.num_objects*(config.grid_capacity/config.zone_capacity+1);
 	for(int i=0;i<50;i++){
 		pthread_mutex_init(&insert_lk[i],NULL);
 	}
 }
 
 bool partition_info::batch_insert(uint gid, uint num_objects, uint *pids){
-	assert(num_objects<grid_capacity);
+	assert(num_objects<config.grid_capacity);
 	pthread_mutex_lock(&insert_lk[gid%50]);
-	memcpy(grids+(grid_capacity+1)*gid+1,pids,num_objects*sizeof(uint));
-	*(grids+(grid_capacity+1)*gid) = num_objects;
+	memcpy(grids+(config.grid_capacity+1)*gid+1,pids,num_objects*sizeof(uint));
+	*(grids+(config.grid_capacity+1)*gid) = num_objects;
 	pthread_mutex_unlock(&insert_lk[gid%50]);
 	return true;
 }
@@ -36,8 +29,8 @@ bool partition_info::batch_insert(uint gid, uint num_objects, uint *pids){
 
 bool partition_info::insert(uint gid, uint pid){
 	pthread_mutex_lock(&insert_lk[gid%50]);
-	uint cur_size = grids[(grid_capacity+1)*gid]++;
-	grids[(grid_capacity+1)*gid+1+cur_size] = pid;
+	uint cur_size = grids[(config.grid_capacity+1)*gid]++;
+	grids[(config.grid_capacity+1)*gid+1+cur_size] = pid;
 	pthread_mutex_unlock(&insert_lk[gid%50]);
 	return true;
 }
@@ -52,7 +45,7 @@ bool partition_info::check(uint gid, uint pid){
 		checking_units[num_checking_units].gid = gid;
 		checking_units[num_checking_units].offset = offset;
 		num_checking_units++;
-		offset += unit_size;
+		offset += config.zone_capacity;
 	}
 	pthread_mutex_unlock(&insert_lk[0]);
 	return true;
@@ -71,17 +64,26 @@ bool partition_info::batch_check(checking_unit *cu, uint num_cu){
 }
 
 
-partition_info *grid_partitioner::partition(Point *points, size_t num_objects){
-	struct timeval start = get_cur_time();
-	clear();
-
+void grid_partitioner::build_schema(Point *objects, size_t num_objects){
+	if(grid){
+		delete grid;
+	}
+	grid = new Grid(mbr, config.grid_width);
 	size_t num_grids = grid->get_grid_num();
-	if(!pinfo||pinfo->num_grids!=num_grids||pinfo->num_objects!=num_objects){
+	if(!pinfo||pinfo->num_grids!=num_grids||pinfo->config.num_objects!=num_objects){
 		if(pinfo){
 			delete pinfo;
 		}
-		pinfo = new partition_info(num_grids, num_objects, config.grid_capacity, config.zone_capacity);
+		pinfo = new partition_info(config);
+		pinfo->claim_space(num_grids);
 	}
+}
+
+partition_info *grid_partitioner::partition(Point *points, size_t num_objects){
+	// the schema is built
+	assert(pinfo);
+	struct timeval start = get_cur_time();
+
 	pinfo->points = points;
 
 	double x_buffer = config.reach_distance*degree_per_meter_longitude(grid->space.low[1]);
@@ -93,7 +95,7 @@ partition_info *grid_partitioner::partition(Point *points, size_t num_objects){
 		size_t gid = grid->getgridid(p);
 		pinfo->insert(gid,pid);
 	}
-	logt("partition %ld objects into %ld grids",start,num_objects, num_grids);
+	logt("partition %ld objects into %ld grids",start,num_objects, pinfo->num_grids);
 
 	// the query process
 	// each point is associated with a list of grids
@@ -139,7 +141,6 @@ partition_info *grid_partitioner::partition(Point *points, size_t num_objects){
 
 void qtree_partitioner::build_schema(Point *points, size_t num_objects){
 	struct timeval start = get_cur_time();
-	clear();
 	QTConfig qconfig;
 	qconfig.min_width = config.reach_distance;
 	qconfig.max_objects = config.grid_capacity;
@@ -156,9 +157,18 @@ void qtree_partitioner::build_schema(Point *points, size_t num_objects){
 	}
 	// set the ids and other stuff
 	qtree->finalize();
-	num_nodes = qtree->node_count();
-	num_grids = qtree->leaf_count();
-	schema = qtree->create_schema();
+	size_t num_grids = qtree->leaf_count();
+
+	if(!pinfo||pinfo->num_grids!=num_grids||pinfo->config.num_objects!=num_objects){
+		if(pinfo){
+			delete pinfo;
+		}
+		pinfo = new partition_info(config);
+		pinfo->claim_space(num_grids);
+	}
+	pinfo->num_nodes = qtree->node_count();
+	pinfo->schema = qtree->create_schema();
+
 	delete qtree;
 	logt("partitioning schema is with %d grids",start,num_grids);
 }
@@ -226,7 +236,6 @@ void *lookup_unit(void *arg){
 	uint buffer_index = 0;
 	while(qctx->next_batch(start,end)){
 		for(uint pid=start;pid<end;pid++){
-			uint curoff = 0;
 			Point *p = pinfo->points+pid;
 			lookup(schema, p, 0, gids, qctx->config.x_buffer, qctx->config.y_buffer);
 
@@ -243,7 +252,7 @@ void *lookup_unit(void *arg){
 						pinfo->batch_check(cubuffer, buffer_index);
 						buffer_index = 0;
 					}
-					offset += pinfo->unit_size;
+					offset += pinfo->config.zone_capacity;
 				}
 			}
 			gids.clear();
@@ -257,20 +266,15 @@ void *lookup_unit(void *arg){
 
 partition_info *qtree_partitioner::partition(Point *points, size_t num_objects){
 	// the schema has to be built
-	assert(schema);
+	assert(pinfo);
 	struct timeval start = get_cur_time();
-	if(!pinfo||pinfo->num_grids!=num_grids||pinfo->num_objects!=num_objects){
-		if(pinfo){
-			delete pinfo;
-		}
-		pinfo = new partition_info(num_grids, num_objects, config.grid_capacity, config.zone_capacity);
-	}
+	pinfo->reset();
 	pinfo->points = points;
-	pinfo->num_nodes = num_nodes;
-	pinfo->schema = schema;
+	if(config.gpu){
+		return pinfo;
+	}
 
 	// partitioning current batch of objects with the existing schema
-
 	pthread_t threads[config.num_threads];
 	query_context qctx;
 	qctx.config = config;
@@ -284,14 +288,10 @@ partition_info *qtree_partitioner::partition(Point *points, size_t num_objects){
 		void *status;
 		pthread_join(threads[i], &status);
 	}
-	//qtree->print();
 	logt("partition",start);
 
 	// tree lookups
-	qctx.num_objects = num_objects;
-	qctx.target[0] = (void *)pinfo;
 	qctx.reset();
-
 	for(int i=0;i<config.num_threads;i++){
 		pthread_create(&threads[i], NULL, lookup_unit, (void *)&qctx);
 	}
@@ -299,17 +299,6 @@ partition_info *qtree_partitioner::partition(Point *points, size_t num_objects){
 		void *status;
 		pthread_join(threads[i], &status);
 	}
-
 	logt("lookup",start);
 	return pinfo;
 }
-
-
-void qtree_partitioner::clear(){
-	if(schema){
-		free(schema);
-		schema = NULL;
-		num_nodes = 0;
-	}
-}
-
