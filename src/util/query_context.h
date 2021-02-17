@@ -87,10 +87,7 @@ public:
 	bool all_idle(){
 		return counter == 0;
 	}
-	void clear(){
-//		for(int i=0;i<4;i++){
-//			target[i] = NULL;
-//		}
+	void reset(){
 		next_report = 0;
 		counter = 0;
 	}

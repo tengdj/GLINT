@@ -30,6 +30,8 @@ public:
 	int grid_capacity = 100;
 	int zone_capacity = 100;
 	double reach_distance = 5;
+	double x_buffer = 0;
+	double y_buffer = 0;
 	// for grid partitioning
 	double grid_width = 5;
 	bool gpu = false;

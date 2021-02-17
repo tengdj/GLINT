@@ -23,13 +23,10 @@ void *process_grid_unit(void *arg){
 
 	checking_unit *grid_check = pinfo->checking_units;
 	size_t checked = 0;
-	while(true){
-		// pick one batch of point-grid pair for processing
-		size_t start = 0;
-		size_t end = 0;
-		if(!ctx->next_batch(start,end)){
-			break;
-		}
+	// pick one batch of point-grid pair for processing
+	size_t start = 0;
+	size_t end = 0;
+	while(ctx->next_batch(start,end)){
 		for(uint pairid=start;pairid<end;pairid++){
 			uint pid = grid_check[pairid].pid;
 			uint gid = grid_check[pairid].gid;
@@ -63,7 +60,7 @@ void *process_grid_unit(void *arg){
 void process_with_cpu(query_context &tctx){
 	struct timeval start = get_cur_time();
 	pthread_t threads[tctx.config.num_threads];
-	tctx.clear();
+	tctx.reset();
 
 	for(int i=0;i<tctx.config.num_threads;i++){
 		pthread_create(&threads[i], NULL, process_grid_unit, (void *)&tctx);
@@ -82,6 +79,7 @@ void process_with_gpu(query_context &ctx);
 void tracer::process(){
 
 	struct timeval start = get_cur_time();
+	part->build_schema(trace, config.num_objects);
 	// test contact tracing
 	size_t checked = 0;
 	size_t reached = 0;

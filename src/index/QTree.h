@@ -302,9 +302,11 @@ public:
 		return config->points+objects[pid];
 	}
 
-	void create_schema(QTSchema *schema){
+	QTSchema * create_schema(){
 		uint offset = 0;
+		QTSchema *schema = (QTSchema *)malloc(this->node_count()*sizeof(QTSchema));
 		create_schema(schema, offset);
+		return schema;
 	}
 	void create_schema(QTSchema *schema, uint &offset){
 		assert(!isleaf());

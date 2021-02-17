@@ -33,7 +33,6 @@ public:
 	// the size of a processing unit
 	size_t unit_size = 0;
 
-
 	// the QTree schema
 	QTSchema *schema = NULL;
 	uint num_nodes = 0;
@@ -57,6 +56,7 @@ public:
 	bool insert(uint gid, uint pid);
 	bool batch_insert(uint gid, uint num_objects, uint *pids);
 	bool check(uint gid, uint pid);
+	bool batch_check(checking_unit *cu, uint num_cu);
 
 	void clear(){
 		// reset the number of objects in each grid
@@ -90,6 +90,7 @@ public:
 
 	virtual void clear() = 0;
 	virtual partition_info * partition(Point *objects, size_t num_objects) = 0;
+	virtual void build_schema(Point *objects, size_t num_objects) = 0;
 	//void pack_grids(query_context &);
 };
 
@@ -99,31 +100,35 @@ public:
 	grid_partitioner(box &m, configuration &conf){
 		mbr = m;
 		config = conf;
-		grid = new Grid(mbr, config.grid_width);
-		//grid->print();
 	}
 	~grid_partitioner(){
-		delete grid;
+		if(grid){
+			delete grid;
+		}
 		if(pinfo){
 			delete pinfo;
 		}
 	};
 	void clear(){};
 	partition_info *partition(Point *objects, size_t num_objects);
+	void build_schema(Point *objects, size_t num_objects){
+		if(grid){
+			delete grid;
+		}
+		grid = new Grid(mbr, config.grid_width);
+	}
 };
 
 
 class qtree_partitioner:public partitioner{
 	QTNode *qtree = NULL;
-	QTConfig qconfig;
+	QTSchema *schema = NULL;
+	uint num_nodes = 0;
+	uint num_grids = 0;
 public:
 	qtree_partitioner(box &m, configuration &conf){
 		mbr = m;
 		config = conf;
-		qconfig.min_width = config.reach_distance;
-		qconfig.max_objects = config.grid_capacity;
-		qconfig.x_buffer = config.reach_distance*degree_per_meter_longitude(mbr.low[1]);
-		qconfig.y_buffer = config.reach_distance*degree_per_meter_latitude;
 	}
 	~qtree_partitioner(){
 		clear();
@@ -136,6 +141,7 @@ public:
 	}
 	void clear();
 	partition_info *partition(Point *objects, size_t num_objects);
+	void build_schema(Point *objects, size_t num_objects);
 };
 
 
