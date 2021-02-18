@@ -108,13 +108,13 @@ class partitioner{
 protected:
 	configuration config;
 	box mbr;
-	partition_info *pinfo = NULL;
 public:
+	partition_info *pinfo = NULL;
 	partitioner(){}
 	virtual ~partitioner(){};
 
 	virtual void clear() = 0;
-	virtual partition_info * partition(Point *objects, size_t num_objects) = 0;
+	virtual void partition(Point *objects, size_t num_objects) = 0;
 	virtual void build_schema(Point *objects, size_t num_objects) = 0;
 	//void pack_grids(query_context &);
 };
@@ -135,7 +135,7 @@ public:
 		}
 	};
 	void clear(){};
-	partition_info *partition(Point *objects, size_t num_objects);
+	void partition(Point *objects, size_t num_objects);
 	void build_schema(Point *objects, size_t num_objects);
 };
 
@@ -152,7 +152,7 @@ public:
 		}
 	}
 	void clear(){};
-	partition_info *partition(Point *objects, size_t num_objects);
+	void partition(Point *objects, size_t num_objects);
 	void build_schema(Point *objects, size_t num_objects);
 };
 

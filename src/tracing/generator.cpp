@@ -315,7 +315,7 @@ Point *trace_generator::generate_trace(){
 	tctx.config = config;
 	tctx.target[0] = (void *)this;
 	tctx.target[1] = (void *)ret;
-	tctx.num_objects = config.num_objects;
+	tctx.num_units = config.num_objects;
 	tctx.report_gap = 1;
 	tctx.batch_size = 100;
 	for(int i=0;i<config.num_threads;i++){

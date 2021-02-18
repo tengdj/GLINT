@@ -79,12 +79,10 @@ void grid_partitioner::build_schema(Point *objects, size_t num_objects){
 	}
 }
 
-partition_info *grid_partitioner::partition(Point *points, size_t num_objects){
+void grid_partitioner::partition(Point *points, size_t num_objects){
 	// the schema is built
 	assert(pinfo);
 	struct timeval start = get_cur_time();
-
-	pinfo->points = points;
 
 	double x_buffer = config.reach_distance*degree_per_meter_longitude(grid->space.low[1]);
 	double y_buffer = config.reach_distance*degree_per_meter_latitude;
@@ -135,7 +133,6 @@ partition_info *grid_partitioner::partition(Point *points, size_t num_objects){
 	}
 
 	logt("query",start);
-	return pinfo;
 }
 
 
@@ -264,21 +261,16 @@ void *lookup_unit(void *arg){
 
 
 
-partition_info *qtree_partitioner::partition(Point *points, size_t num_objects){
+void qtree_partitioner::partition(Point *points, size_t num_objects){
 	// the schema has to be built
 	assert(pinfo);
 	struct timeval start = get_cur_time();
-	pinfo->reset();
-	pinfo->points = points;
-	if(config.gpu){
-		return pinfo;
-	}
 
 	// partitioning current batch of objects with the existing schema
 	pthread_t threads[config.num_threads];
 	query_context qctx;
 	qctx.config = config;
-	qctx.num_objects = num_objects;
+	qctx.num_units = num_objects;
 	qctx.target[0] = (void *)pinfo;
 
 	for(int i=0;i<config.num_threads;i++){
@@ -300,5 +292,4 @@ partition_info *qtree_partitioner::partition(Point *points, size_t num_objects){
 		pthread_join(threads[i], &status);
 	}
 	logt("lookup",start);
-	return pinfo;
 }

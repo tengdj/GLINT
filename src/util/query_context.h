@@ -27,7 +27,7 @@ class query_context{
 
 public:
 	configuration config;
-	size_t num_objects = 0;
+	size_t num_units = 0;
 	size_t batch_size = 10;
 	size_t report_gap = 10;
 	pthread_mutex_t lk[MAX_LOCK_NUM];
@@ -62,17 +62,17 @@ public:
 		start = counter;
 		counter += batch_size;
 		end = counter;
-		if(end>num_objects){
-			end = num_objects;
+		if(end>num_units){
+			end = num_units;
 		}
 		//log("%d %d %d %d",start,next_report,num_objects,report_gap);
-		if(end>=next_report&&start<num_objects){
-			log("%ld%%",(end+1)*100/num_objects);
-			next_report += num_objects*report_gap/100;
+		if(end>=next_report&&start<num_units){
+			log("%ld%%",(end+1)*100/num_units);
+			next_report += num_units*report_gap/100;
 		}
 
 		pthread_mutex_unlock(&lk[0]);
-		return start<num_objects;
+		return start<num_units;
 	}
 	void idle(){
 		pthread_mutex_lock(&lk[0]);

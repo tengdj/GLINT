@@ -85,12 +85,14 @@ void tracer::process(){
 	for(int t=0;t<config.duration;t++){
 
 		Point *cur_trace = trace+t*config.num_objects;
-		partition_info *pinfo = part->partition(cur_trace, config.num_objects);
-		qctx.target[0] = (void *)pinfo;
+		part->pinfo->reset();
+		part->pinfo->points = cur_trace;
+		qctx.target[0] = (void *)part->pinfo;
 		qctx.target[1] = (void *)result;
-		qctx.num_objects = pinfo->num_checking_units;
 		// process the objects in the packed partitions
 		if(!config.gpu){
+			part->partition(cur_trace, config.num_objects);
+			qctx.num_units = part->pinfo->num_checking_units;
 			process_with_cpu(qctx);
 		}else{
 #ifdef USE_GPU
@@ -111,7 +113,7 @@ void tracer::process(){
 			 * */
 			map<int, uint> connected;
 
-			checking_unit *gridchecks = pinfo->checking_units;
+			checking_unit *gridchecks = part->pinfo->checking_units;
 			uint max_one = 0;
 			for(int i=0;i<config.num_objects;i++){
 				if(connected.find(result[i])==connected.end()){
@@ -147,10 +149,10 @@ void tracer::process(){
 			vector<Point *> all_points;
 			vector<Point *> valid_points;
 			Point *p1 = cur_trace + max_one;
-			for(uint pairid=0;pairid<pinfo->num_checking_units;pairid++){
+			for(uint pairid=0;pairid<part->pinfo->num_checking_units;pairid++){
 				if(gridchecks[pairid].pid==max_one&&gridchecks[pairid].offset==0){
-					uint *cur_pid = pinfo->get_grid(gridchecks[pairid].gid);
-					for(uint i=0;i<pinfo->get_grid_size(gridchecks[pairid].gid);i++){
+					uint *cur_pid = part->pinfo->get_grid(gridchecks[pairid].gid);
+					for(uint i=0;i<part->pinfo->get_grid_size(gridchecks[pairid].gid);i++){
 						Point *p2 = cur_trace+cur_pid[i];
 						if(p1==p2){
 							continue;
