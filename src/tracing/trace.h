@@ -11,6 +11,7 @@
 #include "../geometry/Map.h"
 #include "../util/query_context.h"
 #include "partitioner.h"
+#include "workbench.h"
 #include <map>
 
 using namespace std;
@@ -126,7 +127,7 @@ class tracer{
 	// for query
 	configuration config;
 	partitioner *part = NULL;
-	uint *result = NULL;
+	workbench *bench = NULL;
 public:
 	box mbr;
 	tracer(configuration &conf, box &b, Point *t){
@@ -138,7 +139,6 @@ public:
 		}else if(config.method == FIX_GRID){
 			part = new grid_partitioner(mbr,config);
 		}
-		result = new uint[config.num_objects];
 	}
 	tracer(configuration &conf){
 		config = conf;
@@ -148,7 +148,6 @@ public:
 		}else if(config.method == FIX_GRID){
 			part = new grid_partitioner(mbr,config);
 		}
-		result = new uint[config.num_objects];
 	};
 	~tracer(){
 		if(owned_trace){
@@ -157,7 +156,9 @@ public:
 		if(part){
 			delete part;
 		}
-		delete []result;
+		if(bench){
+			delete bench;
+		}
 	}
 	void process();
 	void dumpTo(const char *path) {

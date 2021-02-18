@@ -35,6 +35,7 @@ public:
 	// for grid partitioning
 	double grid_width = 5;
 	bool gpu = false;
+	bool analyze = false;
 
 	string map_path = "/gisdata/chicago/streets";
 	string taxi_path = "/gisdata/chicago/taxi.csv";
@@ -56,6 +57,8 @@ public:
 		printf("trace path:\t%s\n",trace_path.c_str());
 		printf("query method:\t%s\n",process_method[method].c_str());
 		printf("use gpu:\t%s\n",gpu?"yes":"no");
+		printf("analyze:\t%s\n",analyze?"yes":"no");
+
 	}
 };
 
@@ -67,6 +70,7 @@ inline configuration get_parameters(int argc, char **argv){
 	desc.add_options()
 		("help,h", "produce help message")
 		("gpu,g", "use gpu for processing")
+		("analyze,a", "analyze the processed data")
 		("threads,n", po::value<int>(&global_ctx.num_threads), "number of threads")
 		("grid_capacity", po::value<int>(&global_ctx.grid_capacity), "maximum number of objects per grid ")
 		("zone_capacity", po::value<int>(&global_ctx.zone_capacity), "maximum number of objects per zone buffer")
@@ -95,6 +99,9 @@ inline configuration get_parameters(int argc, char **argv){
 		cerr <<"invalid query method "<<query_method<<endl;
 		cerr << desc << "\n";
 		exit(0);
+	}
+	if(vm.count("analyze")){
+		global_ctx.analyze = true;
 	}
 	if(vm.count("gpu")){
 		global_ctx.gpu = true;
