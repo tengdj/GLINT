@@ -30,8 +30,11 @@ void *process_grid_unit(void *arg){
 		for(uint pairid=start;pairid<end;pairid++){
 			uint pid = bench->checking_units[pairid].pid;
 			uint gid = bench->checking_units[pairid].gid;
-			uint size = min(bench->get_grid_size(gid)-bench->checking_units[pairid].offset, (uint)bench->config.zone_capacity);
-			uint *cur_pids = bench->get_grid(gid)+bench->checking_units[pairid].offset;
+			uint offset = bench->checking_units[pairid].offset;
+
+			uint size = min(bench->get_grid_size(gid)-offset, (uint)bench->config.zone_capacity);
+			uint *cur_pids = bench->get_grid(gid)+offset;
+
 			//vector<Point *> pts;
 			Point *p1 = points + pid;
 			for(uint i=0;i<size;i++){
@@ -45,6 +48,7 @@ void *process_grid_unit(void *arg){
 						meets_buffer[meet_index].pid2 = cur_pids[i];
 						if(++meet_index==200){
 							lock();
+							assert(bench->num_meeting+meet_index<bench->meeting_capacity);
 							memcpy(bench->meetings+bench->num_meeting,meets_buffer,meet_index*sizeof(meeting_unit));
 							bench->num_meeting += meet_index;
 							meet_index = 0;
@@ -56,10 +60,13 @@ void *process_grid_unit(void *arg){
 			}
 		}
 	}
-	lock();
-	memcpy(bench->meetings+bench->num_meeting,meets_buffer,meet_index*sizeof(meeting_unit));
-	bench->num_meeting += meet_index;
-	unlock();
+	if(meet_index>0){
+		lock();
+		assert(bench->num_meeting+meet_index<bench->meeting_capacity);
+		memcpy(bench->meetings+bench->num_meeting,meets_buffer,meet_index*sizeof(meeting_unit));
+		bench->num_meeting += meet_index;
+		unlock();
+	}
 	return NULL;
 }
 

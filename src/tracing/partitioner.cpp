@@ -145,7 +145,7 @@ void *lookup_unit(void *arg){
 					cubuffer[buffer_index].gid = gid;
 					cubuffer[buffer_index].offset = offset;
 					buffer_index++;
-					if(buffer_index==200){
+					if(buffer_index==1){
 						bench->batch_check(cubuffer, buffer_index);
 						buffer_index = 0;
 					}

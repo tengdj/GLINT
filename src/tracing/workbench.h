@@ -81,17 +81,14 @@ public:
 		num_meeting = 0;
 	}
 	inline uint get_grid_size(uint gid){
+		assert(gid>=0&&gid<num_grids);
 		return grids[gid*(config.grid_capacity+1)];
 	}
 	inline uint *get_grid(uint gid){
+		assert(gid>=0&&gid<num_grids);
 		return grids + gid*(config.grid_capacity+1)+1;
 	}
-	inline void reset_grid(uint gid){
-		grids[gid*(config.grid_capacity+1)] = 0;
-	}
-	inline void increase_grid_size(uint gid){
-		grids[gid*(config.grid_capacity+1)]++;
-	}
+
 	void analyze_meetings();
 	void analyze_grids();
 	void analyze_checkings();

@@ -11,7 +11,7 @@
 workbench::workbench(configuration conf){
 	config = conf;
 
-	meeting_capacity = config.num_objects;
+	meeting_capacity = config.num_objects*10;
 	// the buffer for receiving pid-gid-offset groups
 	checking_units_capacity = config.num_objects_per_round*(config.grid_capacity/config.zone_capacity+1);
 	for(int i=0;i<50;i++){
@@ -113,7 +113,15 @@ bool workbench::batch_check(checking_unit *cu, uint num_cu){
 	pthread_mutex_lock(&insert_lk[0]);
 	assert(num_checking_units+num_cu<checking_units_capacity);
 	memcpy(checking_units+num_checking_units,cu,sizeof(checking_unit)*num_cu);
-	num_checking_units+= num_cu;
+//	for(int i=0;i<num_cu;i++){
+//		assert((checking_units+num_checking_units)[i].gid<num_grids);
+//		cout<<num_checking_units<<" "<<(checking_units+num_checking_units)[i].pid<<" "<<(checking_units+num_checking_units)[i].gid<<" "<<(checking_units+num_checking_units)[i].offset<<endl;
+//		if(num_checking_units== 385764)
+//		{
+//			exit(0);
+//		}
+//	}
+	num_checking_units += num_cu;
 	pthread_mutex_unlock(&insert_lk[0]);
 	return true;
 }
