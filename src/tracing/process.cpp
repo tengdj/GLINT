@@ -22,17 +22,16 @@ void *process_grid_unit(void *arg){
 	meeting_unit *meets_buffer = new meeting_unit[200];
 	uint meet_index = 0;
 
-	checking_unit *grid_check = bench->checking_units;
 	size_t checked = 0;
 	// pick one batch of point-grid pair for processing
 	size_t start = 0;
 	size_t end = 0;
 	while(ctx->next_batch(start,end)){
 		for(uint pairid=start;pairid<end;pairid++){
-			uint pid = grid_check[pairid].pid;
-			uint gid = grid_check[pairid].gid;
-			uint size = min(bench->get_grid_size(gid)-grid_check[pairid].offset, (uint)bench->config.zone_capacity);
-			uint *cur_pids = bench->get_grid(gid)+grid_check[pairid].offset;
+			uint pid = bench->checking_units[pairid].pid;
+			uint gid = bench->checking_units[pairid].gid;
+			uint size = min(bench->get_grid_size(gid)-bench->checking_units[pairid].offset, (uint)bench->config.zone_capacity);
+			uint *cur_pids = bench->get_grid(gid)+bench->checking_units[pairid].offset;
 			//vector<Point *> pts;
 			Point *p1 = points + pid;
 			for(uint i=0;i<size;i++){
@@ -94,14 +93,17 @@ void tracer::process(){
 
 	for(int t=0;t<config.duration;t++){
 		bench->reset();
-
 		bench->points = trace+t*config.num_objects;
 		qctx.target[0] = (void *)bench;
 		// process the objects in the packed partitions
 		if(!config.gpu){
 			part->partition(bench);
-			qctx.num_units = bench->num_checking_units;
-			process_with_cpu(qctx);
+			for(uint start_pid=0;start_pid<config.num_objects;start_pid+=config.num_objects_per_round){
+				part->lookup(bench, start_pid);
+				qctx.reset();
+				qctx.num_units = bench->num_checking_units;
+				process_with_cpu(qctx);
+			}
 		}else{
 #ifdef USE_GPU
 			process_with_gpu(qctx);

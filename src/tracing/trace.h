@@ -25,26 +25,15 @@ using namespace std;
  * */
 class ZoneStats{
 public:
-	int zoneid;
-	int updated_round = 0;
+	int zoneid = 0;
 	long count = 0;
 	long duration = 0;
 	double length = 0.0;
-	double rate_sleep = 0.0;
-	int max_sleep_time = 0;
-	map<int,int> target_count;
 	ZoneStats(int id){
 		zoneid = id;
 	}
 	~ZoneStats(){
-		target_count.clear();
 	}
-	double get_speed(){
-		assert(length>0);
-		assert(duration>0);
-		return length/duration;
-	}
-
 };
 
 class Event{
@@ -53,10 +42,17 @@ public:
 	Point coordinate;
 };
 
+enum TripType{
+	REST = 0,
+	WALK = 1,
+	DRIVE = 2
+};
+
 class Trip {
 public:
 	Event start;
 	Event end;
+	TripType type = REST;
 	Trip(){};
 	Trip(string str);
 	void print_trip();
@@ -75,7 +71,6 @@ public:
 class trace_generator{
 	Grid *grid = NULL;
 	vector<ZoneStats *> zones;
-	vector<ZoneStats *> ordered_zones;
 	ZoneStats *total = NULL;
 public:
 
@@ -89,10 +84,8 @@ public:
 		map = m;
 		grid = new Grid(*m->getMBR(),config.grid_width);
 		zones.resize(grid->get_grid_num());
-		ordered_zones.resize(grid->get_grid_num());
 		for(int i=0;i<zones.size();i++){
 			zones[i] = new ZoneStats(i);
-			ordered_zones[i] = zones[i];
 		}
 	}
 	~trace_generator(){
@@ -107,8 +100,9 @@ public:
 		if(total){
 			delete total;
 		}
-		ordered_zones.clear();
 	}
+
+	Point get_random_location();
 	// generate the destination with the given source point
 	Trip *next_trip(Trip *former=NULL);
 
@@ -134,20 +128,13 @@ public:
 		trace = t;
 		mbr = b;
 		config = conf;
-		if(config.method == QTREE){
-			part = new qtree_partitioner(mbr,config);
-		}else if(config.method == FIX_GRID){
-			part = new grid_partitioner(mbr,config);
-		}
+		part = new qtree_partitioner(mbr,config);
 	}
 	tracer(configuration &conf){
 		config = conf;
 		loadFrom(conf.trace_path.c_str());
-		if(config.method == QTREE){
-			part = new qtree_partitioner(mbr,config);
-		}else if(config.method == FIX_GRID){
-			part = new grid_partitioner(mbr,config);
-		}
+		part = new qtree_partitioner(mbr,config);
+
 	};
 	~tracer(){
 		if(owned_trace){
@@ -184,8 +171,10 @@ public:
 		cout<<total_num_objects<<" "<<total_duration<<endl;
 		in.read((char *)&mbr, sizeof(mbr));
 		mbr.to_squre(true);
-		assert(config.duration*config.num_objects<=total_duration*total_num_objects);
+		assert(config.num_objects<=total_num_objects);
+		assert(config.duration+config.start_time<=total_duration);
 
+		in.seekg(config.start_time*total_num_objects*sizeof(Point), ios_base::cur);
 		trace = (Point *)malloc(config.duration*config.num_objects*sizeof(Point));
 		for(int i=0;i<config.duration;i++){
 			in.read((char *)(trace+i*config.num_objects), config.num_objects*sizeof(Point));
@@ -198,7 +187,11 @@ public:
 		owned_trace = true;
 	}
 
-	void print_trace(double sample_rate = 1){
+	void print_trace(){
+		double sample_rate = 1;
+		if(config.num_objects>10000){
+			sample_rate = 10000.0/config.num_objects;
+		}
 		print_points(trace,config.num_objects,sample_rate);
 	}
 	Point *get_trace(){

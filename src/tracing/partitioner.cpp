@@ -7,74 +7,6 @@
 
 #include "trace.h"
 
-workbench *grid_partitioner::build_schema(Point *objects, size_t num_objects){
-	if(grid){
-		delete grid;
-	}
-	grid = new Grid(mbr, config.grid_width);
-	size_t num_grids = grid->get_grid_num();
-	workbench *bench = new workbench(config);
-	bench->claim_space(num_grids);
-	return bench;
-}
-
-void grid_partitioner::partition(workbench *bench){
-	// the schema is built
-	assert(bench);
-	struct timeval start = get_cur_time();
-
-	double x_buffer = config.reach_distance*degree_per_meter_longitude(grid->space.low[1]);
-	double y_buffer = config.reach_distance*degree_per_meter_latitude;
-
-	// assign each object to proper grids
-	for(int pid=0;pid<bench->config.num_objects;pid++){
-		Point *p = bench->points+pid;
-		size_t gid = grid->getgridid(p);
-		bench->insert(gid,pid);
-	}
-	logt("partition %ld objects into %ld grids",start,bench->config.num_objects, bench->num_grids);
-
-	// the query process
-	// each point is associated with a list of grids
-	for(size_t pid=0;pid<bench->config.num_objects;pid++){
-		size_t gid = grid->getgridid(bench->points+pid);
-		bench->check(gid,pid);
-
-		size_t gid_code = grid->border_grids(bench->points+pid,x_buffer,y_buffer);
-		bool left = gid_code & 8;
-		bool right = gid_code & 4;
-		bool top = gid_code &2;
-		bool bottom = gid_code &1;
-		if(bottom&&left){
-			bench->check(gid-grid->dimx-1,pid);
-		}
-		if(bottom){
-			bench->check(gid-grid->dimx,pid);
-		}
-		if(bottom&&right){
-			bench->check(gid-grid->dimx+1,pid);
-		}
-		if(left){
-			bench->check(gid-1,pid);
-		}
-		if(right){
-			bench->check(gid+1,pid);
-		}
-		if(top&&left){
-			bench->check(gid+grid->dimx-1, pid);
-		}
-		if(top){
-			bench->check(gid+grid->dimx,pid);
-		}
-		if(top&&right){
-			bench->check(gid+grid->dimx+1, pid);
-		}
-	}
-
-	logt("query",start);
-}
-
-
 workbench *qtree_partitioner::build_schema(Point *points, size_t num_objects){
 	struct timeval start = get_cur_time();
 	QTConfig qconfig;
@@ -94,7 +26,6 @@ workbench *qtree_partitioner::build_schema(Point *points, size_t num_objects){
 	// set the ids and other stuff
 	qtree->finalize();
 	size_t num_grids = qtree->leaf_count();
-
 
 	workbench *bench = new workbench(config);
 	bench->claim_space(num_grids);
@@ -137,6 +68,38 @@ void *partition_unit(void *arg){
 	return NULL;
 }
 
+
+
+void qtree_partitioner::partition(workbench *bench){
+	// the schema has to be built
+	assert(bench);
+	struct timeval start = get_cur_time();
+
+	// partitioning current batch of objects with the existing schema
+	pthread_t threads[config.num_threads];
+	query_context qctx;
+	qctx.config = config;
+	qctx.num_units = bench->config.num_objects;
+	qctx.target[0] = (void *)bench;
+
+	for(int i=0;i<config.num_threads;i++){
+		pthread_create(&threads[i], NULL, partition_unit, (void *)&qctx);
+	}
+	for(int i = 0; i < config.num_threads; i++ ){
+		void *status;
+		pthread_join(threads[i], &status);
+	}
+	logt("partition",start);
+}
+
+
+/*
+ *
+ * the CPU functions for looking up QTree with points and generate pid-gid-offset
+ *
+ * */
+
+
 void lookup(QTSchema *schema, Point *p, uint curoff, vector<uint> &gids, double x_buffer, double y_buffer){
 
 	// could be possibly in multiple children with buffers enabled
@@ -162,7 +125,7 @@ void *lookup_unit(void *arg){
 	workbench *bench = (workbench *)qctx->target[0];
 	QTSchema *schema = bench->schema;
 
-	// pick one batch of point-grid pair for processing
+	// pick one point for looking up
 	size_t start = 0;
 	size_t end = 0;
 	vector<uint> gids;
@@ -196,31 +159,22 @@ void *lookup_unit(void *arg){
 	return NULL;
 }
 
-
-
-void qtree_partitioner::partition(workbench *bench){
+void qtree_partitioner::lookup(workbench *bench, uint start_pid){
 	// the schema has to be built
 	assert(bench);
 	struct timeval start = get_cur_time();
-
+	// reset the units
+	bench->num_checking_units = 0;
 	// partitioning current batch of objects with the existing schema
 	pthread_t threads[config.num_threads];
 	query_context qctx;
+	qctx.report_gap = 100;
 	qctx.config = config;
-	qctx.num_units = bench->config.num_objects;
+	qctx.counter = start_pid;
+	qctx.num_units = min(bench->config.num_objects, start_pid+config.num_objects_per_round);
 	qctx.target[0] = (void *)bench;
 
-	for(int i=0;i<config.num_threads;i++){
-		pthread_create(&threads[i], NULL, partition_unit, (void *)&qctx);
-	}
-	for(int i = 0; i < config.num_threads; i++ ){
-		void *status;
-		pthread_join(threads[i], &status);
-	}
-	logt("partition",start);
-
 	// tree lookups
-	qctx.reset();
 	for(int i=0;i<config.num_threads;i++){
 		pthread_create(&threads[i], NULL, lookup_unit, (void *)&qctx);
 	}
@@ -230,3 +184,5 @@ void qtree_partitioner::partition(workbench *bench){
 	}
 	logt("lookup",start);
 }
+
+

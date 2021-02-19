@@ -12,8 +12,8 @@ workbench::workbench(configuration conf){
 	config = conf;
 
 	meeting_capacity = config.num_objects;
-	// todo: figure out a way to reduce the total amount
-	checking_units_capacity = config.num_objects*(config.grid_capacity/config.zone_capacity+1);
+	// the buffer for receiving pid-gid-offset groups
+	checking_units_capacity = config.num_objects_per_round*(config.grid_capacity/config.zone_capacity+1);
 	for(int i=0;i<50;i++){
 		pthread_mutex_init(&insert_lk[i],NULL);
 	}
@@ -37,20 +37,32 @@ workbench::~workbench(){
 
 void workbench::claim_space(uint ng){
 		assert(ng>0);
+
+		double grid_size = 0;
+		double cu_size = 0;
+		double mt_size = 0;
 		if(num_grids != ng){
 			if(grids){
 				delete []grids;
 			}
 			num_grids = ng;
 			grids = new uint[(config.grid_capacity+1)*num_grids];
+			grid_size += (config.grid_capacity+1)*num_grids*sizeof(uint)/1024.0/1024.0;
 		}
 
 		if(!checking_units){
 			checking_units = new checking_unit[checking_units_capacity];
+			cu_size += checking_units_capacity*sizeof(checking_unit)/1024.0/1024.0;
 		}
 		if(!meetings){
 			meetings = new meeting_unit[meeting_capacity];
+			mt_size += meeting_capacity*sizeof(meeting_unit)/1024.0/1024.0;
 		}
+
+		log("%.2fMB memory space is claimed",grid_size+cu_size+mt_size);
+		log("\t%.2fMB grids",grid_size);
+		log("\t%.2fMB checking units",cu_size);
+		log("\t%.2fMB meeting space",mt_size);
 	}
 
 bool workbench::batch_insert(uint gid, uint num_objects, uint *pids){
@@ -64,8 +76,15 @@ bool workbench::batch_insert(uint gid, uint num_objects, uint *pids){
 
 
 bool workbench::insert(uint gid, uint pid){
+
 	pthread_mutex_lock(&insert_lk[gid%50]);
-	uint cur_size = grids[(config.grid_capacity+1)*gid]++;
+	uint cur_size = grids[(config.grid_capacity+1)*gid];
+	if(cur_size>=config.grid_capacity){
+		pthread_mutex_unlock(&insert_lk[gid%50]);
+		return false;
+	}
+	assert(cur_size<config.grid_capacity);
+	grids[(config.grid_capacity+1)*gid]++;
 	grids[(config.grid_capacity+1)*gid+1+cur_size] = pid;
 	pthread_mutex_unlock(&insert_lk[gid%50]);
 	return true;
@@ -121,6 +140,8 @@ void workbench::analyze_checkings(){
 }
 
 
+void lookup(QTSchema *schema, Point *p, uint curoff, vector<uint> &gids, double x_buffer, double y_buffer);
+
 void workbench::analyze_meetings(){
 
 	/*
@@ -156,19 +177,20 @@ void workbench::analyze_meetings(){
 	vector<Point *> all_points;
 	vector<Point *> valid_points;
 	Point *p1 = points + max_one;
-	for(uint pairid=0;pairid<num_checking_units;pairid++){
-		if(checking_units[pairid].pid==max_one&&checking_units[pairid].offset==0){
-			uint *cur_pid = get_grid(checking_units[pairid].gid);
-			for(uint i=0;i<get_grid_size(checking_units[pairid].gid);i++){
-				Point *p2 = points+cur_pid[i];
-				if(p1==p2){
-					continue;
-				}
-				all_points.push_back(p2);
-				double dist = p1->distance(*p2,true);
-				if(dist<config.reach_distance){
-					valid_points.push_back(p2);
-				}
+	vector<uint> gids;
+	lookup(schema, p1, 0, gids, config.x_buffer, config.y_buffer);
+
+	for(uint gid:gids){
+		uint *cur_pid = get_grid(gid);
+		for(uint i=0;i<get_grid_size(gid);i++){
+			Point *p2 = points+cur_pid[i];
+			if(p1==p2){
+				continue;
+			}
+			all_points.push_back(p2);
+			double dist = p1->distance(*p2,true);
+			if(dist<config.reach_distance){
+				valid_points.push_back(p2);
 			}
 		}
 	}

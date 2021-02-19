@@ -25,26 +25,9 @@ public:
 
 	virtual void clear() = 0;
 	virtual void partition(workbench *bench) = 0;
+	virtual void lookup(workbench *bench, uint start_pid) = 0;
 	virtual workbench *build_schema(Point *objects, size_t num_objects) = 0;
 };
-
-class grid_partitioner:public partitioner{
-	Grid *grid = NULL;
-public:
-	grid_partitioner(box &m, configuration &conf){
-		mbr = m;
-		config = conf;
-	}
-	~grid_partitioner(){
-		if(grid){
-			delete grid;
-		}
-	};
-	void clear(){};
-	void partition(workbench *bench);
-	workbench * build_schema(Point *objects, size_t num_objects);
-};
-
 
 class qtree_partitioner:public partitioner{
 public:
@@ -56,6 +39,7 @@ public:
 	}
 	void clear(){};
 	void partition(workbench *bench);
+	void lookup(workbench *bench, uint start_pid);
 	workbench * build_schema(Point *objects, size_t num_objects);
 };
 

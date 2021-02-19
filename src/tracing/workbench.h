@@ -95,6 +95,8 @@ public:
 	void analyze_meetings();
 	void analyze_grids();
 	void analyze_checkings();
+
+
 };
 
 
