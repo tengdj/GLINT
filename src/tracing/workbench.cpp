@@ -13,8 +13,8 @@ workbench::workbench(configuration *conf){
 	if(config->gpu){
 		config->num_objects_per_round = config->num_objects;
 	}
-	meeting_capacity = config->num_objects*10;
-	// the buffer for receiving pid-gid-offset groups
+	stack_capacity = 2*config->num_objects;
+	meeting_capacity = 10*config->num_objects;
 	checking_units_capacity = config->num_objects_per_round*(config->grid_capacity/config->zone_capacity+1);
 	for(int i=0;i<50;i++){
 		pthread_mutex_init(&insert_lk[i],NULL);

@@ -55,6 +55,7 @@ public:
 	// the processing stack for looking up
 	uint *lookup_stack[2] = {NULL, NULL};
 	uint stack_index[2] = {0,0};
+	uint stack_capacity = 0;
 
 	// external source
 	Point *points = NULL;

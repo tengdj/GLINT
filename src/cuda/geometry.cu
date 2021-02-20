@@ -87,6 +87,7 @@ void initstack_cuda(workbench *bench){
 		return;
 	}
 	uint stack_index = atomicAdd(&bench->stack_index[0],1);
+	assert(stack_index<bench->stack_capacity);
 	bench->lookup_stack[0][stack_index*2] = pid;
 	bench->lookup_stack[0][stack_index*2+1] = 0;
 }
@@ -126,6 +127,7 @@ void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
 				}
 			}else{
 				uint stack_index = atomicAdd(&bench->stack_index[!stack_id],1);
+				assert(stack_index<bench->stack_capacity);
 				bench->lookup_stack[!stack_id][stack_index*2] = pid;
 				bench->lookup_stack[!stack_id][stack_index*2+1] = bench->schema[curnode].children[i]>>1;
 			}
@@ -201,9 +203,9 @@ void process_with_gpu(workbench *bench){
 	// space for the QTtree schema
 	h_bench->schema = (QTSchema *)gpu->get_data(3, bench->num_nodes*sizeof(QTSchema));
 	// space for processing stack
-	h_bench->lookup_stack[0] = (uint *)gpu->get_data(4, 2*2*bench->config->num_objects*sizeof(uint));
-	h_bench->lookup_stack[1] = (uint *)gpu->get_data(5, 2*2*bench->config->num_objects*sizeof(uint));
-	h_bench->meetings = (meeting_unit *)gpu->get_data(6, 10*bench->config->num_objects*sizeof(meeting_unit));
+	h_bench->lookup_stack[0] = (uint *)gpu->get_data(4, bench->stack_capacity2**sizeof(uint));
+	h_bench->lookup_stack[1] = (uint *)gpu->get_data(5, bench->stack_capacity2**sizeof(uint));
+	h_bench->meetings = (meeting_unit *)gpu->get_data(6, bench->meeting_capacity*sizeof(meeting_unit));
 
 	// space for the mapping of bench in GPU
 	workbench *d_bench = (workbench *)gpu->get_data(7, sizeof(workbench));
