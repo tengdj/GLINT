@@ -86,7 +86,7 @@ void initstack_cuda(workbench *bench){
 	if(pid>=bench->config->num_objects){
 		return;
 	}
-	uint stack_index = atomicAdd(&bench->stack_index[0],1);
+	int stack_index = atomicAdd(&bench->stack_index[0],1);
 	assert(stack_index<bench->stack_capacity);
 	bench->lookup_stack[0][stack_index*2] = pid;
 	bench->lookup_stack[0][stack_index*2+1] = 0;
@@ -135,11 +135,7 @@ void lookup_cuda(workbench *bench, uint stack_id){
 			}
 		}
 	}
-
-	// reset the index to 0
-	if(sid == 0){
-		bench->stack_index[stack_id] = 0;
-	}
+	atomicAdd(&bench->stack_index[stack_id],-1);
 }
 
 
@@ -234,7 +230,7 @@ void process_with_gpu(workbench *bench){
 	check_execution();
 	cudaDeviceSynchronize();
 	uint stack_id = 0;
-	h_bench->stack_index[stack_id] = bench->config->num_objects;
+	h_bench->stack_index[stack_id] = (int)bench->config->num_objects;
 	while(h_bench->stack_index[stack_id]>0){
 		log("%d %d %d",stack_id,h_bench->stack_index[stack_id],h_bench->stack_index[!stack_id]);
 		lookup_cuda<<<h_bench->stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id);
