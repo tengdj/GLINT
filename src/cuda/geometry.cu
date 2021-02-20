@@ -128,7 +128,7 @@ void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
 					bench->checking_units[cu_index].pid = pid;
 					bench->checking_units[cu_index].gid = gid;
 					bench->checking_units[cu_index].offset = offset;
-					//printf("%d\t%d\t%d\n",pid,gid,offset);
+					printf("%d\t%d\t%d\n",pid,gid,offset);
 					offset += bench->config->zone_capacity;
 				}
 			}else{
