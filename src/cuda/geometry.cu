@@ -261,6 +261,10 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 
 	bench->num_checking_units = h_bench.num_checking_units;
 	bench->num_meeting = h_bench.num_meeting;
+	h_bench.num_checking_units = 0;
+	h_bench.num_meeting = 0;
+	CUDA_SAFE_CALL(cudaMemcpy(&d_bench, h_bench, sizeof(workbench), cudaMemcpyHostToDevice));
+
 	CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench.grids, bench->num_grids*(bench->config->grid_capacity+1)*sizeof(uint), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(bench->checking_units, h_bench.checking_units, h_bench.num_checking_units*sizeof(checking_unit), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench.meetings, h_bench.num_meeting*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
