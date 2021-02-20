@@ -103,6 +103,8 @@ void lookup_cuda(workbench *bench, uint stack_id){
 	uint pid = bench->lookup_stack[stack_id][sid*2];
 	uint curnode = bench->lookup_stack[stack_id][sid*2+1];
 	Point *p = bench->points+pid;
+	//swap between 0 and 1
+	uint next_stack_id = !stack_id;
 
 	// could be possibly in multiple children with buffers enabled
 	bool top = (p->y>bench->schema[curnode].mid_y-bench->config->y_buffer);
@@ -126,10 +128,10 @@ void lookup_cuda(workbench *bench, uint stack_id){
 					offset += bench->config->zone_capacity;
 				}
 			}else{
-				uint stack_index = atomicAdd(&bench->stack_index[!stack_id],1);
+				uint stack_index = atomicAdd(&bench->stack_index[next_stack_id],1);
 				assert(stack_index<bench->stack_capacity);
-				bench->lookup_stack[!stack_id][stack_index*2] = pid;
-				bench->lookup_stack[!stack_id][stack_index*2+1] = bench->schema[curnode].children[i]>>1;
+				bench->lookup_stack[next_stack_id][stack_index*2] = pid;
+				bench->lookup_stack[next_stack_id][stack_index*2+1] = bench->schema[curnode].children[i]>>1;
 			}
 		}
 	}
