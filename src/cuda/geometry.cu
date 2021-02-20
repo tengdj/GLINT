@@ -42,6 +42,16 @@ void partition_cuda(workbench *bench){
 	}
 }
 
+__global__
+void cleargrids_cuda(workbench *bench){
+	int gid = blockIdx.x*blockDim.x+threadIdx.x;
+	if(gid>=bench->num_grids){
+		return;
+	}
+	*(bench->grids+(bench->config->grid_capacity+1)*gid) = 0;
+}
+
+
 //__device__
 //inline void lookup(workbench *bench, uint pid, uint curnode){
 //
@@ -229,7 +239,6 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	workbench h_bench(bench->config);
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench.points, bench->points, bench->config->num_objects*sizeof(Point), cudaMemcpyHostToDevice));
-
 	logt("copying data", start);
 
 	partition_cuda<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
@@ -257,13 +266,17 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	logt("%d meetings are found", start,h_bench.num_meeting);
-	logt("one round",start);
 
+	// clean the device bench for next round of checking
+	cleargrids_cuda<<<bench->num_grids/1024+1,1024>>>(d_bench);
 	bench->num_checking_units = h_bench.num_checking_units;
 	bench->num_meeting = h_bench.num_meeting;
 	h_bench.num_checking_units = 0;
 	h_bench.num_meeting = 0;
 	CUDA_SAFE_CALL(cudaMemcpy(d_bench, &h_bench, sizeof(workbench), cudaMemcpyHostToDevice));
+
+	logt("one round",start);
+
 
 	CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench.grids, bench->num_grids*(bench->config->grid_capacity+1)*sizeof(uint), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(bench->checking_units, h_bench.checking_units, h_bench.num_checking_units*sizeof(checking_unit), cudaMemcpyDeviceToHost));
