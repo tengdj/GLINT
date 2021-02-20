@@ -93,10 +93,10 @@ void initstack_cuda(workbench *bench){
 }
 
 __global__
-void lookup_cuda(workbench *bench, uint stack_id){
+void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
 
 	int sid = blockIdx.x*blockDim.x+threadIdx.x;
-	if(sid>=bench->stack_index[stack_id]){
+	if(sid>=stack_size){
 		return;
 	}
 
@@ -135,7 +135,9 @@ void lookup_cuda(workbench *bench, uint stack_id){
 			}
 		}
 	}
-	atomicSub(&bench->stack_index[stack_id],1);
+	if(sid==0){
+		bench->stack_index[stack_id] = 0;
+	}
 }
 
 
@@ -233,7 +235,7 @@ void process_with_gpu(workbench *bench){
 	h_bench->stack_index[stack_id] = bench->config->num_objects;
 	while(h_bench->stack_index[stack_id]>0){
 		log("%d %d %d",stack_id,h_bench->stack_index[stack_id],h_bench->stack_index[!stack_id]);
-		lookup_cuda<<<h_bench->stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id);
+		lookup_cuda<<<h_bench->stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id,h_bench->stack_index[stack_id]);
 		check_execution();
 		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
