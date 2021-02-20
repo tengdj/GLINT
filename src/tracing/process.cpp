@@ -101,7 +101,9 @@ void tracer::process(){
 
 	bench = part->build_schema(trace, config->num_objects);
 #ifdef USE_GPU
-	d_bench = create_device_bench(bench, gpu);
+	if(config->gpu){
+		d_bench = create_device_bench(bench, gpu);
+	}
 #endif
 	struct timeval start = get_cur_time();
 
