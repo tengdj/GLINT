@@ -111,6 +111,7 @@ void lookup_cuda(workbench *bench, uint stack_id){
 	bool left = (p->x<=bench->schema[curnode].mid_x+bench->config->x_buffer);
 	bool right = (p->x>bench->schema[curnode].mid_x-bench->config->x_buffer);
 	uint need_check = (bottom&&left)*1+(bottom&&right)*2+(top&&left)*4+(top&&right)*8;
+	printf("%d %d %d %d\n",top,bottom,left,right);
 	for(int i=0;i<4;i++){
 		if((need_check>>i)&1){
 			if((bench->schema[curnode].children[i]&1)){
