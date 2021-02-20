@@ -86,12 +86,10 @@ void initstack_cuda(workbench *bench){
 	if(pid>=bench->config->num_objects){
 		return;
 	}
-//	uint stack_index = atomicAdd(&bench->stack_index[0],1);
-//	printf("%d %d %d\n",stack_index,bench->lookup_stack[0][stack_index*2],bench->lookup_stack[0][stack_index*2+1]);
-//
-//	assert(stack_index<bench->stack_capacity);
-//	bench->lookup_stack[0][stack_index*2] = pid;
-//	bench->lookup_stack[0][stack_index*2+1] = 0;
+	uint stack_index = atomicAdd(&bench->stack_index[0],1);
+	assert(stack_index<bench->stack_capacity);
+	bench->lookup_stack[0][stack_index*2] = pid;
+	bench->lookup_stack[0][stack_index*2+1] = 0;
 }
 
 __global__
@@ -209,15 +207,18 @@ void process_with_gpu(workbench *bench){
 	h_bench->lookup_stack[0] = (uint *)gpu->get_data(4, bench->stack_capacity*2*sizeof(uint));
 	h_bench->lookup_stack[1] = (uint *)gpu->get_data(5, bench->stack_capacity*2*sizeof(uint));
 	h_bench->meetings = (meeting_unit *)gpu->get_data(6, bench->meeting_capacity*sizeof(meeting_unit));
+	h_bench->config = (workbench *)gpu->get_data(8, sizeof(configuration));
 
 	// space for the mapping of bench in GPU
 	workbench *d_bench = (workbench *)gpu->get_data(7, sizeof(workbench));
+
 	logt("allocating space %d MB", start,gpu->size_allocated()/1024/1024);
 
 	struct timeval start_execute = get_cur_time();
 
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench->points, bench->points, bench->config->num_objects*sizeof(Point), cudaMemcpyHostToDevice));
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench->schema, bench->schema, bench->num_nodes*sizeof(QTSchema), cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(h_bench->config, bench->config, sizeof(configuration), cudaMemcpyHostToDevice));
 	CUDA_SAFE_CALL(cudaMemcpy(d_bench, h_bench, sizeof(workbench), cudaMemcpyHostToDevice));
 	logt("copying data", start);
 
@@ -230,7 +231,6 @@ void process_with_gpu(workbench *bench){
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-	exit(0);
 	uint stack_id = 0;
 	while(h_bench->stack_index[stack_id]>0){
 		struct timeval tt = get_cur_time();
