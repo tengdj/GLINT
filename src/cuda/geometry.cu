@@ -203,8 +203,8 @@ void process_with_gpu(workbench *bench){
 	// space for the QTtree schema
 	h_bench->schema = (QTSchema *)gpu->get_data(3, bench->num_nodes*sizeof(QTSchema));
 	// space for processing stack
-	h_bench->lookup_stack[0] = (uint *)gpu->get_data(4, bench->stack_capacity2**sizeof(uint));
-	h_bench->lookup_stack[1] = (uint *)gpu->get_data(5, bench->stack_capacity2**sizeof(uint));
+	h_bench->lookup_stack[0] = (uint *)gpu->get_data(4, bench->stack_capacity*2*sizeof(uint));
+	h_bench->lookup_stack[1] = (uint *)gpu->get_data(5, bench->stack_capacity*2*sizeof(uint));
 	h_bench->meetings = (meeting_unit *)gpu->get_data(6, bench->meeting_capacity*sizeof(meeting_unit));
 
 	// space for the mapping of bench in GPU
@@ -224,6 +224,8 @@ void process_with_gpu(workbench *bench){
 	logt("partition data", start);
 
 	initstack_cuda<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
+	check_execution();
+	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	uint stack_id = 0;
 	while(h_bench->stack_index[stack_id]>0){
