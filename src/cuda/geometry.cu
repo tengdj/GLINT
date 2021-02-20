@@ -163,7 +163,7 @@ void reachability_cuda(const workbench *bench){
 		if(pid!=cur_pids[i]){
 			double dist = distance(bench->points[pid].x, bench->points[pid].y, bench->points[cur_pids[i]].x, bench->points[cur_pids[i]].y);
 			if(dist<=max_dist){
-				int loc = atomicAdd(bench->num_meeting, 1);
+				int loc = atomicAdd(&bench->num_meeting, 1);
 				assert(loc<bench->meeting_capacity);
 				bench->meetings[loc].pid1 = pid;
 				bench->meetings[loc].pid2 = cur_pids[i];
@@ -244,7 +244,6 @@ void process_with_gpu(query_context &ctx){
 	logt("one round",start_execute);
 
 	bench->num_checking_units = h_bench->num_checking_units;
-	CUDA_SAFE_CALL(cudaMemcpy(ctx.target[1], d_ret, bench->config.num_objects*sizeof(uint), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench->grids, bench->num_grids*(bench->config.grid_capacity+1)*sizeof(uint), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(bench->checking_units, h_bench->checking_units, h_bench->num_checking_units*sizeof(checking_unit), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench->meetings, h_bench->num_meeting*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
