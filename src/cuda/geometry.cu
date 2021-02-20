@@ -234,13 +234,12 @@ void process_with_gpu(workbench *bench){
 	uint stack_id = 0;
 	h_bench->stack_index[stack_id] = bench->config->num_objects;
 	while(h_bench->stack_index[stack_id]>0){
-		log("%d %d %d",stack_id,h_bench->stack_index[stack_id],h_bench->stack_index[!stack_id]);
 		lookup_cuda<<<h_bench->stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id,h_bench->stack_index[stack_id]);
-		check_execution();
-		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 		stack_id = !stack_id;
 	}
+	check_execution();
+	cudaDeviceSynchronize();
 	logt("lookup", start);
 
 	// compute the reachability of objects in each partitions
