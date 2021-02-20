@@ -96,6 +96,7 @@ __global__
 void lookup_cuda(workbench *bench, uint stack_id){
 
 	int sid = blockIdx.x*blockDim.x+threadIdx.x;
+	printf("%d %d\n",sid,bench->stack_index[stack_id]);
 	if(sid>=bench->stack_index[stack_id]){
 		return;
 	}
