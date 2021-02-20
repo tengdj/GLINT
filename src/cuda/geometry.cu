@@ -257,7 +257,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	logt("%d meetings are found", start,h_bench.num_meeting);
-	logt("one round",start_execute);
+	logt("one round",start);
 
 	bench->num_checking_units = h_bench.num_checking_units;
 	bench->num_meeting = h_bench.num_meeting;
