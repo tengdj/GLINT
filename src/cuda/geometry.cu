@@ -33,9 +33,13 @@ void partition_cuda(workbench *bench){
 	uint *cur_grid = bench->grids+(bench->config->grid_capacity+1)*gid;
 
 	// insert current pid to proper memory space of the target gid
+	// todo: consider the situation that grid buffer is too small
 	uint cur_loc = atomicAdd(cur_grid,1);
-	assert(cur_loc<bench->config->grid_capacity);
-	*(cur_grid+1+cur_loc) = pid;
+	if(cur_loc<bench->config->grid_capacity){
+		*(cur_grid+1+cur_loc) = pid;
+	}else{
+		atomicSub(cur_grid,1);
+	}
 }
 
 //__device__
