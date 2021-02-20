@@ -104,14 +104,12 @@ void lookup_cuda(workbench *bench, uint stack_id){
 	uint curnode = bench->lookup_stack[stack_id][sid*2+1];
 	Point *p = bench->points+pid;
 
-	printf("%d %d %f %f\n",sid,bench->stack_index[stack_id],p->x,p->y);
 	// could be possibly in multiple children with buffers enabled
 	bool top = (p->y>bench->schema[curnode].mid_y-bench->config->y_buffer);
 	bool bottom = (p->y<=bench->schema[curnode].mid_y+bench->config->y_buffer);
 	bool left = (p->x<=bench->schema[curnode].mid_x+bench->config->x_buffer);
 	bool right = (p->x>bench->schema[curnode].mid_x-bench->config->x_buffer);
 	uint need_check = (bottom&&left)*1+(bottom&&right)*2+(top&&left)*4+(top&&right)*8;
-	printf("%d %d %d %d\n",top,bottom,left,right);
 	for(int i=0;i<4;i++){
 		if((need_check>>i)&1){
 			if((bench->schema[curnode].children[i]&1)){
@@ -124,7 +122,7 @@ void lookup_cuda(workbench *bench, uint stack_id){
 					bench->checking_units[cu_index].pid = pid;
 					bench->checking_units[cu_index].gid = gid;
 					bench->checking_units[cu_index].offset = offset;
-					//printf("%d\t%d\t%d\n",pid,gid,offset);
+					printf("%d\t%d\t%d\n",pid,gid,offset);
 					offset += bench->config->zone_capacity;
 				}
 			}else{
