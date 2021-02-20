@@ -81,11 +81,11 @@ public:
 		num_meeting = 0;
 	}
 	inline uint get_grid_size(uint gid){
-		assert(gid>=0&&gid<num_grids);
+		assert(gid<num_grids);
 		return grids[gid*(config->grid_capacity+1)];
 	}
 	inline uint *get_grid(uint gid){
-		assert(gid>=0&&gid<num_grids);
+		assert(gid<num_grids);
 		return grids + gid*(config->grid_capacity+1)+1;
 	}
 

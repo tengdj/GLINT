@@ -12,7 +12,6 @@
 #include <vector>
 #include "../util/util.h"
 using namespace std;
-typedef unsigned int uint;
 
 #define MAX_DATA_SPACE 10
 
