@@ -138,7 +138,7 @@ void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
 
 
 __global__
-void reachability_cuda(const workbench *bench){
+void reachability_cuda(workbench *bench){
 
 	// the objects in which grid need be processed
 	int pairid = blockIdx.x*blockDim.x+threadIdx.x;
