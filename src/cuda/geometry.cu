@@ -86,12 +86,12 @@ void initstack_cuda(workbench *bench){
 	if(pid>=bench->config->num_objects){
 		return;
 	}
-	uint stack_index = atomicAdd(&bench->stack_index[0],1);
-	printf("%d %d %d\n",stack_index,bench->lookup_stack[0][stack_index*2],bench->lookup_stack[0][stack_index*2+1]);
-
-	assert(stack_index<bench->stack_capacity);
-	bench->lookup_stack[0][stack_index*2] = pid;
-	bench->lookup_stack[0][stack_index*2+1] = 0;
+//	uint stack_index = atomicAdd(&bench->stack_index[0],1);
+//	printf("%d %d %d\n",stack_index,bench->lookup_stack[0][stack_index*2],bench->lookup_stack[0][stack_index*2+1]);
+//
+//	assert(stack_index<bench->stack_capacity);
+//	bench->lookup_stack[0][stack_index*2] = pid;
+//	bench->lookup_stack[0][stack_index*2+1] = 0;
 }
 
 __global__
