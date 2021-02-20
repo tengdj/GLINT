@@ -125,7 +125,5 @@ void tracer::process(){
 		if(config->analyze){
 			bench->analyze_meetings();
 		}
-
 	}
-
 }

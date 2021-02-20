@@ -229,7 +229,6 @@ workbench *create_device_bench(workbench *bench, gpu_info *gpu){
  * */
 void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	struct timeval start = get_cur_time();
-	struct timeval verystart = start;
 	//gpu->print();
 	assert(bench);
 	assert(d_bench);
@@ -276,8 +275,8 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	h_bench.num_meeting = 0;
 	CUDA_SAFE_CALL(cudaMemcpy(d_bench, &h_bench, sizeof(workbench), cudaMemcpyHostToDevice));
 
-	logt("one round",verystart);
 
+	// todo for test only, should not copy out so much stuff
 	CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench.grids, bench->num_grids*(bench->config->grid_capacity+1)*sizeof(uint), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(bench->checking_units, h_bench.checking_units, h_bench.num_checking_units*sizeof(checking_unit), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench.meetings, h_bench.num_meeting*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
