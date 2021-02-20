@@ -159,13 +159,14 @@ void reachability_cuda(workbench *bench){
 	if(size>bench->config->zone_capacity){
 		size = bench->config->zone_capacity;
 	}
-	printf("%d\t%d\t%d\t%d\n",pid,gid,offset,size);
+	//printf("%d\t%d\t%d\t%d\n",pid,gid,offset,size);
 
 	const uint *cur_pids = bench->grids+(bench->config->grid_capacity+1)*gid+1+offset;
 	for(uint i=0;i<size;i++){
 		if(pid!=cur_pids[i]){
 			double dist = distance(bench->points[pid].x, bench->points[pid].y, bench->points[cur_pids[i]].x, bench->points[cur_pids[i]].y);
 			if(dist<=max_dist){
+				printf("%f %f\n",dist,max_dist);
 				uint loc = atomicAdd(&bench->num_meeting, 1);
 				assert(loc<bench->meeting_capacity);
 				bench->meetings[loc].pid1 = pid;
