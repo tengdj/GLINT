@@ -162,7 +162,7 @@ void reachability_cuda(const workbench *bench){
 		if(pid!=cur_pids[i]){
 			double dist = distance(bench->points[pid].x, bench->points[pid].y, bench->points[cur_pids[i]].x, bench->points[cur_pids[i]].y);
 			if(dist<=max_dist){
-				int loc = atomicAdd(&bench->num_meeting, 1);
+				uint loc = atomicAdd(&bench->num_meeting, 1);
 				assert(loc<bench->meeting_capacity);
 				bench->meetings[loc].pid1 = pid;
 				bench->meetings[loc].pid2 = cur_pids[i];
