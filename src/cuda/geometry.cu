@@ -135,10 +135,9 @@ void lookup_cuda(workbench *bench, uint stack_id){
 			}
 		}
 	}
+
 	// reset the index to 0
-	if(sid == 0){
-		bench->stack_index[stack_id] = 0;
-	}
+	atomicAdd(&bench->stack_index[stack_id],-1);
 }
 
 
