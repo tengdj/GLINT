@@ -162,12 +162,14 @@ void reachability_cuda(const workbench *bench, uint *ret){
 	for(uint i=0;i<size;i++){
 		if(pid!=cur_pids[i]){
 			double dist = distance(bench->points[pid].x, bench->points[pid].y, bench->points[cur_pids[i]].x, bench->points[cur_pids[i]].y);
-			atomicAdd(ret+pid, dist<=max_dist);
+			if(dist<=max_dist){
+				int loc = atomicAdd(bench->num_meeting, 1);
+				assert(loc<bench->meeting_capacity);
+				bench->meetings[loc].pid1 = pid;
+				bench->meetings[loc].pid2 = cur_pids[i];
+			}
 		}
 	}
-//	if(ret[pid]>1000){
-//		printf("%d\t%d\n",pid,ret[pid]);
-//	}
 }
 
 
@@ -203,10 +205,10 @@ void process_with_gpu(query_context &ctx){
 	// space for processing stack
 	h_bench->lookup_stack[0] = (uint *)gpu->get_data(4, 2*2*bench->config.num_objects*sizeof(uint));
 	h_bench->lookup_stack[1] = (uint *)gpu->get_data(5, 2*2*bench->config.num_objects*sizeof(uint));
+	h_bench->meetings = (meeting_unit *)gpu->get_data(6, 10*bench->config.num_objects*sizeof(meeting_unit));
+
 	// space for the mapping of bench in GPU
-	workbench *d_bench = (workbench *)gpu->get_data(6, sizeof(workbench));
-	// space for the results in GPU
-	uint *d_ret = (uint *)gpu->get_data(7, bench->config.num_objects*sizeof(uint));
+	workbench *d_bench = (workbench *)gpu->get_data(7, sizeof(workbench));
 	logt("allocating space %d MB", start,gpu->size_allocated()/1024/1024);
 
 	struct timeval start_execute = get_cur_time();
@@ -245,10 +247,14 @@ void process_with_gpu(query_context &ctx){
 	CUDA_SAFE_CALL(cudaMemcpy(ctx.target[1], d_ret, bench->config.num_objects*sizeof(uint), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench->grids, bench->num_grids*(bench->config.grid_capacity+1)*sizeof(uint), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(bench->checking_units, h_bench->checking_units, h_bench->num_checking_units*sizeof(checking_unit), cudaMemcpyDeviceToHost));
+	CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench->meetings, h_bench->num_meeting*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
+
 
 	h_bench->grids = NULL;
 	h_bench->checking_units = NULL;
 	h_bench->schema = NULL;
+	h_bench->stack_index = {NULL,NULL};
+	h_bench->meetings = NULL;
 	delete h_bench;
 	pthread_mutex_unlock(&gpu->lock);
 	for(gpu_info *g:gpus){

@@ -10,7 +10,9 @@
 
 workbench::workbench(configuration *conf){
 	config = conf;
-
+	if(config->gpu){
+		config->num_objects_per_round = config->num_objects;
+	}
 	meeting_capacity = config->num_objects*10;
 	// the buffer for receiving pid-gid-offset groups
 	checking_units_capacity = config->num_objects_per_round*(config->grid_capacity/config->zone_capacity+1);
