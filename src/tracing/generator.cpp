@@ -130,7 +130,7 @@ Point trace_generator::get_random_location(){
 	int start_y = -1;
 	// certain portion follows the distribution
 	// of analyzed dataset, the rest randomly generate
-	if(tryluck(1.0-config.distribution_rate)){
+	if(tryluck(1.0-config->distribution_rate)){
 		double target = get_rand_double();
 		//log("%f",target);
 		double cum = 0;
@@ -165,14 +165,14 @@ Trip *trace_generator::next_trip(Trip *former){
 	}
 
 	// rest for a while until the end, the time is adjustable
-	if(tryluck(config.walk_rate)){
+	if(tryluck(config->walk_rate)){
 		next->type = WALK;
 		next->end.coordinate = get_random_location();
-		next->end.timestamp = next->start.timestamp+next->end.coordinate.distance(next->start.coordinate, true)/config.walk_speed;
-	}else if(tryluck(config.drive_rate)){
+		next->end.timestamp = next->start.timestamp+next->end.coordinate.distance(next->start.coordinate, true)/config->walk_speed;
+	}else if(tryluck(config->drive_rate)){
 		next->type = DRIVE;
 		next->end.coordinate = get_random_location();
-		next->end.timestamp = next->start.timestamp+(next->end.coordinate.distance(next->start.coordinate, true))/config.drive_speed+1;
+		next->end.timestamp = next->start.timestamp+(next->end.coordinate.distance(next->start.coordinate, true))/config->drive_speed+1;
 	}else{
 		next->end = next->start;
 		next->type = REST;
@@ -189,19 +189,19 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 	assert(mymap);
 	vector<Point *> ret;
 	Trip *trip = next_trip();
-	trip->resize(config.duration);
+	trip->resize(config->duration);
 	Point *first_point = new Point(trip->start.coordinate.x,trip->start.coordinate.y);
 	ret.push_back(first_point);
-	while(ret.size()<config.duration){
+	while(ret.size()<config->duration){
 		// stay here
 		if(trip->type==REST){
-			for(int i=0;i<trip->duration()&&ret.size()<config.duration;i++){
+			for(int i=0;i<trip->duration()&&ret.size()<config->duration;i++){
 				ret.push_back(new Point(&trip->start.coordinate));
 			}
 		}else if(trip->type==WALK){ //walk
 			const double step = 1.0/trip->duration();
 			double portion = 0;
-			for(int i=0;i<trip->duration()&&ret.size()<config.duration;i++){
+			for(int i=0;i<trip->duration()&&ret.size()<config->duration;i++){
 				double px = trip->start.coordinate.x+portion*(trip->end.coordinate.x - trip->start.coordinate.x);
 				double py = trip->start.coordinate.y+portion*(trip->end.coordinate.y - trip->start.coordinate.y);
 				ret.push_back(new Point(px,py));
@@ -214,13 +214,13 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 		Trip *newtrip = next_trip(trip);
 		delete trip;
 		trip = newtrip;
-		trip->resize(config.duration-ret.size());
+		trip->resize(config->duration-ret.size());
 	}
-	for(int i=config.duration;i<ret.size();i++){
+	for(int i=config->duration;i<ret.size();i++){
 		delete ret[i];
 	}
-	ret.erase(ret.begin()+config.duration,ret.end());
-	assert(ret.size()==config.duration);
+	ret.erase(ret.begin()+config->duration,ret.end());
+	assert(ret.size()==config->duration);
 	delete trip;
 	return ret;
 }
@@ -241,8 +241,8 @@ void *gentrace(void *arg){
 			//log("%d",obj);
 			vector<Point *> trace = gen->get_trace(mymap);
 			// copy to target
-			for(int i=0;i<gen->config.duration;i++){
-				result[i*gen->config.num_objects+obj] = *trace[i];
+			for(int i=0;i<gen->config->duration;i++){
+				result[i*gen->config->num_objects+obj] = *trace[i];
 				delete trace[i];
 			}
 			trace.clear();
@@ -255,19 +255,19 @@ void *gentrace(void *arg){
 
 Point *trace_generator::generate_trace(){
 	struct timeval start = get_cur_time();
-	Point *ret = (Point *)malloc(config.duration*config.num_objects*sizeof(Point));
-	pthread_t threads[config.num_threads];
+	Point *ret = (Point *)malloc(config->duration*config->num_objects*sizeof(Point));
+	pthread_t threads[config->num_threads];
 	query_context tctx;
 	tctx.config = config;
 	tctx.target[0] = (void *)this;
 	tctx.target[1] = (void *)ret;
-	tctx.num_units = config.num_objects;
+	tctx.num_units = config->num_objects;
 	tctx.report_gap = 1;
 	tctx.batch_size = 100;
-	for(int i=0;i<config.num_threads;i++){
+	for(int i=0;i<config->num_threads;i++){
 		pthread_create(&threads[i], NULL, gentrace, (void *)&tctx);
 	}
-	for(int i = 0; i < config.num_threads; i++ ){
+	for(int i = 0; i < config->num_threads; i++ ){
 		void *status;
 		pthread_join(threads[i], &status);
 	}

@@ -25,7 +25,7 @@ class query_context{
 	size_t step = 0;
 
 public:
-	configuration config;
+	configuration *config = NULL;
 	size_t counter = 0;
 	size_t num_units = 0;
 	size_t batch_size = 10;
@@ -34,16 +34,10 @@ public:
 
 	// query source
 	void *target[MAX_TARGET_NUM];
-	uint target_length[MAX_TARGET_NUM];
-
-	// query results
-	size_t checked = 0;
-	size_t found = 0;
 
 	~query_context(){
 		for(int i=0;i<MAX_TARGET_NUM;i++){
 			target[i] = NULL;
-			target_length[i] = 0;
 		}
 	}
 	query_context(){

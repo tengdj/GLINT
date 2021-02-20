@@ -21,7 +21,8 @@ void partition_cuda(workbench *bench){
 
 	Point *p = bench->points+pid;
 	while(true){
-		int loc = (p->y>bench->schema[curnode].mid_y)*2+(p->x>bench->schema[curnode].mid_x);
+		int loc = (p->y>bench->schema[curnode].mid_y)*2
+								+(p->x>bench->schema[curnode].mid_x);
 		// is leaf
 		if((bench->schema[curnode].children[loc]&1)){
 			gid = bench->schema[curnode].children[loc]>>1;
@@ -38,47 +39,47 @@ void partition_cuda(workbench *bench){
 	*(cur_grid+1+cur_loc) = pid;
 }
 
-//__device__
-//inline void lookup(workbench *bench, uint pid, uint curnode){
-//
-//	Point *p = bench->points+pid;
-//
-//	bool top = (p->y>bench->schema[curnode].mid_y-bench->config.y_buffer);
-//	bool bottom = (p->y<=bench->schema[curnode].mid_y+bench->config.y_buffer);
-//	bool left = (p->x<=bench->schema[curnode].mid_x+bench->config.x_buffer);
-//	bool right = (p->x>bench->schema[curnode].mid_x-bench->config.x_buffer);
-//	uint need_check = (bottom&&left)*1+(bottom&&right)*2+(top&&left)*4+(top&&right)*8;
-//	for(int i=0;i<4;i++){
-//		if((need_check>>i)&1){
-//			if((bench->schema[curnode].children[i]&1)){
-//				uint gid = bench->schema[curnode].children[i]>>1;
-//				assert(gid<bench->num_grids);
-//				uint offset = 0;
-//				while(offset<bench->grids[gid*(bench->config.grid_capacity+1)]){
-//					uint cu_index = atomicAdd(&bench->num_checking_units, 1);
-//					bench->checking_units[cu_index].pid = pid;
-//					bench->checking_units[cu_index].gid = gid;
-//					bench->checking_units[cu_index].offset = offset;
-//					//printf("%d\t%d\t%d\n",pid,gid,offset);
-//					offset += bench->config.zone_capacity;
-//				}
-//			}else{
-//				lookup(bench, pid, bench->schema[curnode].children[i]>>1);
-//			}
-//		}
-//	}
-//}
-//
-//// with recursive call
-//__global__
-//void lookup_recursive_cuda(workbench *bench){
-//	int pid = blockIdx.x*blockDim.x+threadIdx.x;
-//	if(pid>=bench->config.num_objects){
-//		return;
-//	}
-//	lookup(bench,pid,0);
-//	return;
-//}
+__device__
+inline void lookup(workbench *bench, uint pid, uint curnode){
+
+	Point *p = bench->points+pid;
+
+	bool top = (p->y>bench->schema[curnode].mid_y-bench->config.y_buffer);
+	bool bottom = (p->y<=bench->schema[curnode].mid_y+bench->config.y_buffer);
+	bool left = (p->x<=bench->schema[curnode].mid_x+bench->config.x_buffer);
+	bool right = (p->x>bench->schema[curnode].mid_x-bench->config.x_buffer);
+	uint need_check = (bottom&&left)*1+(bottom&&right)*2+(top&&left)*4+(top&&right)*8;
+	for(int i=0;i<4;i++){
+		if((need_check>>i)&1){
+			if((bench->schema[curnode].children[i]&1)){
+				uint gid = bench->schema[curnode].children[i]>>1;
+				assert(gid<bench->num_grids);
+				uint offset = 0;
+				while(offset<bench->grids[gid*(bench->config.grid_capacity+1)]){
+					uint cu_index = atomicAdd(&bench->num_checking_units, 1);
+					bench->checking_units[cu_index].pid = pid;
+					bench->checking_units[cu_index].gid = gid;
+					bench->checking_units[cu_index].offset = offset;
+					//printf("%d\t%d\t%d\n",pid,gid,offset);
+					offset += bench->config.zone_capacity;
+				}
+			}else{
+				lookup(bench, pid, bench->schema[curnode].children[i]>>1);
+			}
+		}
+	}
+}
+
+// with recursive call
+__global__
+void lookup_recursive_cuda(workbench *bench){
+	int pid = blockIdx.x*blockDim.x+threadIdx.x;
+	if(pid>=bench->config.num_objects){
+		return;
+	}
+	lookup(bench,pid,0);
+	return;
+}
 
 __global__
 void initstack_cuda(workbench *bench){

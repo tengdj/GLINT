@@ -68,13 +68,19 @@ public:
 class QTNode{
 public:
 
+	// some globally shared information
+	configuration *config = NULL;
+	Point *points = NULL;
+
+	// description of current node
+	uint node_id = 0;
+	int level = 0;
+	box mbr;
 	double mid_x = 0;
 	double mid_y = 0;
-	int level = 0;
-	QTConfig *config = NULL;
-	uint node_id = 0;
-	box mbr;
+
 	QTNode *children[4] = {NULL,NULL,NULL,NULL};
+
 	// the IDs of each point belongs to this node
 	uint *objects = NULL;
 	int object_index = 0;
@@ -90,7 +96,7 @@ public:
 		}
 	}
 
-	QTNode(double low_x, double low_y, double high_x, double high_y, QTConfig *conf){
+	QTNode(double low_x, double low_y, double high_x, double high_y, configuration *conf, Point *ps){
 		mbr.low[0] = low_x;
 		mbr.low[1] = low_y;
 		mbr.high[0] = high_x;
@@ -102,10 +108,11 @@ public:
 		assert(mbr.low[0]!=mid_x);
 		assert(mbr.low[1]!=mid_y);
 		config = conf;
-		capacity = conf->max_objects+1;
+		capacity = conf->grid_capacity;
 		objects = (uint *)malloc((capacity)*sizeof(uint));
+		points = ps;
 	}
-	QTNode(box m, QTConfig *conf):QTNode(m.low[0], m.low[1], m.high[0], m.high[1],conf){
+	QTNode(box m, configuration *conf, Point *ps):QTNode(m.low[0], m.low[1], m.high[0], m.high[1],conf,ps){
 	}
 	~QTNode(){
 		if(!isleaf()){
@@ -145,19 +152,16 @@ public:
 	}
 
 	bool split(){
-		bool should_split = config->split_node &&
-							object_index>=config->max_objects &&
-				   	   	    level<config->max_level;
-							//config->num_leafs<config->max_leafs &&
-				   	   	    //&&mbr.width(true)>config->min_width;
+		bool should_split = object_index>=config->grid_capacity &&
+				   	   	    mbr.width(true)>config->reach_distance;
 		if(!should_split){
 			return false;
 		}
 
-		children[bottom_left] = new QTNode(mbr.low[0],mbr.low[1],mid_x,mid_y, config);
-		children[bottom_right] = new QTNode(mid_x,mbr.low[1],mbr.high[0],mid_y, config);
-		children[top_left] = new QTNode(mbr.low[0],mid_y,mid_x,mbr.high[1], config);
-		children[top_right] = new QTNode(mid_x,mid_y,mbr.high[0],mbr.high[1], config);
+		children[bottom_left] = new QTNode(mbr.low[0],mbr.low[1],mid_x,mid_y, config, points);
+		children[bottom_right] = new QTNode(mid_x,mbr.low[1],mbr.high[0],mid_y, config, points);
+		children[top_left] = new QTNode(mbr.low[0],mid_y,mid_x,mbr.high[1], config, points);
+		children[top_right] = new QTNode(mid_x,mid_y,mbr.high[0],mbr.high[1], config, points);
 
 		for(int i=0;i<4;i++){
 			children[i]->level = level+1;
@@ -176,9 +180,9 @@ public:
 			// avoid overflow the buffer
 			// happens when the grid is too condense
 			if(object_index==capacity){
-				capacity += config->max_objects;
+				capacity += config->grid_capacity;
 				uint *newobjects = (uint *)malloc(capacity*sizeof(uint));
-				memcpy(newobjects,objects,(capacity-config->max_objects)*sizeof(uint));
+				memcpy(newobjects,objects,(capacity-config->grid_capacity)*sizeof(uint));
 				free(objects);
 				objects = newobjects;
 			}
@@ -186,7 +190,7 @@ public:
 			split();
 		}else{
 			// no need to lock other nodes
-			Point *p = config->points+pid;
+			Point *p = points+pid;
 			// could be possibly in multiple children
 			bool top = (p->y>mid_y);
 			bool bottom = (p->y<=mid_y);
@@ -274,7 +278,6 @@ public:
 				children[i]->fix_structure();
 			}
 		}
-		config->split_node = false;
 	}
 
 	void finalize(){
@@ -299,7 +302,7 @@ public:
 	}
 
 	Point *get_point(uint pid){
-		return config->points+objects[pid];
+		return points+objects[pid];
 	}
 
 	QTSchema * create_schema(){

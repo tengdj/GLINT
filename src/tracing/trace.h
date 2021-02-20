@@ -75,14 +75,14 @@ class trace_generator{
 public:
 
     Map *map = NULL;
-    configuration config;
+    configuration *config = NULL;
 
 	// construct with some parameters
-	trace_generator(configuration &c, Map *m){
-		config = c;
-		assert(config.num_threads>0);
+	trace_generator(configuration *conf, Map *m){
+		config = conf;
+		assert(config->num_threads>0);
 		map = m;
-		grid = new Grid(*m->getMBR(),config.grid_width);
+		grid = new Grid(*m->getMBR(),config->grid_width);
 		zones.resize(grid->get_grid_num());
 		for(int i=0;i<zones.size();i++){
 			zones[i] = new ZoneStats(i);
@@ -119,20 +119,20 @@ class tracer{
 	Point *trace = NULL;
 	bool owned_trace = false;
 	// for query
-	configuration config;
+	configuration *config = NULL;
 	partitioner *part = NULL;
 	workbench *bench = NULL;
 public:
 	box mbr;
-	tracer(configuration &conf, box &b, Point *t){
+	tracer(configuration *conf, box &b, Point *t){
 		trace = t;
 		mbr = b;
 		config = conf;
 		part = new qtree_partitioner(mbr,config);
 	}
-	tracer(configuration &conf){
+	tracer(configuration *conf){
 		config = conf;
-		loadFrom(conf.trace_path.c_str());
+		loadFrom(config->trace_path.c_str());
 		part = new qtree_partitioner(mbr,config);
 
 	};
@@ -151,10 +151,10 @@ public:
 	void dumpTo(const char *path) {
 		struct timeval start_time = get_cur_time();
 		ofstream wf(path, ios::out|ios::binary|ios::trunc);
-		wf.write((char *)&config.num_objects, sizeof(config.num_objects));
-		wf.write((char *)&config.duration, sizeof(config.duration));
+		wf.write((char *)&config->num_objects, sizeof(config->num_objects));
+		wf.write((char *)&config->duration, sizeof(config->duration));
 		wf.write((char *)&mbr, sizeof(mbr));
-		size_t num_points = config.duration*config.num_objects;
+		size_t num_points = config->duration*config->num_objects;
 		wf.write((char *)trace, sizeof(Point)*num_points);
 		wf.close();
 		logt("dumped to %s",start_time,path);
@@ -171,28 +171,28 @@ public:
 		cout<<total_num_objects<<" "<<total_duration<<endl;
 		in.read((char *)&mbr, sizeof(mbr));
 		mbr.to_squre(true);
-		assert(config.num_objects<=total_num_objects);
-		assert(config.duration+config.start_time<=total_duration);
+		assert(config->num_objects<=total_num_objects);
+		assert(config->duration+config->start_time<=total_duration);
 
-		in.seekg(config.start_time*total_num_objects*sizeof(Point), ios_base::cur);
-		trace = (Point *)malloc(config.duration*config.num_objects*sizeof(Point));
-		for(int i=0;i<config.duration;i++){
-			in.read((char *)(trace+i*config.num_objects), config.num_objects*sizeof(Point));
-			if(total_num_objects>config.num_objects){
-				in.seekg((total_num_objects-config.num_objects)*sizeof(Point), ios_base::cur);
+		in.seekg(config->start_time*total_num_objects*sizeof(Point), ios_base::cur);
+		trace = (Point *)malloc(config->duration*config->num_objects*sizeof(Point));
+		for(int i=0;i<config->duration;i++){
+			in.read((char *)(trace+i*config->num_objects), config->num_objects*sizeof(Point));
+			if(total_num_objects>config->num_objects){
+				in.seekg((total_num_objects-config->num_objects)*sizeof(Point), ios_base::cur);
 			}
 		}
 		in.close();
-		logt("loaded %d objects last for %d seconds from %s",start_time, config.num_objects, config.duration, path);
+		logt("loaded %d objects last for %d seconds from %s",start_time, config->num_objects, config->duration, path);
 		owned_trace = true;
 	}
 
 	void print_trace(){
 		double sample_rate = 1;
-		if(config.num_objects>10000){
-			sample_rate = 10000.0/config.num_objects;
+		if(config->num_objects>10000){
+			sample_rate = 10000.0/config->num_objects;
 		}
-		print_points(trace,config.num_objects,sample_rate);
+		print_points(trace,config->num_objects,sample_rate);
 	}
 	Point *get_trace(){
 		return trace;

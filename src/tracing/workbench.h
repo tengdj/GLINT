@@ -32,7 +32,7 @@ typedef struct meeting_unit{
 class workbench{
 	pthread_mutex_t insert_lk[50];
 public:
-	configuration config;
+	configuration *config = NULL;
 
 	// the pool of maintaining objects assignment
 	// each grid buffer: |num_objects|point_id1...point_idn|
@@ -59,7 +59,7 @@ public:
 	// external source
 	Point *points = NULL;
 
-	workbench(configuration conf);
+	workbench(configuration *conf);
 	~workbench();
 
 	// insert point pid to grid gid
@@ -75,18 +75,18 @@ public:
 	void reset(){
 		// reset the number of objects in each grid
 		for(int i=0;i<num_grids;i++){
-			grids[i*(config.grid_capacity+1)] = 0;
+			grids[i*(config->grid_capacity+1)] = 0;
 		}
 		num_checking_units = 0;
 		num_meeting = 0;
 	}
 	inline uint get_grid_size(uint gid){
 		assert(gid>=0&&gid<num_grids);
-		return grids[gid*(config.grid_capacity+1)];
+		return grids[gid*(config->grid_capacity+1)];
 	}
 	inline uint *get_grid(uint gid){
 		assert(gid>=0&&gid<num_grids);
-		return grids + gid*(config.grid_capacity+1)+1;
+		return grids + gid*(config->grid_capacity+1)+1;
 	}
 
 	void analyze_meetings();

@@ -8,12 +8,12 @@
 #include "workbench.h"
 
 
-workbench::workbench(configuration conf){
+workbench::workbench(configuration *conf){
 	config = conf;
 
-	meeting_capacity = config.num_objects*10;
+	meeting_capacity = config->num_objects*10;
 	// the buffer for receiving pid-gid-offset groups
-	checking_units_capacity = config.num_objects_per_round*(config.grid_capacity/config.zone_capacity+1);
+	checking_units_capacity = config->num_objects_per_round*(config->grid_capacity/config->zone_capacity+1);
 	for(int i=0;i<50;i++){
 		pthread_mutex_init(&insert_lk[i],NULL);
 	}
@@ -46,8 +46,8 @@ void workbench::claim_space(uint ng){
 				delete []grids;
 			}
 			num_grids = ng;
-			grids = new uint[(config.grid_capacity+1)*num_grids];
-			grid_size += (config.grid_capacity+1)*num_grids*sizeof(uint)/1024.0/1024.0;
+			grids = new uint[(config->grid_capacity+1)*num_grids];
+			grid_size += (config->grid_capacity+1)*num_grids*sizeof(uint)/1024.0/1024.0;
 		}
 
 		if(!checking_units){
@@ -66,10 +66,10 @@ void workbench::claim_space(uint ng){
 	}
 
 bool workbench::batch_insert(uint gid, uint num_objects, uint *pids){
-	assert(num_objects<config.grid_capacity);
+	assert(num_objects<config->grid_capacity);
 	pthread_mutex_lock(&insert_lk[gid%50]);
-	memcpy(grids+(config.grid_capacity+1)*gid+1,pids,num_objects*sizeof(uint));
-	*(grids+(config.grid_capacity+1)*gid) = num_objects;
+	memcpy(grids+(config->grid_capacity+1)*gid+1,pids,num_objects*sizeof(uint));
+	*(grids+(config->grid_capacity+1)*gid) = num_objects;
 	pthread_mutex_unlock(&insert_lk[gid%50]);
 	return true;
 }
@@ -78,14 +78,14 @@ bool workbench::batch_insert(uint gid, uint num_objects, uint *pids){
 bool workbench::insert(uint gid, uint pid){
 
 	pthread_mutex_lock(&insert_lk[gid%50]);
-	uint cur_size = grids[(config.grid_capacity+1)*gid];
-	if(cur_size>=config.grid_capacity){
+	uint cur_size = grids[(config->grid_capacity+1)*gid];
+	if(cur_size>=config->grid_capacity){
 		pthread_mutex_unlock(&insert_lk[gid%50]);
 		return false;
 	}
-	assert(cur_size<config.grid_capacity);
-	grids[(config.grid_capacity+1)*gid]++;
-	grids[(config.grid_capacity+1)*gid+1+cur_size] = pid;
+	assert(cur_size<config->grid_capacity);
+	grids[(config->grid_capacity+1)*gid]++;
+	grids[(config->grid_capacity+1)*gid+1+cur_size] = pid;
 	pthread_mutex_unlock(&insert_lk[gid%50]);
 	return true;
 }
@@ -100,7 +100,7 @@ bool workbench::check(uint gid, uint pid){
 		checking_units[num_checking_units].gid = gid;
 		checking_units[num_checking_units].offset = offset;
 		num_checking_units++;
-		offset += config.zone_capacity;
+		offset += config->zone_capacity;
 	}
 	pthread_mutex_unlock(&insert_lk[0]);
 	return true;
@@ -114,12 +114,9 @@ bool workbench::batch_check(checking_unit *cu, uint num_cu){
 	assert(num_checking_units+num_cu<checking_units_capacity);
 	memcpy(checking_units+num_checking_units,cu,sizeof(checking_unit)*num_cu);
 //	for(int i=0;i<num_cu;i++){
-//		assert((checking_units+num_checking_units)[i].gid<num_grids);
-//		cout<<num_checking_units<<" "<<(checking_units+num_checking_units)[i].pid<<" "<<(checking_units+num_checking_units)[i].gid<<" "<<(checking_units+num_checking_units)[i].offset<<endl;
-//		if(num_checking_units== 385764)
-//		{
-//			exit(0);
-//		}
+//		checking_unit unit = (checking_units+num_checking_units)[i];
+//		assert(unit.gid<num_grids);
+//		cout<<num_checking_units<<" "<<unit.pid<<" "<<unit.gid<<" "<<unit.offset<<endl;
 //	}
 	num_checking_units += num_cu;
 	pthread_mutex_unlock(&insert_lk[0]);
@@ -132,13 +129,13 @@ void workbench::analyze_grids(){
 }
 
 void workbench::analyze_checkings(){
-	uint *unit_count = new uint[config.num_objects];
-	memset(unit_count,0,config.num_objects*sizeof(uint));
+	uint *unit_count = new uint[config->num_objects];
+	memset(unit_count,0,config->num_objects*sizeof(uint));
 	for(uint pairid=0;pairid<num_checking_units;pairid++){
 		unit_count[checking_units[pairid].pid]++;
 	}
 	uint max_one = 0;
-	for(int i=0;i<config.num_objects;i++){
+	for(int i=0;i<config->num_objects;i++){
 		if(unit_count[max_one]<unit_count[i]){
 			max_one = i;
 		}
@@ -158,14 +155,14 @@ void workbench::analyze_meetings(){
 	 *
 	 * */
 
-	uint *unit_count = new uint[config.num_objects];
-	memset(unit_count,0,config.num_objects*sizeof(uint));
+	uint *unit_count = new uint[config->num_objects];
+	memset(unit_count,0,config->num_objects*sizeof(uint));
 	for(uint mid=0;mid<num_meeting;mid++){
 		unit_count[meetings[mid].pid1]++;
 	}
 	map<int, uint> connected;
 	uint max_one = 0;
-	for(int i=0;i<config.num_objects;i++){
+	for(int i=0;i<config->num_objects;i++){
 		if(connected.find(unit_count[i])==connected.end()){
 			connected[unit_count[i]] = 1;
 		}else{
@@ -177,7 +174,7 @@ void workbench::analyze_meetings(){
 	}
 	double cum_portion = 0;
 	for(auto a:connected){
-		cum_portion += 1.0*a.second/config.num_objects;
+		cum_portion += 1.0*a.second/config->num_objects;
 		printf("%d\t%d\t%f\n",a.first,a.second,cum_portion);
 	}
 	connected.clear();
@@ -186,7 +183,7 @@ void workbench::analyze_meetings(){
 	vector<Point *> valid_points;
 	Point *p1 = points + max_one;
 	vector<uint> gids;
-	lookup(schema, p1, 0, gids, config.x_buffer, config.y_buffer);
+	lookup(schema, p1, 0, gids, config->x_buffer, config->y_buffer);
 
 	for(uint gid:gids){
 		uint *cur_pid = get_grid(gid);
@@ -197,7 +194,7 @@ void workbench::analyze_meetings(){
 			}
 			all_points.push_back(p2);
 			double dist = p1->distance(*p2,true);
-			if(dist<config.reach_distance){
+			if(dist<config->reach_distance){
 				valid_points.push_back(p2);
 			}
 		}

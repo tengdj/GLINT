@@ -15,7 +15,7 @@
  *
  * */
 
-void *process_grid_unit(void *arg){
+void *reachability_unit(void *arg){
 	query_context *ctx = (query_context *)arg;
 	workbench *bench = (workbench *)ctx->target[0];
 	Point *points = bench->points;
@@ -32,7 +32,7 @@ void *process_grid_unit(void *arg){
 			uint gid = bench->checking_units[pairid].gid;
 			uint offset = bench->checking_units[pairid].offset;
 
-			uint size = min(bench->get_grid_size(gid)-offset, (uint)bench->config.zone_capacity);
+			uint size = min(bench->get_grid_size(gid)-offset, (uint)bench->config->zone_capacity);
 			uint *cur_pids = bench->get_grid(gid)+offset;
 
 			//vector<Point *> pts;
@@ -43,7 +43,7 @@ void *process_grid_unit(void *arg){
 				//p2->print();
 				if(p1!=p2){
 					//log("%f",dist);
-					if(p1->distance(p2, true)<=ctx->config.reach_distance){
+					if(p1->distance(p2, true)<=ctx->config->reach_distance){
 						meets_buffer[meet_index].pid1 = pid;
 						meets_buffer[meet_index].pid2 = cur_pids[i];
 						if(++meet_index==200){
@@ -67,18 +67,25 @@ void *process_grid_unit(void *arg){
 		bench->num_meeting += meet_index;
 		unlock();
 	}
+	delete []meets_buffer;
 	return NULL;
 }
 
-void process_with_cpu(query_context &tctx){
+void reachability(workbench *bench){
+
+	query_context tctx;
+	tctx.config = bench->config;
+	tctx.num_units = bench->num_checking_units;
+	tctx.target[0] = (void *)bench;
+
 	struct timeval start = get_cur_time();
-	pthread_t threads[tctx.config.num_threads];
+	pthread_t threads[tctx.config->num_threads];
 	tctx.reset();
 
-	for(int i=0;i<tctx.config.num_threads;i++){
-		pthread_create(&threads[i], NULL, process_grid_unit, (void *)&tctx);
+	for(int i=0;i<tctx.config->num_threads;i++){
+		pthread_create(&threads[i], NULL, reachability_unit, (void *)&tctx);
 	}
-	for(int i = 0; i < tctx.config.num_threads; i++ ){
+	for(int i = 0; i < tctx.config->num_threads; i++ ){
 		void *status;
 		pthread_join(threads[i], &status);
 	}
@@ -86,39 +93,33 @@ void process_with_cpu(query_context &tctx){
 }
 
 #ifdef USE_GPU
-void process_with_gpu(query_context &ctx);
+void process_with_gpu(workbench *bench);
 #endif
 
 void tracer::process(){
 
-	bench = part->build_schema(trace, config.num_objects);
+	bench = part->build_schema(trace, config->num_objects);
 
-	// test contact tracing
-	query_context qctx;
-	qctx.config = config;
 	struct timeval start = get_cur_time();
 
-	for(int t=0;t<config.duration;t++){
+	for(int t=0;t<config->duration;t++){
 		bench->reset();
-		bench->points = trace+t*config.num_objects;
-		qctx.target[0] = (void *)bench;
+		bench->points = trace+t*config->num_objects;
 		// process the objects in the packed partitions
-		if(!config.gpu){
+		if(!config->gpu){
 			part->partition(bench);
-			for(uint start_pid=0;start_pid<config.num_objects;start_pid+=config.num_objects_per_round){
+			for(uint start_pid=0;start_pid<config->num_objects;start_pid+=config->num_objects_per_round){
 				part->lookup(bench, start_pid);
-				qctx.reset();
-				qctx.num_units = bench->num_checking_units;
-				process_with_cpu(qctx);
+				reachability(bench);
 			}
 		}else{
 #ifdef USE_GPU
-			process_with_gpu(qctx);
+			process_with_gpu(bench);
 #endif
 		}
 		logt("current round",start);
 
-		if(config.analyze){
+		if(config->analyze){
 			bench->analyze_meetings();
 		}
 

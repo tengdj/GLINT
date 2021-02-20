@@ -19,7 +19,7 @@ int main(int argc, char **argv){
 
 	configuration config = get_parameters(argc, argv);
 	config.print();
-	tracer *tr = new tracer(config);
+	tracer *tr = new tracer(&config);
 	//tr->print_trace();
 	tr->process();
 	delete tr;

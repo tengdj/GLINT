@@ -9,15 +9,9 @@
 
 workbench *qtree_partitioner::build_schema(Point *points, size_t num_objects){
 	struct timeval start = get_cur_time();
-	QTConfig qconfig;
-	qconfig.min_width = config.reach_distance;
-	qconfig.max_objects = config.grid_capacity;
-	config.x_buffer = config.reach_distance*degree_per_meter_longitude(mbr.low[1]);
-	config.y_buffer = config.reach_distance*degree_per_meter_latitude;
-	qconfig.x_buffer = config.x_buffer;
-	qconfig.y_buffer = config.y_buffer;
-	QTNode *qtree = new QTNode(mbr, &qconfig);
-	qconfig.points = points;
+	config->x_buffer = config->reach_distance*degree_per_meter_longitude(mbr.low[1]);
+	config->y_buffer = config->reach_distance*degree_per_meter_latitude;
+	QTNode *qtree = new QTNode(mbr, config, points);
 
 	for(uint pid=0;pid<num_objects;pid++){
 		//log("%d",pid);
@@ -26,6 +20,7 @@ workbench *qtree_partitioner::build_schema(Point *points, size_t num_objects){
 	// set the ids and other stuff
 	qtree->finalize();
 	size_t num_grids = qtree->leaf_count();
+	//qtree->print();
 
 	workbench *bench = new workbench(config);
 	bench->claim_space(num_grids);
@@ -76,16 +71,16 @@ void qtree_partitioner::partition(workbench *bench){
 	struct timeval start = get_cur_time();
 
 	// partitioning current batch of objects with the existing schema
-	pthread_t threads[config.num_threads];
+	pthread_t threads[config->num_threads];
 	query_context qctx;
 	qctx.config = config;
-	qctx.num_units = bench->config.num_objects;
+	qctx.num_units = bench->config->num_objects;
 	qctx.target[0] = (void *)bench;
 
-	for(int i=0;i<config.num_threads;i++){
+	for(int i=0;i<config->num_threads;i++){
 		pthread_create(&threads[i], NULL, partition_unit, (void *)&qctx);
 	}
-	for(int i = 0; i < config.num_threads; i++ ){
+	for(int i = 0; i < config->num_threads; i++ ){
 		void *status;
 		pthread_join(threads[i], &status);
 	}
@@ -129,13 +124,12 @@ void *lookup_unit(void *arg){
 	size_t start = 0;
 	size_t end = 0;
 	vector<uint> gids;
-	checking_unit *cubuffer = (checking_unit *)malloc(sizeof(checking_unit)*200);
+	checking_unit *cubuffer = new checking_unit[200];
 	uint buffer_index = 0;
 	while(qctx->next_batch(start,end)){
 		for(uint pid=start;pid<end;pid++){
 			Point *p = bench->points+pid;
-			lookup(schema, p, 0, gids, qctx->config.x_buffer, qctx->config.y_buffer);
-
+			lookup(schema, p, 0, gids, qctx->config->x_buffer, qctx->config->y_buffer);
 			for(uint gid:gids){
 				assert(gid<bench->num_grids);
 				uint offset = 0;
@@ -145,17 +139,18 @@ void *lookup_unit(void *arg){
 					cubuffer[buffer_index].gid = gid;
 					cubuffer[buffer_index].offset = offset;
 					buffer_index++;
-					if(buffer_index==1){
+					if(buffer_index==200){
 						bench->batch_check(cubuffer, buffer_index);
 						buffer_index = 0;
 					}
-					offset += bench->config.zone_capacity;
+					offset += bench->config->zone_capacity;
 				}
 			}
 			gids.clear();
 		}
 	}
 	bench->batch_check(cubuffer, buffer_index);
+	delete []cubuffer;
 	return NULL;
 }
 
@@ -166,19 +161,19 @@ void qtree_partitioner::lookup(workbench *bench, uint start_pid){
 	// reset the units
 	bench->num_checking_units = 0;
 	// partitioning current batch of objects with the existing schema
-	pthread_t threads[config.num_threads];
+	pthread_t threads[config->num_threads];
 	query_context qctx;
 	qctx.report_gap = 100;
 	qctx.config = config;
 	qctx.counter = start_pid;
-	qctx.num_units = min(bench->config.num_objects, start_pid+config.num_objects_per_round);
+	qctx.num_units = min(bench->config->num_objects, start_pid+config->num_objects_per_round);
 	qctx.target[0] = (void *)bench;
 
 	// tree lookups
-	for(int i=0;i<config.num_threads;i++){
+	for(int i=0;i<config->num_threads;i++){
 		pthread_create(&threads[i], NULL, lookup_unit, (void *)&qctx);
 	}
-	for(int i = 0; i < config.num_threads; i++ ){
+	for(int i = 0; i < config->num_threads; i++ ){
 		void *status;
 		pthread_join(threads[i], &status);
 	}

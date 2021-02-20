@@ -17,7 +17,7 @@
 
 class partitioner{
 protected:
-	configuration config;
+	configuration *config = NULL;
 	box mbr;
 public:
 	partitioner(){}
@@ -31,7 +31,7 @@ public:
 
 class qtree_partitioner:public partitioner{
 public:
-	qtree_partitioner(box &m, configuration &conf){
+	qtree_partitioner(box &m, configuration *conf){
 		mbr = m;
 		config = conf;
 	}
