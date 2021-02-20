@@ -97,7 +97,6 @@ void lookup_cuda(workbench *bench, uint stack_id){
 
 	int sid = blockIdx.x*blockDim.x+threadIdx.x;
 	if(sid>=bench->stack_index[stack_id]){
-		//printf("%d %d\n",sid,bench->stack_index[stack_id]);
 		return;
 	}
 
@@ -105,7 +104,7 @@ void lookup_cuda(workbench *bench, uint stack_id){
 	uint curnode = bench->lookup_stack[stack_id][sid*2+1];
 	Point *p = bench->points+pid;
 
-	printf("%f %f\n",p->x,p->y);
+	printf("%d %d %f %f\n",sid,bench->stack_index[stack_id],p->x,p->y);
 	// could be possibly in multiple children with buffers enabled
 	bool top = (p->y>bench->schema[curnode].mid_y-bench->config->y_buffer);
 	bool bottom = (p->y<=bench->schema[curnode].mid_y+bench->config->y_buffer);
