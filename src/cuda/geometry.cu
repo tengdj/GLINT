@@ -178,7 +178,7 @@ void reachability_cuda(workbench *bench){
  * ctx.data contains the list of
  *
  * */
-void process_with_gpu(query_context &ctx){
+void process_with_gpu(workbench *bench){
 	struct timeval start = get_cur_time();
 	vector<gpu_info *> gpus = get_gpus();
 	gpu_info *gpu = gpus[0];
@@ -188,7 +188,6 @@ void process_with_gpu(query_context &ctx){
 	pthread_mutex_lock(&gpu->lock);
 	cudaSetDevice(gpu->device_id);
 
-	workbench *bench = (workbench *)ctx.target[0];
 	// use h_bench as a container to copy in and out GPU
 	workbench *h_bench = new workbench(bench->config);
 	h_bench->num_grids = bench->num_grids;
