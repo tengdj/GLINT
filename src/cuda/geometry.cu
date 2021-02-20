@@ -250,8 +250,8 @@ void process_with_gpu(workbench *bench){
 	h_bench->grids = NULL;
 	h_bench->checking_units = NULL;
 	h_bench->schema = NULL;
-	h_bench->stack_index[0] = NULL;
-	h_bench->stack_index[1] = NULL;
+	h_bench->lookup_stack[0] = NULL;
+	h_bench->lookup_stack[1] = NULL;
 	h_bench->meetings = NULL;
 	delete h_bench;
 	pthread_mutex_unlock(&gpu->lock);
