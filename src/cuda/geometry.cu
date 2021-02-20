@@ -207,7 +207,7 @@ void process_with_gpu(workbench *bench){
 	h_bench->lookup_stack[0] = (uint *)gpu->get_data(4, bench->stack_capacity*2*sizeof(uint));
 	h_bench->lookup_stack[1] = (uint *)gpu->get_data(5, bench->stack_capacity*2*sizeof(uint));
 	h_bench->meetings = (meeting_unit *)gpu->get_data(6, bench->meeting_capacity*sizeof(meeting_unit));
-	h_bench->config = (workbench *)gpu->get_data(8, sizeof(configuration));
+	h_bench->config = (configuration *)gpu->get_data(8, sizeof(configuration));
 
 	// space for the mapping of bench in GPU
 	workbench *d_bench = (workbench *)gpu->get_data(7, sizeof(workbench));
