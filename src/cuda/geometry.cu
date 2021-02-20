@@ -6,7 +6,6 @@
 #include "../tracing/partitioner.h"
 #include "../tracing/workbench.h"
 
-
 //
 __global__
 void partition_cuda(workbench *bench){
@@ -252,7 +251,8 @@ void process_with_gpu(query_context &ctx){
 	h_bench->grids = NULL;
 	h_bench->checking_units = NULL;
 	h_bench->schema = NULL;
-	h_bench->stack_index = {NULL,NULL};
+	h_bench->stack_index[0] = NULL;
+	h_bench->stack_index[1] = NULL;
 	h_bench->meetings = NULL;
 	delete h_bench;
 	pthread_mutex_unlock(&gpu->lock);
