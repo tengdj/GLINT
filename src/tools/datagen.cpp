@@ -17,7 +17,6 @@ using namespace std;
 int main(int argc, char **argv){
 
 	configuration config = get_parameters(argc, argv);
-	config.print();
 	Map *m = new Map(config.map_path);
 	trace_generator *gen = new trace_generator(&config,m);
 	gen->analyze_trips(config.taxi_path.c_str(), config.num_trips);

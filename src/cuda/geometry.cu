@@ -5,6 +5,7 @@
 #include "../util/query_context.h"
 #include "../tracing/partitioner.h"
 #include "../tracing/workbench.h"
+#include "../util/config.h"
 
 //
 __global__

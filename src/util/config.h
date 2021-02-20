@@ -14,15 +14,13 @@
 namespace po = boost::program_options;
 
 
-class configuration{
-public:
+typedef struct configuration{
 	// shared parameters
 	int thread_id = 0;
-	int num_threads = get_num_threads();
+	int num_threads = 1;
 	int duration = 1000;
 	uint num_objects = 1000;
 	string trace_path = "/gisdata/chicago/traces";
-
 
 	// for query only
 	int start_time = 0;
@@ -46,32 +44,31 @@ public:
 	double walk_speed = 1.0;
 	double drive_rate = 0.2;
 	double drive_speed = 15.0;
+}configuration;
 
+inline void print_config(configuration &config){
+	printf("configuration:");
+	printf("num threads:\t%d\n",config.num_threads);
+	printf("num objects:\t%d\n",config.num_objects);
+	printf("num objects per grid:\t%d\n",config.grid_capacity);
+	printf("num objects per zone:\t%d\n",config.zone_capacity);
+	printf("num trips:\t%d\n",config.num_trips);
+	printf("start time:\t%d\n",config.start_time);
+	printf("duration:\t%d\n",config.duration);
+	printf("reach threshold:\t%f m\n",config.reach_distance);
+	printf("grid width:\t%f m\n",config.grid_width);
 
-	configuration(){}
-	void print(){
-		printf("configuration:");
-		printf("num threads:\t%d\n",num_threads);
-		printf("num objects:\t%d\n",num_objects);
-		printf("num objects per grid:\t%d\n",grid_capacity);
-		printf("num objects per zone:\t%d\n",zone_capacity);
-		printf("num trips:\t%d\n",num_trips);
-		printf("start time:\t%d\n",start_time);
-		printf("duration:\t%d\n",duration);
-		printf("reach threshold:\t%f m\n",reach_distance);
-		printf("grid width:\t%f m\n",grid_width);
+	printf("map path:\t%s\n",config.map_path.c_str());
+	printf("taxi path:\t%s\n",config.taxi_path.c_str());
+	printf("trace path:\t%s\n",config.trace_path.c_str());
+	printf("use gpu:\t%s\n",config.gpu?"yes":"no");
+	printf("analyze:\t%s\n",config.analyze?"yes":"no");
 
-		printf("map path:\t%s\n",map_path.c_str());
-		printf("taxi path:\t%s\n",taxi_path.c_str());
-		printf("trace path:\t%s\n",trace_path.c_str());
-		printf("use gpu:\t%s\n",gpu?"yes":"no");
-		printf("analyze:\t%s\n",analyze?"yes":"no");
-
-	}
-};
+}
 
 inline configuration get_parameters(int argc, char **argv){
-	configuration global_ctx;
+	configuration config;
+	config.num_threads = get_num_threads();
 
 	string query_method = "qtree";
 	po::options_description desc("query usage");
@@ -79,20 +76,20 @@ inline configuration get_parameters(int argc, char **argv){
 		("help,h", "produce help message")
 		("gpu,g", "use gpu for processing")
 		("analyze,a", "analyze the processed data")
-		("threads,n", po::value<int>(&global_ctx.num_threads), "number of threads")
-		("grid_capacity", po::value<int>(&global_ctx.grid_capacity), "maximum number of objects per grid ")
-		("zone_capacity", po::value<int>(&global_ctx.zone_capacity), "maximum number of objects per zone buffer")
-		("grid_width", po::value<double>(&global_ctx.grid_width), "the width of each grid (in meters)")
-		("trips,t", po::value<int>(&global_ctx.num_trips), "number of trips")
-		("objects,o", po::value<uint>(&global_ctx.num_objects), "number of objects")
-		("duration,d", po::value<int>(&global_ctx.duration), "duration of the trace")
-		("start_time,s", po::value<int>(&global_ctx.start_time), "the start time of the duration")
+		("threads,n", po::value<int>(&config.num_threads), "number of threads")
+		("grid_capacity", po::value<int>(&config.grid_capacity), "maximum number of objects per grid ")
+		("zone_capacity", po::value<int>(&config.zone_capacity), "maximum number of objects per zone buffer")
+		("grid_width", po::value<double>(&config.grid_width), "the width of each grid (in meters)")
+		("trips,t", po::value<int>(&config.num_trips), "number of trips")
+		("objects,o", po::value<uint>(&config.num_objects), "number of objects")
+		("duration,d", po::value<int>(&config.duration), "duration of the trace")
+		("start_time,s", po::value<int>(&config.start_time), "the start time of the duration")
 
-		("reachable_distance,r", po::value<double>(&global_ctx.reach_distance), "reachable distance (in meters)")
-		("map_path", po::value<string>(&global_ctx.map_path), "path to the map file")
-		("taxi_path", po::value<string>(&global_ctx.taxi_path), "path to the taxi file")
-		("trace_path", po::value<string>(&global_ctx.trace_path), "path to the trace file")
-		("distribution", po::value<double>(&global_ctx.distribution_rate), "percent of start points evenly distributed")
+		("reachable_distance,r", po::value<double>(&config.reach_distance), "reachable distance (in meters)")
+		("map_path", po::value<string>(&config.map_path), "path to the map file")
+		("taxi_path", po::value<string>(&config.taxi_path), "path to the taxi file")
+		("trace_path", po::value<string>(&config.trace_path), "path to the trace file")
+		("distribution", po::value<double>(&config.distribution_rate), "percent of start points evenly distributed")
 
 		;
 	po::variables_map vm;
@@ -104,20 +101,20 @@ inline configuration get_parameters(int argc, char **argv){
 	po::notify(vm);
 
 	if(vm.count("analyze")){
-		global_ctx.analyze = true;
+		config.analyze = true;
 	}
 	if(vm.count("gpu")){
-		global_ctx.gpu = true;
+		config.gpu = true;
 	}
 	if(!vm.count("zone_capacity")){
-		global_ctx.zone_capacity = global_ctx.grid_capacity;
+		config.zone_capacity = config.grid_capacity;
 	}
 
-	global_ctx.grid_width = max(global_ctx.grid_width, global_ctx.reach_distance);
+	config.grid_width = max(config.grid_width, config.reach_distance);
 
-	assert(global_ctx.walk_rate+global_ctx.drive_rate<=1);
-
-	return global_ctx;
+	assert(config.walk_rate+config.drive_rate<=1);
+	print_config(config);
+	return config;
 }
 
 
