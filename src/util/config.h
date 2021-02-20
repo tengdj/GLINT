@@ -82,6 +82,7 @@ inline configuration get_parameters(int argc, char **argv){
 		("grid_width", po::value<double>(&config.grid_width), "the width of each grid (in meters)")
 		("trips,t", po::value<int>(&config.num_trips), "number of trips")
 		("objects,o", po::value<uint>(&config.num_objects), "number of objects")
+		("num_objects_per_round", po::value<uint>(&config.num_objects_per_round), "number of objects processed per round")
 		("duration,d", po::value<int>(&config.duration), "duration of the trace")
 		("start_time,s", po::value<int>(&config.start_time), "the start time of the duration")
 
@@ -108,6 +109,9 @@ inline configuration get_parameters(int argc, char **argv){
 	}
 	if(!vm.count("zone_capacity")){
 		config.zone_capacity = config.grid_capacity;
+	}
+	if(config.num_objects_per_round>config.num_objects){
+		config.num_objects_per_round = config.num_objects;
 	}
 
 	config.grid_width = max(config.grid_width, config.reach_distance);
