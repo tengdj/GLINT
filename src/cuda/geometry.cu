@@ -159,14 +159,14 @@ void reachability_cuda(workbench *bench){
 	if(size>bench->config->zone_capacity){
 		size = bench->config->zone_capacity;
 	}
-	//printf("%d\t%d\t%d\t%d\n",pid,gid,offset,size);
+	printf("%d\t%d\t%d\t%d\n",pid,gid,offset,size);
 
 	const uint *cur_pids = bench->grids+(bench->config->grid_capacity+1)*gid+1+offset;
 	for(uint i=0;i<size;i++){
 		if(pid!=cur_pids[i]){
 			double dist = distance(bench->points[pid].x, bench->points[pid].y, bench->points[cur_pids[i]].x, bench->points[cur_pids[i]].y);
 			if(dist<=max_dist){
-				uint loc = atomicAdd(&bench->num_meeting, (uint)1);
+				uint loc = atomicAdd(&bench->num_meeting, 1);
 				assert(loc<bench->meeting_capacity);
 				bench->meetings[loc].pid1 = pid;
 				bench->meetings[loc].pid2 = cur_pids[i];
@@ -235,11 +235,12 @@ void process_with_gpu(workbench *bench){
 	h_bench->stack_index[stack_id] = bench->config->num_objects;
 	while(h_bench->stack_index[stack_id]>0){
 		lookup_cuda<<<h_bench->stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id,h_bench->stack_index[stack_id]);
+		check_execution();
+		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 		stack_id = !stack_id;
 	}
-	check_execution();
-	cudaDeviceSynchronize();
+
 	logt("lookup", start);
 
 	// compute the reachability of objects in each partitions
