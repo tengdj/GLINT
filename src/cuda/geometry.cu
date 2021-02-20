@@ -232,11 +232,10 @@ void process_with_gpu(workbench *bench){
 	initstack_cuda<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
-	CUDA_SAFE_CALL(cudaMemcpy(h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+	h_bench->stack_index[stack_id] = bench->config->num_objects;
 	uint stack_id = 0;
 	while(h_bench->stack_index[stack_id]>0){
 		log("%d",h_bench->stack_index[stack_id]);
-		struct timeval tt = get_cur_time();
 		lookup_cuda<<<h_bench->stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id);
 		check_execution();
 		cudaDeviceSynchronize();
