@@ -93,13 +93,16 @@ void reachability(workbench *bench){
 }
 
 #ifdef USE_GPU
-void process_with_gpu(workbench *bench);
+workbench *create_device_bench(workbench *bench, gpu_info *gpu);
+void process_with_gpu(workbench *bench,workbench *d_bench, gpu_info *gpu);
 #endif
 
 void tracer::process(){
 
 	bench = part->build_schema(trace, config->num_objects);
-
+#ifdef USE_GPU
+	d_bench = create_device_bench(bench, gpu);
+#endif
 	struct timeval start = get_cur_time();
 
 	for(int t=0;t<config->duration;t++){
@@ -114,7 +117,7 @@ void tracer::process(){
 			}
 		}else{
 #ifdef USE_GPU
-			process_with_gpu(bench);
+			process_with_gpu(bench,d_bench,gpu);
 #endif
 		}
 		logt("current round",start);

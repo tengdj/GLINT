@@ -179,6 +179,37 @@ void reachability_cuda(workbench *bench){
 	}
 }
 
+workbench *create_device_bench(workbench *bench, gpu_info *gpu){
+	struct timeval start = get_cur_time();
+	gpu->clear();
+	// use h_bench as a container to copy in and out GPU
+	workbench h_bench(bench->config);
+	h_bench.num_grids = bench->num_grids;
+	// space for the raw points data
+	h_bench.points = (Point *)gpu->get_data(0, bench->config->num_objects*sizeof(Point));
+	// space for the pids of all the grids
+	h_bench.grids = (uint *)gpu->get_data(1, bench->num_grids*(bench->config->grid_capacity+1)*sizeof(uint));
+	// space for the pid-zid pairs
+	h_bench.checking_units = (checking_unit *)gpu->get_data(2, bench->checking_units_capacity*sizeof(checking_unit));
+	// space for the QTtree schema
+	h_bench.schema = (QTSchema *)gpu->get_data(3, bench->num_nodes*sizeof(QTSchema));
+	// space for processing stack
+	h_bench.lookup_stack[0] = (uint *)gpu->get_data(4, bench->stack_capacity*2*sizeof(uint));
+	h_bench.lookup_stack[1] = (uint *)gpu->get_data(5, bench->stack_capacity*2*sizeof(uint));
+	h_bench.meetings = (meeting_unit *)gpu->get_data(6, bench->meeting_capacity*sizeof(meeting_unit));
+	h_bench.config = (configuration *)gpu->get_data(7, sizeof(configuration));
+
+	// space for the mapping of bench in GPU
+	workbench *d_bench = (workbench *)gpu->get_data(8, sizeof(workbench));
+	// the configuration and schema are fixed
+	CUDA_SAFE_CALL(cudaMemcpy(h_bench.schema, bench->schema, bench->num_nodes*sizeof(QTSchema), cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(h_bench.config, bench->config, sizeof(configuration), cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(d_bench, &h_bench, sizeof(workbench), cudaMemcpyHostToDevice));
+
+	logt("allocating space %d MB", start,gpu->size_allocated()/1024/1024);
+
+	return d_bench;
+}
 
 /*
  *
@@ -186,45 +217,19 @@ void reachability_cuda(workbench *bench){
  * ctx.data contains the list of
  *
  * */
-void process_with_gpu(workbench *bench){
+void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	struct timeval start = get_cur_time();
-	vector<gpu_info *> gpus = get_gpus();
-	gpu_info *gpu = gpus[0];
 	//gpu->print();
+	assert(bench);
+	assert(d_bench);
 	assert(gpu);
 
-	pthread_mutex_lock(&gpu->lock);
 	cudaSetDevice(gpu->device_id);
+	// as temporary host workbench
+	workbench h_bench(bench->config);
+	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+	CUDA_SAFE_CALL(cudaMemcpy(h_bench.points, bench->points, bench->config->num_objects*sizeof(Point), cudaMemcpyHostToDevice));
 
-	// use h_bench as a container to copy in and out GPU
-	workbench *h_bench = new workbench(bench->config);
-	h_bench->num_grids = bench->num_grids;
-
-	// space for the raw points data
-	h_bench->points = (Point *)gpu->get_data(0, bench->config->num_objects*sizeof(Point));
-	// space for the pids of all the grids
-	h_bench->grids = (uint *)gpu->get_data(1, bench->num_grids*(bench->config->grid_capacity+1)*sizeof(uint));
-	// space for the pid-zid pairs
-	h_bench->checking_units = (checking_unit *)gpu->get_data(2, bench->checking_units_capacity*sizeof(checking_unit));
-	// space for the QTtree schema
-	h_bench->schema = (QTSchema *)gpu->get_data(3, bench->num_nodes*sizeof(QTSchema));
-	// space for processing stack
-	h_bench->lookup_stack[0] = (uint *)gpu->get_data(4, bench->stack_capacity*2*sizeof(uint));
-	h_bench->lookup_stack[1] = (uint *)gpu->get_data(5, bench->stack_capacity*2*sizeof(uint));
-	h_bench->meetings = (meeting_unit *)gpu->get_data(6, bench->meeting_capacity*sizeof(meeting_unit));
-	h_bench->config = (configuration *)gpu->get_data(8, sizeof(configuration));
-
-	// space for the mapping of bench in GPU
-	workbench *d_bench = (workbench *)gpu->get_data(7, sizeof(workbench));
-
-	logt("allocating space %d MB", start,gpu->size_allocated()/1024/1024);
-
-	struct timeval start_execute = get_cur_time();
-
-	CUDA_SAFE_CALL(cudaMemcpy(h_bench->points, bench->points, bench->config->num_objects*sizeof(Point), cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL(cudaMemcpy(h_bench->schema, bench->schema, bench->num_nodes*sizeof(QTSchema), cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL(cudaMemcpy(h_bench->config, bench->config, sizeof(configuration), cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL(cudaMemcpy(d_bench, h_bench, sizeof(workbench), cudaMemcpyHostToDevice));
 	logt("copying data", start);
 
 	partition_cuda<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
@@ -236,40 +241,27 @@ void process_with_gpu(workbench *bench){
 	check_execution();
 	cudaDeviceSynchronize();
 	uint stack_id = 0;
-	h_bench->stack_index[stack_id] = bench->config->num_objects;
-	while(h_bench->stack_index[stack_id]>0){
-		lookup_cuda<<<h_bench->stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id,h_bench->stack_index[stack_id]);
+	h_bench.stack_index[stack_id] = bench->config->num_objects;
+	while(h_bench.stack_index[stack_id]>0){
+		lookup_cuda<<<h_bench.stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id,h_bench.stack_index[stack_id]);
 		check_execution();
 		cudaDeviceSynchronize();
-		CUDA_SAFE_CALL(cudaMemcpy(h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 		stack_id = !stack_id;
 	}
-
 	logt("lookup", start);
 
 	// compute the reachability of objects in each partitions
-	reachability_cuda<<<h_bench->num_checking_units/1024+1,1024>>>(d_bench);
+	reachability_cuda<<<h_bench.num_checking_units/1024+1,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
-	CUDA_SAFE_CALL(cudaMemcpy(h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-	logt("%d meetings are found", start,h_bench->num_meeting);
+	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+	logt("%d meetings are found", start,h_bench.num_meeting);
 	logt("one round",start_execute);
 
-	bench->num_checking_units = h_bench->num_checking_units;
-	bench->num_meeting = h_bench->num_meeting;
-	CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench->grids, bench->num_grids*(bench->config->grid_capacity+1)*sizeof(uint), cudaMemcpyDeviceToHost));
-	CUDA_SAFE_CALL(cudaMemcpy(bench->checking_units, h_bench->checking_units, h_bench->num_checking_units*sizeof(checking_unit), cudaMemcpyDeviceToHost));
-	CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench->meetings, h_bench->num_meeting*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
-
-	h_bench->grids = NULL;
-	h_bench->checking_units = NULL;
-	h_bench->schema = NULL;
-	h_bench->lookup_stack[0] = NULL;
-	h_bench->lookup_stack[1] = NULL;
-	h_bench->meetings = NULL;
-	delete h_bench;
-	pthread_mutex_unlock(&gpu->lock);
-	for(gpu_info *g:gpus){
-		delete g;
-	}
+	bench->num_checking_units = h_bench.num_checking_units;
+	bench->num_meeting = h_bench.num_meeting;
+	CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench.grids, bench->num_grids*(bench->config->grid_capacity+1)*sizeof(uint), cudaMemcpyDeviceToHost));
+	CUDA_SAFE_CALL(cudaMemcpy(bench->checking_units, h_bench.checking_units, h_bench.num_checking_units*sizeof(checking_unit), cudaMemcpyDeviceToHost));
+	CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench.meetings, h_bench.num_meeting*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
 }

@@ -14,6 +14,10 @@
 #include "workbench.h"
 #include <map>
 
+#ifdef USE_GPU
+#include "../cuda/mygpu.h"
+#endif
+
 using namespace std;
 
 
@@ -122,6 +126,10 @@ class tracer{
 	configuration *config = NULL;
 	partitioner *part = NULL;
 	workbench *bench = NULL;
+#ifdef USE_GPU
+	gpu_info *gpu = NULL;
+	workbench *d_bench = NULL;
+#endif
 public:
 	box mbr;
 	tracer(configuration *conf, box &b, Point *t){
@@ -129,12 +137,41 @@ public:
 		mbr = b;
 		config = conf;
 		part = new qtree_partitioner(mbr,config);
+#ifdef USE_GPU
+		if(config->gpu){
+			vector<gpu_info *> gpus = get_gpus();
+			if(gpus.size()==0){
+				log("not GPU is found, use CPU mode");
+				config->gpu = false;
+			}else{
+				gpu = gpus[0];
+				for(int i=1;i<gpus.size();i++){
+					delete gpus[i];
+				}
+				gpus.clear();
+			}
+		}
+#endif
 	}
 	tracer(configuration *conf){
 		config = conf;
 		loadFrom(config->trace_path.c_str());
 		part = new qtree_partitioner(mbr,config);
-
+#ifdef USE_GPU
+		if(config->gpu){
+			vector<gpu_info *> gpus = get_gpus();
+			if(gpus.size()==0){
+				log("not GPU is found, use CPU mode");
+				config->gpu = false;
+			}else{
+				gpu = gpus[0];
+				for(int i=1;i<gpus.size();i++){
+					delete gpus[i];
+				}
+				gpus.clear();
+			}
+		}
+#endif
 	};
 	~tracer(){
 		if(owned_trace){
@@ -146,8 +183,12 @@ public:
 		if(bench){
 			delete bench;
 		}
+#ifdef USE_GPU
+		if(gpu){
+			delete gpu;
+		}
+#endif
 	}
-	void process();
 	void dumpTo(const char *path) {
 		struct timeval start_time = get_cur_time();
 		ofstream wf(path, ios::out|ios::binary|ios::trunc);
@@ -197,6 +238,9 @@ public:
 	Point *get_trace(){
 		return trace;
 	}
+
+	void process();
+
 };
 
 

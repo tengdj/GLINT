@@ -21,7 +21,7 @@ workbench::workbench(configuration *conf){
 	}
 }
 
-workbench::~workbench(){
+void workbench::clear(){
 	if(grids){
 		delete []grids;
 	}

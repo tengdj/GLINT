@@ -23,7 +23,7 @@ public:
 	int bus_width = 0;
 	size_t mem_size;
 	bool busy;
-	pthread_mutex_t lock;
+	pthread_mutex_t lk;
 	void *d_data[MAX_DATA_SPACE];
 	size_t data_size[MAX_DATA_SPACE];
 	int compute_capability_major = 0;
@@ -32,6 +32,7 @@ public:
 
 	void init();
 	~gpu_info();
+	void clear();
 	void *get_data(int did, size_t ss);
 	void print();
 	uint size_allocated(){
@@ -40,6 +41,12 @@ public:
 			size += data_size[i];
 		}
 		return size;
+	}
+	void lock(){
+		pthread_mutex_lock(&lk);
+	}
+	void unlock(){
+		pthread_mutex_unlock(&lk);
 	}
 };
 

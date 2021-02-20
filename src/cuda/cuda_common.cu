@@ -77,7 +77,7 @@ void *gpu_info::get_data(int device_id, size_t ss){
 	return this->d_data[device_id];
 }
 
-gpu_info::~gpu_info(){
+void gpu_info::clear(){
 	cudaSetDevice(this->device_id);
 	for(int i=0;i<MAX_DATA_SPACE;i++){
 		if(d_data[i]){
@@ -86,5 +86,9 @@ gpu_info::~gpu_info(){
 			data_size[i] = 0;
 		}
 	}
+}
+
+gpu_info::~gpu_info(){
+	clear();
 }
 

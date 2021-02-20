@@ -61,7 +61,8 @@ public:
 	Point *points = NULL;
 
 	workbench(configuration *conf);
-	~workbench();
+	~workbench(){};
+	void clear();
 
 	// insert point pid to grid gid
 	bool insert(uint gid, uint pid);
