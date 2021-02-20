@@ -4,7 +4,7 @@
 #include "../geometry/geometry.h"
 #include "../util/query_context.h"
 #include "../tracing/partitioner.h"
-
+#include "../tracing/workbench.h"
 
 
 //
@@ -139,7 +139,7 @@ void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
 
 
 __global__
-void reachability_cuda(const workbench *bench, uint *ret){
+void reachability_cuda(const workbench *bench){
 
 	// the objects in which grid need be processed
 	int pairid = blockIdx.x*blockDim.x+threadIdx.x;
@@ -237,7 +237,7 @@ void process_with_gpu(query_context &ctx){
 	logt("lookup", start);
 
 	// compute the reachability of objects in each partitions
-	reachability_cuda<<<h_bench->num_checking_units/1024+1,1024>>>(d_bench, d_ret);
+	reachability_cuda<<<h_bench->num_checking_units/1024+1,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
 	logt("computing reachability", start);

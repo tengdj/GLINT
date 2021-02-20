@@ -37,11 +37,11 @@ public:
 	// the pool of maintaining objects assignment
 	// each grid buffer: |num_objects|point_id1...point_idn|
 	uint *grids = NULL;
-	size_t num_grids = 0;
+	uint num_grids = 0;
 
 	meeting_unit *meetings = NULL;
 	size_t meeting_capacity = 0;
-	size_t num_meeting = 0;
+	uint num_meeting = 0;
 
 	// the QTree schema
 	QTSchema *schema = NULL;
