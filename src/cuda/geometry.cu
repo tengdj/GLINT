@@ -90,13 +90,14 @@ void initstack_cuda(workbench *bench){
 	assert(stack_index<bench->stack_capacity);
 	bench->lookup_stack[0][stack_index*2] = pid;
 	bench->lookup_stack[0][stack_index*2+1] = 0;
+	printf("%d %d %d\n",stack_index,bench->lookup_stack[0][stack_index*2],bench->lookup_stack[0][stack_index*2+1]);
 }
 
 __global__
-void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
+void lookup_cuda(workbench *bench, uint stack_id){
 
 	int sid = blockIdx.x*blockDim.x+threadIdx.x;
-	if(sid>=stack_size){
+	if(sid>=bench->stack_index[stack_id]){
 		return;
 	}
 
@@ -133,6 +134,7 @@ void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
 			}
 		}
 	}
+	// reset the index to 0
 	if(sid == 0){
 		bench->stack_index[stack_id] = 0;
 	}
