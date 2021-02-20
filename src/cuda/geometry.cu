@@ -230,6 +230,7 @@ void process_with_gpu(workbench *bench){
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+	exit(0);
 	uint stack_id = 0;
 	while(h_bench->stack_index[stack_id]>0){
 		struct timeval tt = get_cur_time();
