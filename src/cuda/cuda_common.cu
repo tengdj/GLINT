@@ -71,11 +71,11 @@ void *gpu_info::allocate(size_t ss){
 	}
 	assert(tid<MAX_DATA_SPACE);
 	cudaSetDevice(this->device_id);
-	CUDA_SAFE_CALL(cudaMalloc((void **)&d_data[device_id], ss));
-	assert(d_data[device_id]);
-	data_size[device_id] = ss;
+	CUDA_SAFE_CALL(cudaMalloc((void **)&d_data[tid], ss));
+	assert(d_data[tid]);
+	data_size[tid] = ss;
 
-	return this->d_data[device_id];
+	return this->d_data[tid];
 }
 
 void gpu_info::clear(){
