@@ -67,20 +67,16 @@ void partition_cuda(workbench *bench){
 	while(true){
 		int loc = (p->y>bench->schema[curnode].mid_y)*2
 								+(p->x>bench->schema[curnode].mid_x);
+		uint child_offset = bench->schema[curoff].children[loc];
 		// is leaf
-		if((bench->schema[curnode].children[loc]&1)){
-			gid = bench->schema[curnode].children[loc]>>1;
+		if(bench->schema[child_offset].isleaf){
+			gid = bench->schema[child_offset].node_id;
 			break;
-		}else{
-			curnode = bench->schema[curnode].children[loc]>>1;
 		}
+		curoff = child_offset;
 	}
 	uint *cur_grid = bench->grids+(bench->config->grid_capacity+1)*gid;
 	bench->grid_assignment[pid] = gid;
-
-	uint glid = atomicAdd(&bench->num_grid_lookup,1);
-	bench->grid_lookup[2*glid] = pid;
-	bench->grid_lookup[2*glid+1] = gid;
 
 	// insert current pid to proper memory space of the target gid
 	// todo: consider the situation that grid buffer is too small
@@ -133,11 +129,15 @@ void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
 	bool bottom = (p->y<=bench->schema[curnode].mid_y+bench->config->y_buffer);
 	bool left = (p->x<=bench->schema[curnode].mid_x+bench->config->x_buffer);
 	bool right = (p->x>bench->schema[curnode].mid_x-bench->config->x_buffer);
+	if(top+bottom+left+right==1){
+		return;
+	}
 	uint need_check = (bottom&&left)*1+(bottom&&right)*2+(top&&left)*4+(top&&right)*8;
 	for(int i=0;i<4;i++){
 		if((need_check>>i)&1){
-			if((bench->schema[curnode].children[i]&1)){
-				uint gid = bench->schema[curnode].children[i]>>1;
+			uint child_offset = bench->schema[curnode].children[i];
+			if(bench->schema[child_offset].isleaf){
+				uint gid = child_offset;
 				assert(gid<bench->num_grids);
 				uint offset = 0;
 				while(offset<bench->grids[gid*(bench->config->grid_capacity+1)]){
@@ -153,7 +153,7 @@ void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
 				uint stack_index = atomicAdd(&bench->stack_index[next_stack_id],1);
 				assert(stack_index<bench->stack_capacity);
 				bench->lookup_stack[next_stack_id][stack_index*2] = pid;
-				bench->lookup_stack[next_stack_id][stack_index*2+1] = bench->schema[curnode].children[i]>>1;
+				bench->lookup_stack[next_stack_id][stack_index*2+1] = child_offset;
 			}
 		}
 	}

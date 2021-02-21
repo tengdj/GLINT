@@ -40,10 +40,12 @@ class QTNode;
  *
  * */
 typedef struct QTSchema{
-	uint children[4];
+	uint node_id = 0;
 	short level = 0;
+	short isleaf = 0;
 	double mid_x;
 	double mid_y;
+	uint children[4];
 }QTSchema;
 
 
@@ -225,7 +227,7 @@ public:
 	}
 	size_t node_count(){
 		if(isleaf()){
-			return 0;
+			return 1;
 		}else {
 			size_t num = 1;
 			for(int i=0;i<4;i++){
@@ -313,48 +315,20 @@ public:
 		return schema;
 	}
 	void create_schema(QTSchema *schema, uint &offset){
-		assert(!isleaf());
 		uint curoff = offset++;
+		// copy schema data
 		schema[curoff].mid_x = mid_x;
 		schema[curoff].mid_y = mid_y;
 		schema[curoff].level = level;
-		for(int i=0;i<4;i++){
-			if(children[i]->isleaf()){
-				schema[curoff].children[i] = children[i]->node_id;
-				schema[curoff].children[i] <<= 1;
-				schema[curoff].children[i] |= 1;
-			}else{
+		schema[curoff].node_id = node_id;
+		schema[curoff].isleaf = isleaf();
+		if(!isleaf()){
+			for(int i=0;i<4;i++){
 				schema[curoff].children[i] = offset;
-				schema[curoff].children[i] <<= 1;
 				children[i]->create_schema(schema, offset);
 			}
 		}
 	}
-
-//	void pack_data(uint *pids, offset_size *os){
-//		if(isleaf()){
-//			if(node_id==0){
-//				os[node_id].offset = 0;
-//			}else{
-//				os[node_id].offset = os[node_id-1].offset+os[node_id-1].size;
-//			}
-//			os[node_id].size = object_index;
-//			if(object_index>0){
-//				memcpy((void *)(pids+os[node_id].offset),(void *)objects,os[node_id].size*sizeof(uint));
-//			}
-//		}else{
-//			for(int i=0;i<4;i++){
-//				children[i]->pack_data(pids, os);
-//			}
-//		}
-//	}
-
-//	void print_node(){
-//		printf("level: %d objects: %ld width: %f height: %f",level,object_index,mbr.width(true),mbr.height(true));
-//		mbr.print();
-//		print_points(objects,object_index);
-//	}
-
 };
 
 #endif /* SRC_INDEX_QTREE_H_ */

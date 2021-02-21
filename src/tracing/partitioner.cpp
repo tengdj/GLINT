@@ -49,13 +49,13 @@ void *partition_unit(void *arg){
 			Point *p = bench->points+pid;
 			while(true){
 				int loc = (p->y>bench->schema[curoff].mid_y)*2+(p->x>bench->schema[curoff].mid_x);
+				uint child_offset = bench->schema[curoff].children[loc];
 				// is leaf
-				if((bench->schema[curoff].children[loc]&1)){
-					gid = bench->schema[curoff].children[loc]>>1;
+				if(bench->schema[child_offset].isleaf){
+					gid = bench->schema[child_offset].node_id;
 					break;
-				}else{
-					curoff = bench->schema[curoff].children[loc]>>1;
 				}
+				curoff = child_offset;
 			}
 			bench->insert(gid, pid);
 		}
@@ -105,10 +105,11 @@ void lookup(QTSchema *schema, Point *p, uint curoff, vector<uint> &gids, double 
 	bool need_check[4] = {bottom&&left, bottom&&right, top&&left, top&&right};
 	for(int i=0;i<4;i++){
 		if(need_check[i]){
-			if((schema[curoff].children[i]&1)){
-				gids.push_back(schema[curoff].children[i]>>1);
+			uint child_offset = schema[curoff].children[i];
+			if(schema[child_offset].isleaf){
+				gids.push_back(schema[child_offset].node_id);
 			}else{
-				lookup(schema, p, schema[curoff].children[i]>>1, gids, x_buffer, y_buffer);
+				lookup(schema, p, child_offset, gids, x_buffer, y_buffer);
 			}
 		}
 	}
