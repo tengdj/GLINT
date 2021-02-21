@@ -78,7 +78,7 @@ void partition_cuda(workbench *bench){
 	uint *cur_grid = bench->grids+(bench->config->grid_capacity+1)*gid;
 	bench->grid_assignment[pid] = gid;
 
-	uint glid = atomicAdd(&bench->num_grid_lookup);
+	uint glid = atomicAdd(&bench->num_grid_lookup,1);
 	bench->grid_lookup[2*glid] = pid;
 	bench->grid_lookup[2*glid+1] = gid;
 
