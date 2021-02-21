@@ -73,7 +73,7 @@ void partition_cuda(workbench *bench){
 			gid = bench->schema[child_offset].node_id;
 			break;
 		}
-		curoff = child_offset;
+		curnode = child_offset;
 	}
 	uint *cur_grid = bench->grids+(bench->config->grid_capacity+1)*gid;
 	bench->grid_assignment[pid] = gid;
