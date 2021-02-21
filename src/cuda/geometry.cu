@@ -137,7 +137,7 @@ void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
 		if((need_check>>i)&1){
 			uint child_offset = bench->schema[curnode].children[i];
 			if(bench->schema[child_offset].isleaf){
-				uint gid = child_offset;
+				uint gid = bench->schema[child_offset].node_id;
 				assert(gid<bench->num_grids);
 				uint offset = 0;
 				while(offset<bench->grids[gid*(bench->config->grid_capacity+1)]){
