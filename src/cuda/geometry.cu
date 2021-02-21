@@ -67,7 +67,7 @@ void partition_cuda(workbench *bench){
 	while(true){
 		int loc = (p->y>bench->schema[curnode].mid_y)*2
 								+(p->x>bench->schema[curnode].mid_x);
-		uint child_offset = bench->schema[curoff].children[loc];
+		uint child_offset = bench->schema[curnode].children[loc];
 		// is leaf
 		if(bench->schema[child_offset].isleaf){
 			gid = bench->schema[child_offset].node_id;
