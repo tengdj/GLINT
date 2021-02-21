@@ -13,9 +13,10 @@
 #include "../util/util.h"
 using namespace std;
 
-#define MAX_DATA_SPACE 10
+#define MAX_DATA_SPACE 20
 
 class gpu_info{
+
 public:
 	int device_id;
 	char name[256];
@@ -33,7 +34,7 @@ public:
 	void init();
 	~gpu_info();
 	void clear();
-	void *get_data(int did, size_t ss);
+	void *allocate(size_t ss);
 	void print();
 	uint size_allocated(){
 		uint size = 0;

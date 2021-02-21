@@ -13,9 +13,11 @@ workbench::workbench(configuration *conf){
 	if(config->gpu){
 		config->num_objects_per_round = config->num_objects;
 	}
+	grid_lookup_capacity = 2*config->num_objects;
 	stack_capacity = 2*config->num_objects;
 	meeting_capacity = 10*config->num_objects;
-	checking_units_capacity = config->num_objects_per_round*(config->grid_capacity/config->zone_capacity+1);
+
+	unit_lookup_capacity = config->num_objects_per_round*(config->grid_capacity/config->zone_capacity+1);
 	for(int i=0;i<50;i++){
 		pthread_mutex_init(&insert_lk[i],NULL);
 	}
@@ -25,8 +27,11 @@ void workbench::clear(){
 	if(grids){
 		delete []grids;
 	}
-	if(checking_units){
-		delete []checking_units;
+	if(grid_assignment){
+		delete []grid_assignment;
+	}
+	if(unit_lookup){
+		delete []unit_lookup;
 	}
 	if(schema){
 		delete []schema;
@@ -52,9 +57,9 @@ void workbench::claim_space(uint ng){
 			grid_size += (config->grid_capacity+1)*num_grids*sizeof(uint)/1024.0/1024.0;
 		}
 
-		if(!checking_units){
-			checking_units = new checking_unit[checking_units_capacity];
-			cu_size += checking_units_capacity*sizeof(checking_unit)/1024.0/1024.0;
+		if(!unit_lookup){
+			unit_lookup = new checking_unit[unit_lookup_capacity];
+			cu_size += unit_lookup_capacity*sizeof(checking_unit)/1024.0/1024.0;
 		}
 		if(!meetings){
 			meetings = new meeting_unit[meeting_capacity];
@@ -97,11 +102,11 @@ bool workbench::check(uint gid, uint pid){
 	pthread_mutex_lock(&insert_lk[0]);
 	uint offset = 0;
 	while(offset<get_grid_size(gid)){
-		assert(num_checking_units<checking_units_capacity);
-		checking_units[num_checking_units].pid = pid;
-		checking_units[num_checking_units].gid = gid;
-		checking_units[num_checking_units].offset = offset;
-		num_checking_units++;
+		assert(num_unit_lookup<unit_lookup_capacity);
+		unit_lookup[num_unit_lookup].pid = pid;
+		unit_lookup[num_unit_lookup].gid = gid;
+		unit_lookup[num_unit_lookup].offset = offset;
+		num_unit_lookup++;
 		offset += config->zone_capacity;
 	}
 	pthread_mutex_unlock(&insert_lk[0]);
@@ -113,14 +118,14 @@ bool workbench::batch_check(checking_unit *cu, uint num_cu){
 		return false;
 	}
 	pthread_mutex_lock(&insert_lk[0]);
-	assert(num_checking_units+num_cu<checking_units_capacity);
-	memcpy(checking_units+num_checking_units,cu,sizeof(checking_unit)*num_cu);
+	assert(num_unit_lookup+num_cu<unit_lookup_capacity);
+	memcpy(unit_lookup+num_unit_lookup,cu,sizeof(checking_unit)*num_cu);
 //	for(int i=0;i<num_cu;i++){
-//		checking_unit unit = (checking_units+num_checking_units)[i];
+//		checking_unit unit = (unit_lookup+num_unit_lookup)[i];
 //		assert(unit.gid<num_grids);
-//		cout<<num_checking_units<<" "<<unit.pid<<" "<<unit.gid<<" "<<unit.offset<<endl;
+//		cout<<num_unit_lookup<<" "<<unit.pid<<" "<<unit.gid<<" "<<unit.offset<<endl;
 //	}
-	num_checking_units += num_cu;
+	num_unit_lookup += num_cu;
 	pthread_mutex_unlock(&insert_lk[0]);
 	return true;
 }
@@ -133,8 +138,8 @@ void workbench::analyze_grids(){
 void workbench::analyze_checkings(){
 	uint *unit_count = new uint[config->num_objects];
 	memset(unit_count,0,config->num_objects*sizeof(uint));
-	for(uint pairid=0;pairid<num_checking_units;pairid++){
-		unit_count[checking_units[pairid].pid]++;
+	for(uint pairid=0;pairid<num_unit_lookup;pairid++){
+		unit_count[unit_lookup[pairid].pid]++;
 	}
 	uint max_one = 0;
 	for(int i=0;i<config->num_objects;i++){

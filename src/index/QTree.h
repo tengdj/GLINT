@@ -41,6 +41,7 @@ class QTNode;
  * */
 typedef struct QTSchema{
 	uint children[4];
+	short level = 0;
 	double mid_x;
 	double mid_y;
 }QTSchema;
@@ -74,7 +75,7 @@ public:
 
 	// description of current node
 	uint node_id = 0;
-	int level = 0;
+	short level = 0;
 	box mbr;
 	double mid_x = 0;
 	double mid_y = 0;
@@ -316,6 +317,7 @@ public:
 		uint curoff = offset++;
 		schema[curoff].mid_x = mid_x;
 		schema[curoff].mid_y = mid_y;
+		schema[curoff].level = level;
 		for(int i=0;i<4;i++){
 			if(children[i]->isleaf()){
 				schema[curoff].children[i] = children[i]->node_id;

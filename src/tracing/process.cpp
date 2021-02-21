@@ -28,9 +28,9 @@ void *reachability_unit(void *arg){
 	size_t end = 0;
 	while(ctx->next_batch(start,end)){
 		for(uint pairid=start;pairid<end;pairid++){
-			uint pid = bench->checking_units[pairid].pid;
-			uint gid = bench->checking_units[pairid].gid;
-			uint offset = bench->checking_units[pairid].offset;
+			uint pid = bench->unit_lookup[pairid].pid;
+			uint gid = bench->unit_lookup[pairid].gid;
+			uint offset = bench->unit_lookup[pairid].offset;
 
 			uint size = min(bench->get_grid_size(gid)-offset, (uint)bench->config->zone_capacity);
 			uint *cur_pids = bench->get_grid(gid)+offset;
@@ -75,7 +75,7 @@ void reachability(workbench *bench){
 
 	query_context tctx;
 	tctx.config = bench->config;
-	tctx.num_units = bench->num_checking_units;
+	tctx.num_units = bench->num_unit_lookup;
 	tctx.target[0] = (void *)bench;
 
 	struct timeval start = get_cur_time();

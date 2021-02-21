@@ -61,19 +61,20 @@ void gpu_info::init(){
 	}
 }
 
-void *gpu_info::get_data(int device_id, size_t ss){
-	assert(device_id<MAX_DATA_SPACE);
+void *gpu_info::allocate(size_t ss){
+	int tid = 0;
+	for(int i=0;i<MAX_DATA_SPACE;i++){
+		if(!d_data[i]){
+			tid = i;
+			break;
+		}
+	}
+	assert(tid<MAX_DATA_SPACE);
 	cudaSetDevice(this->device_id);
-	if(this->d_data[device_id]&&this->data_size[device_id]<ss){
-		CUDA_SAFE_CALL(cudaFree(this->d_data[device_id]));
-		this->data_size[device_id] = 0;
-		this->d_data[device_id] = NULL;
-	}
-	if(!this->d_data[device_id]){
-		CUDA_SAFE_CALL(cudaMalloc((void **)&d_data[device_id], ss));
-		assert(this->d_data[device_id]);
-		this->data_size[device_id] = ss;
-	}
+	CUDA_SAFE_CALL(cudaMalloc((void **)&d_data[device_id], ss));
+	assert(d_data[device_id]);
+	data_size[device_id] = ss;
+
 	return this->d_data[device_id];
 }
 

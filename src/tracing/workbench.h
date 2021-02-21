@@ -39,6 +39,19 @@ public:
 	uint *grids = NULL;
 	uint num_grids = 0;
 
+	// the space for
+	uint *grid_assignment = NULL;
+
+	// the stack for grid look up
+	uint *grid_lookup = NULL;
+	uint num_grid_lookup = 0;
+	uint grid_lookup_capacity = 0;
+
+	// the space for point-unit pairs
+	checking_unit *unit_lookup = NULL;
+	uint num_unit_lookup = 0;
+	uint unit_lookup_capacity = 0;
+
 	meeting_unit *meetings = NULL;
 	size_t meeting_capacity = 0;
 	uint num_meeting = 0;
@@ -47,10 +60,7 @@ public:
 	QTSchema *schema = NULL;
 	uint num_nodes = 0;
 
-	// the space for storing the point-grid pairs
-	checking_unit *checking_units = NULL;
-	uint num_checking_units = 0;
-	size_t checking_units_capacity = 0;
+
 
 	// the processing stack for looking up
 	uint *lookup_stack[2] = {NULL, NULL};
@@ -79,7 +89,7 @@ public:
 		for(int i=0;i<num_grids;i++){
 			grids[i*(config->grid_capacity+1)] = 0;
 		}
-		num_checking_units = 0;
+		num_unit_lookup = 0;
 		num_meeting = 0;
 	}
 	inline uint get_grid_size(uint gid){

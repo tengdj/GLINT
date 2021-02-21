@@ -1,3 +1,3 @@
 git add -A &&
-git commit -m "minor update" &&
+git commit -m "debuging" &&
 git push
