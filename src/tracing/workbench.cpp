@@ -162,10 +162,18 @@ void workbench::analyze_meetings(){
 	 *
 	 * */
 
+	uint *hash_count = new uint[1000];
+	for(int i=0;i<1000;i++){
+		hash_count[i] = 0;
+	}
 	uint *unit_count = new uint[config->num_objects];
 	memset(unit_count,0,config->num_objects*sizeof(uint));
 	for(uint mid=0;mid<num_meeting;mid++){
 		unit_count[meetings[mid].pid1]++;
+		hash_count[(meetings[mid].pid1+meetings[mid].pid2)%1000]++;
+	}
+	for(int i=0;i<1000;i++){
+		cout<<i<<"\t"<<hash_count[i]<<endl;
 	}
 	map<int, uint> connected;
 	uint max_one = 0;

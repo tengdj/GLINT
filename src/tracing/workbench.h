@@ -60,8 +60,6 @@ public:
 	QTSchema *schema = NULL;
 	uint num_nodes = 0;
 
-
-
 	// the processing stack for looking up
 	uint *lookup_stack[2] = {NULL, NULL};
 	uint stack_index[2] = {0,0};

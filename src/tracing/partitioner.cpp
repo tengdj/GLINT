@@ -115,8 +115,6 @@ void lookup(QTSchema *schema, Point *p, uint curoff, vector<uint> &gids, double 
 	}
 }
 
-int one = 0;
-int mone = 0;
 // single thread function for looking up the schema to generate point-grid pairs for processing
 void *lookup_unit(void *arg){
 	query_context *qctx = (query_context *)arg;
@@ -133,14 +131,6 @@ void *lookup_unit(void *arg){
 		for(uint pid=start;pid<end;pid++){
 			Point *p = bench->points+pid;
 			lookup(schema, p, 0, gids, qctx->config->x_buffer, qctx->config->y_buffer);
-			lock();
-			if(gids.size()==1){
-				one++;
-			}
-			if(gids.size()>1){
-				mone++;
-			}
-			unlock();
 			for(uint gid:gids){
 				assert(gid<bench->num_grids);
 				uint offset = 0;
@@ -161,7 +151,6 @@ void *lookup_unit(void *arg){
 		}
 	}
 	bench->batch_check(cubuffer, buffer_index);
-	log("%d %d",one,mone);
 	delete []cubuffer;
 	return NULL;
 }
