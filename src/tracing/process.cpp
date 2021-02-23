@@ -15,72 +15,6 @@
  *
  * */
 
-void *reachability_unit(void *arg){
-	query_context *ctx = (query_context *)arg;
-	workbench *bench = (workbench *)ctx->target[0];
-	Point *points = bench->points;
-	reach_unit *reach_buffer = new reach_unit[200];
-	uint reach_index = 0;
-
-	// pick one batch of point-grid pair for processing
-	size_t start = 0;
-	size_t end = 0;
-	while(ctx->next_batch(start,end)){
-		for(uint pairid=start;pairid<end;pairid++){
-			uint pid = bench->unit_lookup[pairid].pid;
-			uint gid = bench->unit_lookup[pairid].gid;
-			uint offset = bench->unit_lookup[pairid].offset;
-
-			uint size = min(bench->get_grid_size(gid)-offset, (uint)bench->config->zone_capacity);
-			uint *cur_pids = bench->get_grid(gid)+offset;
-
-			//vector<Point *> pts;
-			Point *p1 = points + pid;
-			for(uint i=0;i<size;i++){
-				//pts.push_back(points + cur_pids[i]);
-				Point *p2 = points + cur_pids[i];
-				//p2->print();
-				if(p1!=p2 && p1->distance(p2, true)<=ctx->config->reach_distance){
-					reach_buffer[reach_index].pid1 = pid;
-					reach_buffer[reach_index].pid2 = cur_pids[i];
-					if(++reach_index==200){
-						bench->batch_reach(reach_buffer,reach_index);
-						reach_index = 0;
-					}
-				}
-			}
-		}
-	}
-
-	bench->batch_reach(reach_buffer,reach_index);
-	delete []reach_buffer;
-	return NULL;
-}
-
-void reachability(workbench *bench){
-
-	query_context tctx;
-	tctx.config = bench->config;
-	tctx.num_units = bench->unit_lookup_counter;
-	tctx.target[0] = (void *)bench;
-
-	// generate a new batch of reaches
-	bench->reaches_counter = 0;
-	struct timeval start = get_cur_time();
-	pthread_t threads[tctx.config->num_threads];
-	tctx.reset();
-
-	for(int i=0;i<tctx.config->num_threads;i++){
-		pthread_create(&threads[i], NULL, reachability_unit, (void *)&tctx);
-	}
-	for(int i = 0; i < tctx.config->num_threads; i++ ){
-		void *status;
-		pthread_join(threads[i], &status);
-	}
-	//bench->unit_lookup_counter = 0;
-	logt("compute",start);
-}
-
 #ifdef USE_GPU
 workbench *create_device_bench(workbench *bench, gpu_info *gpu);
 void process_with_gpu(workbench *bench,workbench *d_bench, gpu_info *gpu);
@@ -100,15 +34,22 @@ void tracer::process(){
 		bench->reset();
 		bench->points = trace+t*config->num_objects;
 		bench->cur_time = t;
-		// process the objects in the packed partitions
+		// process the coordinate in this time points
 		if(!config->gpu){
-			part->partition(bench);
+			bench->partition();
 			for(uint start_pid=0;start_pid<config->num_objects;start_pid+=config->num_objects_per_round){
-				part->lookup(bench, start_pid);
-				reachability(bench);
+				bench->lookup(start_pid);
+				bench->reachability();
 				bench->update_meetings();
 			}
 			bench->compact_meetings();
+
+			if(bench->meeting_counter>0&&t==config->duration-1){
+				int luck = get_rand_number(bench->meeting_counter);
+				print_trace(bench->meetings[luck].pid1);
+				print_trace(bench->meetings[luck].pid2);
+			}
+
 		}else{
 #ifdef USE_GPU
 			process_with_gpu(bench,d_bench,gpu);

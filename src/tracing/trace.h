@@ -136,7 +136,7 @@ public:
 		trace = t;
 		mbr = b;
 		config = conf;
-		part = new qtree_partitioner(mbr,config);
+		part = new partitioner(mbr,config);
 #ifdef USE_GPU
 		if(config->gpu){
 			vector<gpu_info *> gpus = get_gpus();
@@ -156,7 +156,7 @@ public:
 	tracer(configuration *conf){
 		config = conf;
 		loadFrom(config->trace_path.c_str());
-		part = new qtree_partitioner(mbr,config);
+		part = new partitioner(mbr,config);
 #ifdef USE_GPU
 		if(config->gpu){
 			vector<gpu_info *> gpus = get_gpus();
@@ -228,12 +228,20 @@ public:
 		owned_trace = true;
 	}
 
-	void print_trace(){
+	void print(){
 		double sample_rate = 1;
 		if(config->num_objects>10000){
 			sample_rate = 10000.0/config->num_objects;
 		}
 		print_points(trace,config->num_objects,sample_rate);
+	}
+	void print_trace(int oid){
+		vector<Point *> points;
+		for(int i=0;i<config->duration;i++){
+			points.push_back(trace+oid+i*config->num_objects);
+		}
+		print_points(points);
+		points.clear();
 	}
 	Point *get_trace(){
 		return trace;

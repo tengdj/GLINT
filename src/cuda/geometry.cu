@@ -248,30 +248,35 @@ void compact_meetings_cuda(workbench *bench){
 	int front_idx = 0;
 	int back_idx = bench->meeting_buckets_counter[bid]-1;
 	uint meeting_idx = 0;
+	int active_count = 0;
 	for(;front_idx<=back_idx;front_idx++){
 		// this meeting is over
 		if(bucket[front_idx].end<bench->cur_time){
-			// dump to valid list if valid, otherwise disregard
-			if(bucket[front_idx].end-bucket[front_idx].start>bench->config->min_meet_time){
+			// dump to valid list and copy one from the back end
+			if(bucket[front_idx].end-bucket[front_idx].start>=bench->config->min_meet_time){
 				meeting_idx = atomicAdd(&bench->meeting_counter,1);
 				bench->meetings[meeting_idx] = bucket[front_idx];
 			}
-			// locate one in the back which is still active
-			for(;back_idx>front_idx&&bucket[back_idx].end==bench->cur_time;back_idx--){
-				if(bucket[back_idx].end-bucket[back_idx].start>bench->config->min_meet_time){
+			for(;back_idx>front_idx;back_idx--){
+				if(bucket[back_idx].end==bench->cur_time){
+					break;
+					// dump to valid list if needed or disregarded
+				}else if(bucket[back_idx].end-bucket[back_idx].start>=bench->config->min_meet_time){
 					meeting_idx = atomicAdd(&bench->meeting_counter,1);
 					bench->meetings[meeting_idx] = bucket[back_idx];
 				}
 			}
 			if(front_idx<back_idx){
-				// copy to the front slot
 				bucket[front_idx] = bucket[back_idx];
+				active_count++;
 				back_idx--;
 			}
+		}else{
+			active_count++;
 		}
 	}
-	bench->meeting_buckets_counter[bid] = front_idx;
-	bench->meeting_buckets_counter_tmp[bid] = front_idx;
+	bench->meeting_buckets_counter[bid] = active_count;
+	bench->meeting_buckets_counter_tmp[bid] = active_count;
 }
 
 workbench *create_device_bench(workbench *bench, gpu_info *gpu){

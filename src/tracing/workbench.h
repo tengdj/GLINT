@@ -99,6 +99,10 @@ public:
 	bool check(uint gid, uint pid);
 	bool batch_check(checking_unit *cu, uint num);
 
+	void partition();
+	void lookup(uint start_id=0);
+	void reachability();
+
 	bool batch_reach(reach_unit *ru, uint num);
 	bool batch_meet(meeting_unit *mu, uint num);
 

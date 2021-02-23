@@ -124,9 +124,9 @@ inline void logt(const char *format, struct timeval &start, ...){
 
 	double mstime = get_time_elapsed(start, true);
 	if(mstime>1000){
-		fprintf(stderr," takes %f s\n", mstime/1000);
+		fprintf(stderr," takes %.4f s\n", mstime/1000);
 	}else{
-		fprintf(stderr," takes %f ms\n", mstime);
+		fprintf(stderr," takes %.4f ms\n", mstime);
 	}
 	fflush(stderr);
 

@@ -29,7 +29,7 @@ typedef struct configuration{
 	uint num_trips = 100000;
 	uint grid_capacity = 100;
 	uint zone_capacity = 100;
-	uint num_meeting_buckets = 10000;
+	uint num_meeting_buckets = 100000;
 	double reach_distance = 5;
 	double x_buffer = 0;
 	double y_buffer = 0;
