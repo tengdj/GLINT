@@ -26,6 +26,11 @@ typedef struct meeting_unit{
 	uint end;
 }meeting_unit;
 
+typedef struct reach_unit{
+	uint pid1;
+	uint pid2;
+}reach_unit;
+
 // the workbench where stores the memory space
 // used for processing
 
@@ -33,6 +38,7 @@ class workbench{
 	pthread_mutex_t insert_lk[50];
 public:
 	configuration *config = NULL;
+	uint cur_time = 0;
 
 	// the pool of maintaining objects assignment
 	// each grid buffer: |num_objects|point_id1...point_idn|
@@ -44,17 +50,29 @@ public:
 
 	// the stack for grid look up
 	uint *grid_lookup = NULL;
-	uint num_grid_lookup = 0;
 	uint grid_lookup_capacity = 0;
+	uint grid_lookup_counter = 0;
 
 	// the space for point-unit pairs
 	checking_unit *unit_lookup = NULL;
-	uint num_unit_lookup = 0;
 	uint unit_lookup_capacity = 0;
+	uint unit_lookup_counter = 0;
 
+	// the space for a reach unit in one time point
+	reach_unit *reaches = NULL;
+	uint reaches_capacity = 0;
+	uint reaches_counter = 0;
+
+	// the space for the overall meeting information maintaining now
+	meeting_unit *meeting_buckets = NULL;
+	uint meeting_bucket_capacity = 0;
+	uint *meeting_buckets_counter = NULL;
+	uint *meeting_buckets_counter_tmp = NULL;
+
+	// the space for the valid meeting information now
 	meeting_unit *meetings = NULL;
-	size_t meeting_capacity = 0;
-	uint num_meeting = 0;
+	uint meeting_capacity = 0;
+	uint meeting_counter = 0;
 
 	// the QTree schema
 	QTSchema *schema = NULL;
@@ -68,6 +86,7 @@ public:
 	// external source
 	Point *points = NULL;
 
+	workbench(workbench *bench);
 	workbench(configuration *conf);
 	~workbench(){};
 	void clear();
@@ -78,8 +97,10 @@ public:
 
 	// generate pid-gid-offset pairs for processing
 	bool check(uint gid, uint pid);
-	bool batch_check(checking_unit *cu, uint num_cu);
+	bool batch_check(checking_unit *cu, uint num);
 
+	bool batch_reach(reach_unit *ru, uint num);
+	bool batch_meet(meeting_unit *mu, uint num);
 
 	void claim_space(uint ng);
 	void reset(){
@@ -87,8 +108,8 @@ public:
 		for(int i=0;i<num_grids;i++){
 			grids[i*(config->grid_capacity+1)] = 0;
 		}
-		num_unit_lookup = 0;
-		num_meeting = 0;
+		unit_lookup_counter = 0;
+		reaches_counter = 0;
 	}
 	inline uint get_grid_size(uint gid){
 		assert(gid<num_grids);
@@ -99,11 +120,18 @@ public:
 		return grids + gid*(config->grid_capacity+1)+1;
 	}
 
+	void update_meetings();
+	void compact_meetings();
 	void analyze_meetings();
 	void analyze_grids();
 	void analyze_checkings();
 
-
+	void lock(uint key = 0){
+		pthread_mutex_lock(&insert_lk[key%50]);
+	}
+	void unlock(uint key = 0){
+		pthread_mutex_unlock(&insert_lk[key%50]);
+	}
 };
 
 

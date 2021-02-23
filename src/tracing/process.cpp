@@ -19,10 +19,9 @@ void *reachability_unit(void *arg){
 	query_context *ctx = (query_context *)arg;
 	workbench *bench = (workbench *)ctx->target[0];
 	Point *points = bench->points;
-	meeting_unit *meets_buffer = new meeting_unit[200];
-	uint meet_index = 0;
+	reach_unit *reach_buffer = new reach_unit[200];
+	uint reach_index = 0;
 
-	size_t checked = 0;
 	// pick one batch of point-grid pair for processing
 	size_t start = 0;
 	size_t end = 0;
@@ -41,33 +40,20 @@ void *reachability_unit(void *arg){
 				//pts.push_back(points + cur_pids[i]);
 				Point *p2 = points + cur_pids[i];
 				//p2->print();
-				if(p1!=p2){
-					//log("%f",dist);
-					if(p1->distance(p2, true)<=ctx->config->reach_distance){
-						meets_buffer[meet_index].pid1 = pid;
-						meets_buffer[meet_index].pid2 = cur_pids[i];
-						if(++meet_index==200){
-							lock();
-							assert(bench->num_meeting+meet_index<bench->meeting_capacity);
-							memcpy(bench->meetings+bench->num_meeting,meets_buffer,meet_index*sizeof(meeting_unit));
-							bench->num_meeting += meet_index;
-							meet_index = 0;
-							unlock();
-						}
+				if(p1!=p2 && p1->distance(p2, true)<=ctx->config->reach_distance){
+					reach_buffer[reach_index].pid1 = pid;
+					reach_buffer[reach_index].pid2 = cur_pids[i];
+					if(++reach_index==200){
+						bench->batch_reach(reach_buffer,reach_index);
+						reach_index = 0;
 					}
-					checked++;
 				}
 			}
 		}
 	}
-	if(meet_index>0){
-		lock();
-		assert(bench->num_meeting+meet_index<bench->meeting_capacity);
-		memcpy(bench->meetings+bench->num_meeting,meets_buffer,meet_index*sizeof(meeting_unit));
-		bench->num_meeting += meet_index;
-		unlock();
-	}
-	delete []meets_buffer;
+
+	bench->batch_reach(reach_buffer,reach_index);
+	delete []reach_buffer;
 	return NULL;
 }
 
@@ -75,9 +61,11 @@ void reachability(workbench *bench){
 
 	query_context tctx;
 	tctx.config = bench->config;
-	tctx.num_units = bench->num_unit_lookup;
+	tctx.num_units = bench->unit_lookup_counter;
 	tctx.target[0] = (void *)bench;
 
+	// generate a new batch of reaches
+	bench->reaches_counter = 0;
 	struct timeval start = get_cur_time();
 	pthread_t threads[tctx.config->num_threads];
 	tctx.reset();
@@ -89,6 +77,7 @@ void reachability(workbench *bench){
 		void *status;
 		pthread_join(threads[i], &status);
 	}
+	//bench->unit_lookup_counter = 0;
 	logt("compute",start);
 }
 
@@ -110,13 +99,16 @@ void tracer::process(){
 	for(int t=0;t<config->duration;t++){
 		bench->reset();
 		bench->points = trace+t*config->num_objects;
+		bench->cur_time = t;
 		// process the objects in the packed partitions
 		if(!config->gpu){
 			part->partition(bench);
 			for(uint start_pid=0;start_pid<config->num_objects;start_pid+=config->num_objects_per_round){
 				part->lookup(bench, start_pid);
 				reachability(bench);
+				bench->update_meetings();
 			}
+			bench->compact_meetings();
 		}else{
 #ifdef USE_GPU
 			process_with_gpu(bench,d_bench,gpu);

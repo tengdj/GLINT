@@ -17,17 +17,19 @@ namespace po = boost::program_options;
 typedef struct configuration{
 	// shared parameters
 	int thread_id = 0;
-	int num_threads = 1;
-	int duration = 1000;
+	uint num_threads = 1;
+	uint duration = 1000;
+	uint min_meet_time = 1;
 	uint num_objects = 1000;
 	string trace_path = "/gisdata/chicago/traces";
 
 	// for query only
-	int start_time = 0;
+	uint start_time = 0;
 	uint num_objects_per_round = 1000000;
-	int num_trips = 100000;
-	int grid_capacity = 100;
-	int zone_capacity = 100;
+	uint num_trips = 100000;
+	uint grid_capacity = 100;
+	uint zone_capacity = 100;
+	uint num_meeting_buckets = 10000;
 	double reach_distance = 5;
 	double x_buffer = 0;
 	double y_buffer = 0;
@@ -76,15 +78,19 @@ inline configuration get_parameters(int argc, char **argv){
 		("help,h", "produce help message")
 		("gpu,g", "use gpu for processing")
 		("analyze,a", "analyze the processed data")
-		("threads,n", po::value<int>(&config.num_threads), "number of threads")
-		("grid_capacity", po::value<int>(&config.grid_capacity), "maximum number of objects per grid ")
-		("zone_capacity", po::value<int>(&config.zone_capacity), "maximum number of objects per zone buffer")
+		("threads,n", po::value<uint>(&config.num_threads), "number of threads")
+		("grid_capacity", po::value<uint>(&config.grid_capacity), "maximum number of objects per grid ")
+		("zone_capacity", po::value<uint>(&config.zone_capacity), "maximum number of objects per zone buffer")
 		("grid_width", po::value<double>(&config.grid_width), "the width of each grid (in meters)")
-		("trips,t", po::value<int>(&config.num_trips), "number of trips")
+		("trips,t", po::value<uint>(&config.num_trips), "number of trips")
 		("objects,o", po::value<uint>(&config.num_objects), "number of objects")
 		("num_objects_per_round", po::value<uint>(&config.num_objects_per_round), "number of objects processed per round")
-		("duration,d", po::value<int>(&config.duration), "duration of the trace")
-		("start_time,s", po::value<int>(&config.start_time), "the start time of the duration")
+		("num_meeting_buckets", po::value<uint>(&config.num_meeting_buckets), "number of meeting buckets")
+
+		("duration,d", po::value<uint>(&config.duration), "duration of the trace")
+		("min_meet_time", po::value<uint>(&config.min_meet_time), "minimum meeting time")
+
+		("start_time,s", po::value<uint>(&config.start_time), "the start time of the duration")
 
 		("reachable_distance,r", po::value<double>(&config.reach_distance), "reachable distance (in meters)")
 		("map_path", po::value<string>(&config.map_path), "path to the map file")
@@ -107,10 +113,12 @@ inline configuration get_parameters(int argc, char **argv){
 	if(vm.count("gpu")){
 		config.gpu = true;
 	}
-	if(!vm.count("zone_capacity")){
+	if(!vm.count("zone_capacity")||!vm.count("gpu")){
 		config.zone_capacity = config.grid_capacity;
 	}
-	if(config.num_objects_per_round>config.num_objects){
+	if(!vm.count("num_objects_per_round")||
+		config.num_objects_per_round>config.num_objects||
+		config.gpu){
 		config.num_objects_per_round = config.num_objects;
 	}
 

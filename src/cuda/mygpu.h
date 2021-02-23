@@ -13,7 +13,7 @@
 #include "../util/util.h"
 using namespace std;
 
-#define MAX_DATA_SPACE 20
+#define MAX_DATA_SPACE 40
 
 class gpu_info{
 

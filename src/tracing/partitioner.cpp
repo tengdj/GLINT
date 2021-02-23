@@ -159,8 +159,8 @@ void qtree_partitioner::lookup(workbench *bench, uint start_pid){
 	// the schema has to be built
 	assert(bench);
 	struct timeval start = get_cur_time();
-	// reset the units
-	bench->num_unit_lookup = 0;
+	// reset the counter
+	bench->unit_lookup_counter = 0;
 	// partitioning current batch of objects with the existing schema
 	pthread_t threads[config->num_threads];
 	query_context qctx;
