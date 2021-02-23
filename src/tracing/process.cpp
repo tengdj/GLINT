@@ -43,19 +43,17 @@ void tracer::process(){
 				bench->update_meetings();
 			}
 			bench->compact_meetings();
-
-			if(bench->meeting_counter>0&&t==config->duration-1){
-				int luck = get_rand_number(bench->meeting_counter);
-				print_trace(bench->meetings[luck].pid1);
-				print_trace(bench->meetings[luck].pid2);
-			}
-
 		}else{
 #ifdef USE_GPU
 			process_with_gpu(bench,d_bench,gpu);
 #endif
 		}
-		logt("current round",start);
+		if(bench->meeting_counter>0&&t==config->duration-1){
+			int luck = get_rand_number(bench->meeting_counter);
+			print_trace(bench->meetings[luck].pid1);
+			print_trace(bench->meetings[luck].pid2);
+		}
+		logt("round %d",start,t);
 
 		if(config->analyze){
 			bench->analyze_meetings();
