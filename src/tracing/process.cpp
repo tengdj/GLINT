@@ -51,10 +51,10 @@ void tracer::process(){
 			print_trace(bench->meetings[luck].pid1);
 			print_trace(bench->meetings[luck].pid2);
 		}
-		logt("round %d",start,t);
-
 		if(config->analyze){
 			bench->analyze_meetings();
 		}
+		logt("round %d",start,t);
+		log("");
 	}
 }

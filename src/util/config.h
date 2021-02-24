@@ -25,7 +25,6 @@ typedef struct configuration{
 
 	// for query only
 	uint start_time = 0;
-	uint num_trips = 100000;
 	uint grid_capacity = 100;
 	uint zone_capacity = 100;
 	uint num_meeting_buckets = 100000;
@@ -51,13 +50,13 @@ inline void print_config(configuration &config){
 	printf("configuration:");
 	printf("num threads:\t%d\n",config.num_threads);
 	printf("num objects:\t%d\n",config.num_objects);
-	printf("num objects per grid:\t%d\n",config.grid_capacity);
-	printf("num objects per zone:\t%d\n",config.zone_capacity);
-	printf("num trips:\t%d\n",config.num_trips);
+	printf("grid capacity:\t%d\n",config.grid_capacity);
+	printf("zone capacity:\t%d\n",config.zone_capacity);
 	printf("start time:\t%d\n",config.start_time);
 	printf("duration:\t%d\n",config.duration);
-	printf("reach threshold:\t%f m\n",config.reach_distance);
-	printf("grid width:\t%f m\n",config.grid_width);
+	printf("reach distance:\t%.0f m\n",config.reach_distance);
+	printf("grid width:\t%.0f m\n",config.grid_width);
+	printf("num meeting buckets:\t%d\n",config.num_meeting_buckets);
 
 	printf("map path:\t%s\n",config.map_path.c_str());
 	printf("taxi path:\t%s\n",config.taxi_path.c_str());
@@ -81,12 +80,11 @@ inline configuration get_parameters(int argc, char **argv){
 		("grid_capacity", po::value<uint>(&config.grid_capacity), "maximum number of objects per grid ")
 		("zone_capacity", po::value<uint>(&config.zone_capacity), "maximum number of objects per zone buffer")
 		("grid_width", po::value<double>(&config.grid_width), "the width of each grid (in meters)")
-		("trips,t", po::value<uint>(&config.num_trips), "number of trips")
 		("objects,o", po::value<uint>(&config.num_objects), "number of objects")
-		("num_meeting_buckets", po::value<uint>(&config.num_meeting_buckets), "number of meeting buckets")
+		("num_buckets,b", po::value<uint>(&config.num_meeting_buckets), "number of meeting buckets")
 
 		("duration,d", po::value<uint>(&config.duration), "duration of the trace")
-		("min_meet_time", po::value<uint>(&config.min_meet_time), "minimum meeting time")
+		("min_meet_time,t", po::value<uint>(&config.min_meet_time), "minimum meeting time")
 
 		("start_time,s", po::value<uint>(&config.start_time), "the start time of the duration")
 

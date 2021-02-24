@@ -19,7 +19,7 @@ int main(int argc, char **argv){
 	configuration config = get_parameters(argc, argv);
 	Map *m = new Map(config.map_path);
 	trace_generator *gen = new trace_generator(&config,m);
-	gen->analyze_trips(config.taxi_path.c_str(), config.num_trips);
+	gen->analyze_trips(config.taxi_path.c_str(), 100000);
 	Point *traces = gen->generate_trace();
 	//print_points(traces, 1000);
 	tracer *t = new tracer(&config,*m->getMBR(),traces);

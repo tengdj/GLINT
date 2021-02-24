@@ -35,8 +35,10 @@ typedef struct reach_unit{
 // the workbench where stores the memory space
 // used for processing
 
+#define MAX_LOCK_NUM 100
+
 class workbench{
-	pthread_mutex_t insert_lk[50];
+	pthread_mutex_t insert_lk[MAX_LOCK_NUM];
 public:
 	configuration *config = NULL;
 	uint cur_time = 0;
@@ -107,6 +109,8 @@ public:
 		}
 		unit_lookup_counter = 0;
 		reaches_counter = 0;
+		stack_index[0] = 0;
+		stack_index[1] = 0;
 	}
 	inline uint get_grid_size(uint gid){
 		assert(gid<num_grids);
@@ -124,10 +128,10 @@ public:
 	void analyze_checkings();
 
 	void lock(uint key = 0){
-		pthread_mutex_lock(&insert_lk[key%50]);
+		pthread_mutex_lock(&insert_lk[key%MAX_LOCK_NUM]);
 	}
 	void unlock(uint key = 0){
-		pthread_mutex_unlock(&insert_lk[key%50]);
+		pthread_mutex_unlock(&insert_lk[key%MAX_LOCK_NUM]);
 	}
 };
 

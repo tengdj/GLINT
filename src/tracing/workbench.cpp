@@ -279,7 +279,7 @@ void workbench::partition(){
 		pthread_join(threads[i], &status);
 	}
 	unit_lookup_counter = config->num_objects;
-	logt("partition data %d still need lookup", start,stack_index[0]);
+	logt("partition data: %d boundary points", start,stack_index[0]);
 }
 
 /*
@@ -310,19 +310,18 @@ void lookup_rec(QTSchema *schema, Point *p, uint curnode, vector<uint> &gids, do
 void *lookup_unit(void *arg){
 	query_context *qctx = (query_context *)arg;
 	workbench *bench = (workbench *)qctx->target[0];
-	QTSchema *schema = bench->schema;
 
 	// pick one point for looking up
 	size_t start = 0;
 	size_t end = 0;
 	vector<uint> gids;
-	checking_unit *cubuffer = new checking_unit[200];
+	checking_unit *cubuffer = new checking_unit[2000];
 	uint buffer_index = 0;
 	while(qctx->next_batch(start,end)){
 		for(uint sid=start;sid<end;sid++){
 			uint pid = bench->lookup_stack[0][2*sid];
 			Point *p = bench->points+pid;
-			lookup_rec(schema, p, 0, gids, qctx->config->reach_distance);
+			lookup_rec(bench->schema, p, 0, gids, qctx->config->reach_distance);
 			for(uint gid:gids){
 				assert(gid<bench->num_grids);
 				cubuffer[buffer_index].pid = pid;
@@ -330,7 +329,7 @@ void *lookup_unit(void *arg){
 				cubuffer[buffer_index].offset = 0;
 				cubuffer[buffer_index].inside = false;
 				buffer_index++;
-				if(buffer_index==200){
+				if(buffer_index==2000){
 					bench->batch_check(cubuffer, buffer_index);
 					buffer_index = 0;
 				}
@@ -370,7 +369,7 @@ void *reachability_unit(void *arg){
 	query_context *ctx = (query_context *)arg;
 	workbench *bench = (workbench *)ctx->target[0];
 	Point *points = bench->points;
-	reach_unit *reach_buffer = new reach_unit[200];
+	reach_unit *reach_buffer = new reach_unit[2000];
 	uint reach_index = 0;
 
 	// pick one batch of point-grid pair for processing
@@ -395,7 +394,7 @@ void *reachability_unit(void *arg){
 					if(p1->distance(p2, true)<=ctx->config->reach_distance){
 						reach_buffer[reach_index].pid1 = pid;
 						reach_buffer[reach_index].pid2 = cur_pids[i];
-						if(++reach_index==200){
+						if(++reach_index==2000){
 							bench->batch_reach(reach_buffer,reach_index);
 							reach_index = 0;
 						}
@@ -430,7 +429,7 @@ void workbench::reachability(){
 		pthread_join(threads[i], &status);
 	}
 	//bench->unit_lookup_counter = 0;
-	logt("compute: %d reaches are found",start,reaches_counter);
+	logt("reachability compute: %d reaches are found",start,reaches_counter);
 }
 
 
@@ -494,7 +493,11 @@ void workbench::update_meetings(){
 		void *status;
 		pthread_join(threads[i], &status);
 	}
-	logt("update meetings",start);
+	int mc = 0;
+	for(int i=0;i<config->num_meeting_buckets;i++){
+		mc += meeting_buckets_counter[i];
+	}
+	logt("update meeting: %d meetings active",start,mc);
 }
 
 
@@ -572,7 +575,7 @@ void workbench::compact_meetings(){
 		void *status;
 		pthread_join(threads[i], &status);
 	}
-	logt("%d meetings compacted",start,this->meeting_counter);
+	logt("compact meeting: %d meetings recorded",start,meeting_counter);
 
 }
 
