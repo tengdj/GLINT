@@ -45,6 +45,7 @@ typedef struct QTSchema{
 	short isleaf = 0;
 	double mid_x;
 	double mid_y;
+	box mbr;
 	uint children[4];
 }QTSchema;
 
@@ -322,6 +323,7 @@ public:
 		schema[curoff].level = level;
 		schema[curoff].node_id = node_id;
 		schema[curoff].isleaf = isleaf();
+		schema[curoff].mbr = mbr;
 		if(!isleaf()){
 			for(int i=0;i<4;i++){
 				schema[curoff].children[i] = offset;

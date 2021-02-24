@@ -25,7 +25,6 @@ typedef struct configuration{
 
 	// for query only
 	uint start_time = 0;
-	uint num_objects_per_round = 1000000;
 	uint num_trips = 100000;
 	uint grid_capacity = 100;
 	uint zone_capacity = 100;
@@ -84,7 +83,6 @@ inline configuration get_parameters(int argc, char **argv){
 		("grid_width", po::value<double>(&config.grid_width), "the width of each grid (in meters)")
 		("trips,t", po::value<uint>(&config.num_trips), "number of trips")
 		("objects,o", po::value<uint>(&config.num_objects), "number of objects")
-		("num_objects_per_round", po::value<uint>(&config.num_objects_per_round), "number of objects processed per round")
 		("num_meeting_buckets", po::value<uint>(&config.num_meeting_buckets), "number of meeting buckets")
 
 		("duration,d", po::value<uint>(&config.duration), "duration of the trace")
@@ -116,12 +114,6 @@ inline configuration get_parameters(int argc, char **argv){
 	if(!vm.count("zone_capacity")||!vm.count("gpu")){
 		config.zone_capacity = config.grid_capacity;
 	}
-	if(!vm.count("num_objects_per_round")||
-		config.num_objects_per_round>config.num_objects||
-		config.gpu){
-		config.num_objects_per_round = config.num_objects;
-	}
-
 	config.grid_width = max(config.grid_width, config.reach_distance);
 
 	assert(config.walk_rate+config.drive_rate<=1);

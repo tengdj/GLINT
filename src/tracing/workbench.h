@@ -17,6 +17,7 @@ typedef struct checking_unit{
 	uint pid;
 	uint gid;
 	uint offset;
+	bool inside;
 }checking_unit;
 
 typedef struct meeting_unit{
@@ -44,14 +45,6 @@ public:
 	// each grid buffer: |num_objects|point_id1...point_idn|
 	uint *grids = NULL;
 	uint num_grids = 0;
-
-	// the space for
-	uint *grid_assignment = NULL;
-
-	// the stack for grid look up
-	uint *grid_lookup = NULL;
-	uint grid_lookup_capacity = 0;
-	uint grid_lookup_counter = 0;
 
 	// the space for point-unit pairs
 	checking_unit *unit_lookup = NULL;
@@ -93,14 +86,14 @@ public:
 
 	// insert point pid to grid gid
 	bool insert(uint gid, uint pid);
-	bool batch_insert(uint gid, uint num_objects, uint *pids);
+	//bool batch_insert(uint gid, uint num_objects, uint *pids);
 
 	// generate pid-gid-offset pairs for processing
 	bool check(uint gid, uint pid);
 	bool batch_check(checking_unit *cu, uint num);
 
 	void partition();
-	void lookup(uint start_id=0);
+	void lookup();
 	void reachability();
 
 	bool batch_reach(reach_unit *ru, uint num);

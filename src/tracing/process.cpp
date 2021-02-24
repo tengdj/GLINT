@@ -37,11 +37,9 @@ void tracer::process(){
 		// process the coordinate in this time points
 		if(!config->gpu){
 			bench->partition();
-			for(uint start_pid=0;start_pid<config->num_objects;start_pid+=config->num_objects_per_round){
-				bench->lookup(start_pid);
-				bench->reachability();
-				bench->update_meetings();
-			}
+			bench->lookup();
+			bench->reachability();
+			bench->update_meetings();
 			bench->compact_meetings();
 		}else{
 #ifdef USE_GPU
