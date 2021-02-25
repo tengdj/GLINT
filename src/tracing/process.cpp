@@ -52,7 +52,8 @@ void tracer::process(){
 			print_trace(bench->meetings[luck].pid2);
 		}
 		if(config->analyze){
-			bench->analyze_meetings();
+			bench->analyze_grids();
+			//bench->analyze_meetings();
 		}
 		logt("round %d",start,t);
 		log("");

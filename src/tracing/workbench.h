@@ -114,7 +114,7 @@ public:
 	}
 	inline uint get_grid_size(uint gid){
 		assert(gid<num_grids);
-		return grids[gid*(config->grid_capacity+1)];
+		return min(grids[gid*(config->grid_capacity+1)],config->grid_capacity);
 	}
 	inline uint *get_grid(uint gid){
 		assert(gid<num_grids);
@@ -123,6 +123,8 @@ public:
 
 	void update_meetings();
 	void compact_meetings();
+
+
 	void analyze_meetings();
 	void analyze_grids();
 	void analyze_checkings();

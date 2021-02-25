@@ -134,12 +134,10 @@ bool workbench::insert(uint curnode, uint pid){
 	uint gid = schema[curnode].node_id;
 	lock(gid);
 	uint cur_size = grids[(config->grid_capacity+1)*gid];
-	if(cur_size>=config->grid_capacity){
-		unlock(gid);
-		return false;
-	}
 	grids[(config->grid_capacity+1)*gid]++;
-	grids[(config->grid_capacity+1)*gid+1+cur_size] = pid;
+	if(cur_size<config->grid_capacity){
+		grids[(config->grid_capacity+1)*gid+1+cur_size] = pid;
+	}
 	unlock(gid);
 	// first batch of lookup pairs, start from offset 0
 	unit_lookup[pid].pid = pid;
@@ -251,8 +249,6 @@ void *partition_unit(void *arg){
 			}
 			// pid belongs to such node
 			bench->insert(curnode, pid);
-
-
 		}
 	}
 	return NULL;
@@ -582,6 +578,19 @@ void workbench::compact_meetings(){
 
 
 void workbench::analyze_grids(){
+
+	uint overflow = 0;
+	uint max_one = 0;
+	for(int gid=0;gid<num_grids;gid++){
+		uint gsize = grids[gid*(config->grid_capacity+1)];
+		if(gsize>config->grid_capacity*1.5){
+			overflow++;
+		}
+		if(max_one<gsize){
+			max_one = gsize;
+		}
+	}
+	log("%d/%d overflow %d max",overflow,num_grids,max_one);
 
 }
 
