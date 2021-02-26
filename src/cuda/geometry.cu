@@ -443,9 +443,9 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	// todo for test only, should not copy out so much stuff
 	if(bench->config->analyze){
 		CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench.grids,
-				bench->grids_counter*bench->config->grid_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
+				bench->grids_stack_capacity*bench->config->grid_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
 		CUDA_SAFE_CALL(cudaMemcpy(bench->grid_counter, h_bench.grid_counter,
-				bench->grids_counter*sizeof(uint), cudaMemcpyDeviceToHost));
+				bench->grids_stack_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
 		CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets, h_bench.meeting_buckets,
 				bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
 		CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets_counter, h_bench.meeting_buckets_counter,
