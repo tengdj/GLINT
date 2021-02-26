@@ -96,8 +96,6 @@ void cuda_partition(workbench *bench){
 	uint cur_loc = atomicAdd(bench->grid_counter+gid,1);
 	if(cur_loc<bench->config->grid_capacity){
 		*(cur_grid+cur_loc) = pid;
-	}else{
-		atomicSub(bench->grid_counter+gid,1);
 	}
 	uint glid = atomicAdd(&bench->grid_check_counter,1);
 	bench->grid_check[glid].pid = pid;
@@ -122,7 +120,7 @@ void cuda_pack_lookup_units(workbench *bench, uint inistial_size){
 		return;
 	}
 
-	uint grid_size = bench->grid_counter[bench->grid_check[glid].gid];
+	uint grid_size = min(bench->grid_counter[bench->grid_check[glid].gid],bench->config->grid_capacity);
 	// the first batch already inserted during the partition and lookup steps
 	uint offset = bench->config->zone_capacity;
 	while(offset<grid_size){
@@ -227,7 +225,7 @@ void cuda_reachability(workbench *bench){
 
 	uint gid = bench->grid_check[pairid].gid;
 	uint offset = bench->grid_check[pairid].offset;
-	uint size = bench->grid_counter[gid]-offset;
+	uint size = min(bench->grid_counter[gid],bench->config->grid_capacity)-offset;
 	if(size>bench->config->zone_capacity){
 		size = bench->config->zone_capacity;
 	}
