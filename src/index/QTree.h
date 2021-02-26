@@ -48,7 +48,7 @@ typedef struct QTSchema{
 	box mbr;
 	uint children[4];
 	int which(Point *p){
-		return p->y>mid_y*2+p->x>mid_x;
+		return (p->y>mid_y)*2+(p->x>mid_x);
 	}
 }QTSchema;
 

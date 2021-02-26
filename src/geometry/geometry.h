@@ -187,7 +187,6 @@ public:
 		printf("POLYGON((");
 		print_vertices();
 		printf("))\n");
-
 	}
 
 	void to_squre(bool geography=false){

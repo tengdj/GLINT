@@ -97,7 +97,7 @@ public:
 
 	// insert point pid to grid gid
 	bool insert(uint gid, uint pid);
-	//bool batch_insert(uint gid, uint num_objects, uint *pids);
+	bool batch_insert(uint gid, uint num_objects, uint *pids);
 
 	// generate pid-gid-offset pairs for processing
 	bool check(uint gid, uint pid);

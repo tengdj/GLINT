@@ -85,7 +85,7 @@ void workbench::analyze_meetings(){
 	lookup_rec(schema, p1, 0, nodes, config->reach_distance, true);
 
 	for(uint n:nodes){
-		schema[n].mbr.print();
+		//schema[n].mbr.print();
 		uint gid = schema[n].node_id;
 		uint *cur_pid = get_grid(gid);
 		for(uint i=0;i<get_grid_size(gid);i++){

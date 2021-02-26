@@ -232,14 +232,13 @@ void cuda_lookup(workbench *bench, uint stack_id, uint stack_size){
 	uint curnode = bench->lookup_stack[stack_id][sid*2+1];
 	Point *p = bench->points+pid;
 
-	uint child_loc = p->y>bench->schema[curnode].mid_y*2+p->x>bench->schema[curnode].mid_x*2;
-
-	for(int i=child_loc;i<4;i++){
+	for(int i=0;i<4;i++){
 		uint child_offset = bench->schema[curnode].children[i];
 		double dist = distance(&bench->schema[child_offset].mbr, p);
 		if(dist<=bench->config->reach_distance){
 			if(bench->schema[child_offset].isleaf){
-				if(i>child_loc){
+				if(p->y<schema[child_offset].mbr.low[1]||
+				   p->x<schema[child_offset].mbr.low[0]){
 					uint gid = bench->schema[child_offset].node_id;
 					assert(gid<bench->grids_counter);
 					uint gl = atomicAdd(&bench->grid_check_counter,1);
