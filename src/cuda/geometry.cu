@@ -237,8 +237,8 @@ void cuda_lookup(workbench *bench, uint stack_id, uint stack_size){
 		double dist = distance(&bench->schema[child_offset].mbr, p);
 		if(dist<=bench->config->reach_distance){
 			if(bench->schema[child_offset].isleaf){
-				if(p->y<schema[child_offset].mbr.low[1]||
-				   p->x<schema[child_offset].mbr.low[0]){
+				if(p->y<bench->schema[child_offset].mbr.low[1]||
+				   p->x<bench->schema[child_offset].mbr.low[0]){
 					uint gid = bench->schema[child_offset].node_id;
 					assert(gid<bench->grids_counter);
 					uint gl = atomicAdd(&bench->grid_check_counter,1);
