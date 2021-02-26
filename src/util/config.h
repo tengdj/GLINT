@@ -47,7 +47,7 @@ typedef struct configuration{
 }configuration;
 
 inline void print_config(configuration &config){
-	printf("configuration:");
+	printf("configuration:\n");
 	printf("num threads:\t%d\n",config.num_threads);
 	printf("num objects:\t%d\n",config.num_objects);
 	printf("grid capacity:\t%d\n",config.grid_capacity);
@@ -56,7 +56,7 @@ inline void print_config(configuration &config){
 	printf("duration:\t%d\n",config.duration);
 	printf("reach distance:\t%.0f m\n",config.reach_distance);
 	printf("grid width:\t%.0f m\n",config.grid_width);
-	printf("num meeting buckets:\t%d\n",config.num_meeting_buckets);
+	printf("num buckets:\t%d\n",config.num_meeting_buckets);
 
 	printf("map path:\t%s\n",config.map_path.c_str());
 	printf("taxi path:\t%s\n",config.taxi_path.c_str());

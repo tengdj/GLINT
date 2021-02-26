@@ -75,7 +75,7 @@ void *gpu_info::allocate(size_t ss){
 	assert(d_data[tid]);
 	data_size[tid] = ss;
 
-	return this->d_data[tid];
+	return d_data[tid];
 }
 
 void gpu_info::clear(){

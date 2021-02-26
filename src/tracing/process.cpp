@@ -23,6 +23,7 @@ void process_with_gpu(workbench *bench,workbench *d_bench, gpu_info *gpu);
 void tracer::process(){
 
 	bench = part->build_schema(trace, config->num_objects);
+
 #ifdef USE_GPU
 	if(config->gpu){
 		d_bench = create_device_bench(bench, gpu);
@@ -53,7 +54,7 @@ void tracer::process(){
 		}
 		if(config->analyze){
 			bench->analyze_grids();
-			//bench->analyze_meetings();
+			bench->analyze_meetings();
 		}
 		logt("round %d",start,t);
 		log("");

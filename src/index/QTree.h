@@ -47,6 +47,9 @@ typedef struct QTSchema{
 	double mid_y;
 	box mbr;
 	uint children[4];
+	int which(Point *p){
+		return p->y>mid_y*2+p->x>mid_x;
+	}
 }QTSchema;
 
 
@@ -309,21 +312,21 @@ public:
 		return points+objects[pid];
 	}
 
-	QTSchema * create_schema(){
-		uint offset = 0;
-		QTSchema *schema = new QTSchema[this->node_count()];
-		create_schema(schema, offset);
-		return schema;
+	QTSchema to_schema(){
+		QTSchema s;
+		s.mid_x = mid_x;
+		s.mid_y = mid_y;
+		s.level = level;
+		s.node_id = node_id;
+		s.isleaf = isleaf();
+		s.mbr = mbr;
+		return s;
 	}
+
 	void create_schema(QTSchema *schema, uint &offset){
 		uint curoff = offset++;
 		// copy schema data
-		schema[curoff].mid_x = mid_x;
-		schema[curoff].mid_y = mid_y;
-		schema[curoff].level = level;
-		schema[curoff].node_id = node_id;
-		schema[curoff].isleaf = isleaf();
-		schema[curoff].mbr = mbr;
+		schema[curoff] = to_schema();
 		if(!isleaf()){
 			for(int i=0;i<4;i++){
 				schema[curoff].children[i] = offset;

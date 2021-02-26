@@ -40,18 +40,21 @@ typedef struct reach_unit{
 class workbench{
 	pthread_mutex_t insert_lk[MAX_LOCK_NUM];
 public:
+	uint test_counter = 0;
 	configuration *config = NULL;
 	uint cur_time = 0;
 
 	// the pool of maintaining objects assignment
 	// each grid buffer: |num_objects|point_id1...point_idn|
 	uint *grids = NULL;
-	uint num_grids = 0;
+	uint grids_capacity = 0;
+	uint grids_counter = 0;
+	uint *grid_counter = NULL;
 
 	// the space for point-unit pairs
-	checking_unit *unit_lookup = NULL;
-	uint unit_lookup_capacity = 0;
-	uint unit_lookup_counter = 0;
+	checking_unit *grid_check = NULL;
+	uint grid_check_capacity = 0;
+	uint grid_check_counter = 0;
 
 	// the space for a reach unit in one time point
 	reach_unit *reaches = NULL;
@@ -71,7 +74,13 @@ public:
 
 	// the QTree schema
 	QTSchema *schema = NULL;
-	uint num_nodes = 0;
+	uint schema_capacity = 0;
+	uint schema_counter = 0;
+
+	// todo make the schema can be update dynamically
+//	uint *schema_stack = NULL;
+//	uint schema_stack_capacity = 0;
+//	uint schema_stack_index = 0;
 
 	// the processing stack for looking up
 	uint *lookup_stack[2] = {NULL, NULL};
@@ -101,33 +110,34 @@ public:
 	bool batch_reach(reach_unit *ru, uint num);
 	bool batch_meet(meeting_unit *mu, uint num);
 
-	void claim_space(uint ng);
+	void claim_space();
 	void reset(){
 		// reset the number of objects in each grid
-		for(int i=0;i<num_grids;i++){
-			grids[i*(config->grid_capacity+1)] = 0;
+		for(int i=0;i<grids_counter;i++){
+			grid_counter[i] = 0;
 		}
-		unit_lookup_counter = 0;
+		grid_check_counter = 0;
 		reaches_counter = 0;
 		stack_index[0] = 0;
 		stack_index[1] = 0;
 	}
 	inline uint get_grid_size(uint gid){
-		assert(gid<num_grids);
-		return min(grids[gid*(config->grid_capacity+1)],config->grid_capacity);
+		assert(gid<grids_counter);
+		return min(grid_counter[gid],config->grid_capacity);
 	}
 	inline uint *get_grid(uint gid){
-		assert(gid<num_grids);
-		return grids + gid*(config->grid_capacity+1)+1;
+		assert(gid<grids_counter);
+		return grids + gid*config->grid_capacity;
 	}
 
 	void update_meetings();
 	void compact_meetings();
 
-
-	void analyze_meetings();
 	void analyze_grids();
 	void analyze_checkings();
+	void analyze_meetings();
+	void analyze_meeting_buckets();
+
 
 	void lock(uint key = 0){
 		pthread_mutex_lock(&insert_lk[key%MAX_LOCK_NUM]);
@@ -136,6 +146,6 @@ public:
 		pthread_mutex_unlock(&insert_lk[key%MAX_LOCK_NUM]);
 	}
 };
-
+extern void lookup_rec(QTSchema *schema, Point *p, uint curnode, vector<uint> &gids, double max_dist, bool include_owner = false);
 
 #endif /* SRC_TRACING_WORKBENCH_H_ */

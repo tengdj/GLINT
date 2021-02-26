@@ -22,13 +22,13 @@
 //		if((need_check>>i)&1){
 //			if((bench->schema[curnode].children[i]&1)){
 //				uint gid = bench->schema[curnode].children[i]>>1;
-//				assert(gid<bench->num_grids);
+//				assert(gid<bench->grids_counter);
 //				uint offset = 0;
 //				while(offset<bench->grids[gid*(bench->config->grid_capacity+1)]){
-//					uint cu_index = atomicAdd(&bench->unit_lookup_counter, 1);
-//					bench->unit_lookup[cu_index].pid = pid;
-//					bench->unit_lookup[cu_index].gid = gid;
-//					bench->unit_lookup[cu_index].offset = offset;
+//					uint cu_index = atomicAdd(&bench->grid_check_counter, 1);
+//					bench->grid_check[cu_index].pid = pid;
+//					bench->grid_check[cu_index].gid = gid;
+//					bench->grid_check[cu_index].offset = offset;
 //					//printf("%d\t%d\t%d\n",pid,gid,offset);
 //					offset += bench->config->zone_capacity;
 //				}
@@ -53,7 +53,7 @@
 
 ////  partition with cuda
 //__global__
-//void partition_cuda(workbench *bench){
+//void cuda_partition(workbench *bench){
 //	int pid = blockIdx.x*blockDim.x+threadIdx.x;
 //	if(pid>=bench->config->num_objects){
 //		return;
@@ -76,10 +76,10 @@
 //		curnode = child_offset;
 //	}
 //	uint *cur_grid = bench->grids+(bench->config->grid_capacity+1)*gid;
-//	uint glid = atomicAdd(&bench->unit_lookup_counter,1);
-//	bench->unit_lookup[glid].pid = pid;
-//	bench->unit_lookup[glid].gid = gid;
-//	bench->unit_lookup[glid].offset = 0;
+//	uint glid = atomicAdd(&bench->grid_check_counter,1);
+//	bench->grid_check[glid].pid = pid;
+//	bench->grid_check[glid].gid = gid;
+//	bench->grid_check[glid].offset = 0;
 //	// need also check the upper and right nodes
 //	if(p->x+bench->config->x_buffer>bench->schema[curnode].mbr.high[0]||
 //	   p->y+bench->config->y_buffer>bench->schema[curnode].mbr.high[1]){
@@ -99,24 +99,24 @@
 //}
 
 __global__
-void cleargrids_cuda(workbench *bench){
+void cuda_cleargrids(workbench *bench){
 	int gid = blockIdx.x*blockDim.x+threadIdx.x;
-	if(gid>=bench->num_grids){
+	if(gid>=bench->grids_counter){
 		return;
 	}
-	*(bench->grids+(bench->config->grid_capacity+1)*gid) = 0;
+	bench->grid_counter[gid] = 0;
 }
 
 __global__
-void reset_bench_cuda(workbench *bench){
-	bench->unit_lookup_counter = 0;
+void cuda_reset_bench(workbench *bench){
+	bench->grid_check_counter = 0;
 	bench->reaches_counter = 0;
 }
 
 
 //  partition with cuda
 __global__
-void partition_cuda(workbench *bench){
+void cuda_partition(workbench *bench){
 	int pid = blockIdx.x*blockDim.x+threadIdx.x;
 	if(pid>=bench->config->num_objects){
 		return;
@@ -140,18 +140,18 @@ void partition_cuda(workbench *bench){
 
 	// insert current pid to proper memory space of the target gid
 	// todo: consider the situation that grid buffer is too small
-	uint *cur_grid = bench->grids+(bench->config->grid_capacity+1)*gid;
-	uint cur_loc = atomicAdd(cur_grid,1);
+	uint *cur_grid = bench->grids+bench->config->grid_capacity*gid;
+	uint cur_loc = atomicAdd(bench->grid_counter+gid,1);
 	if(cur_loc<bench->config->grid_capacity){
-		*(cur_grid+1+cur_loc) = pid;
+		*(cur_grid+cur_loc) = pid;
 	}else{
-		atomicSub(cur_grid,1);
+		atomicSub(bench->grid_counter+gid,1);
 	}
-	uint glid = atomicAdd(&bench->unit_lookup_counter,1);
-	bench->unit_lookup[glid].pid = pid;
-	bench->unit_lookup[glid].gid = gid;
-	bench->unit_lookup[glid].offset = 0;
-	bench->unit_lookup[glid].inside = true;
+	uint glid = atomicAdd(&bench->grid_check_counter,1);
+	bench->grid_check[glid].pid = pid;
+	bench->grid_check[glid].gid = gid;
+	bench->grid_check[glid].offset = 0;
+	bench->grid_check[glid].inside = true;
 
 	// need also check the upper and right nodes
 	if(p->x+bench->config->x_buffer>bench->schema[curnode].mbr.high[0]||
@@ -164,21 +164,20 @@ void partition_cuda(workbench *bench){
 }
 
 __global__
-void pack_lookup_units_cuda(workbench *bench, uint inistial_size){
+void cuda_pack_lookup_units(workbench *bench, uint inistial_size){
 	int glid = blockIdx.x*blockDim.x+threadIdx.x;
 	if(glid>=inistial_size){
 		return;
 	}
 
-	uint grid_size = bench->grids[bench->unit_lookup[glid].gid
-	                              *(bench->config->grid_capacity+1)];
+	uint grid_size = bench->grid_counter[bench->grid_check[glid].gid];
 	// the first batch already inserted during the partition and lookup steps
 	uint offset = bench->config->zone_capacity;
 	while(offset<grid_size){
-		uint cu_index = atomicAdd(&bench->unit_lookup_counter, 1);
-		assert(cu_index<bench->unit_lookup_capacity);
-		bench->unit_lookup[cu_index] = bench->unit_lookup[glid];
-		bench->unit_lookup[cu_index].offset = offset;
+		uint cu_index = atomicAdd(&bench->grid_check_counter, 1);
+		assert(cu_index<bench->grid_check_capacity);
+		bench->grid_check[cu_index] = bench->grid_check[glid];
+		bench->grid_check[cu_index].offset = offset;
 		offset += bench->config->zone_capacity;
 	}
 }
@@ -222,7 +221,7 @@ inline void print_point(Point *p){
 }
 
 __global__
-void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
+void cuda_lookup(workbench *bench, uint stack_id, uint stack_size){
 
 	int sid = blockIdx.x*blockDim.x+threadIdx.x;
 	if(sid>=stack_size){
@@ -233,19 +232,21 @@ void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
 	uint curnode = bench->lookup_stack[stack_id][sid*2+1];
 	Point *p = bench->points+pid;
 
-	for(int i=0;i<4;i++){
+	uint child_loc = p->y>bench->schema[curnode].mid_y*2+p->x>bench->schema[curnode].mid_x*2;
+
+	for(int i=child_loc;i<4;i++){
 		uint child_offset = bench->schema[curnode].children[i];
 		double dist = distance(&bench->schema[child_offset].mbr, p);
 		if(dist<=bench->config->reach_distance){
 			if(bench->schema[child_offset].isleaf){
-				if(dist>0){
+				if(i>child_loc){
 					uint gid = bench->schema[child_offset].node_id;
-					assert(gid<bench->num_grids);
-					uint gl = atomicAdd(&bench->unit_lookup_counter,1);
-					bench->unit_lookup[gl].pid = pid;
-					bench->unit_lookup[gl].gid = gid;
-					bench->unit_lookup[gl].offset = 0;
-					bench->unit_lookup[gl].inside = false;
+					assert(gid<bench->grids_counter);
+					uint gl = atomicAdd(&bench->grid_check_counter,1);
+					bench->grid_check[gl].pid = pid;
+					bench->grid_check[gl].gid = gid;
+					bench->grid_check[gl].offset = 0;
+					bench->grid_check[gl].inside = false;
 				}
 			}else{
 				uint idx = atomicAdd(&bench->stack_index[!stack_id],1);
@@ -264,44 +265,44 @@ void lookup_cuda(workbench *bench, uint stack_id, uint stack_size){
 
 
 __global__
-void reachability_cuda(workbench *bench){
+void cuda_reachability(workbench *bench){
 
 	// the objects in which grid need be processed
+	int loc = threadIdx.y;
 	int pairid = blockIdx.x*blockDim.x+threadIdx.x;
-	if(pairid>=bench->unit_lookup_counter){
+	if(pairid>=bench->grid_check_counter){
 		return;
 	}
 
-	double max_dist = bench->config->reach_distance;
-	uint pid = bench->unit_lookup[pairid].pid;
-	uint gid = bench->unit_lookup[pairid].gid;
-	uint offset = bench->unit_lookup[pairid].offset;
-	uint size = *(bench->grids+(bench->config->grid_capacity+1)*gid)-offset;
-
+	uint gid = bench->grid_check[pairid].gid;
+	uint offset = bench->grid_check[pairid].offset;
+	uint size = bench->grid_counter[gid]-offset;
 	if(size>bench->config->zone_capacity){
 		size = bench->config->zone_capacity;
 	}
-	//printf("%d\t%d\t%d\t%d\n",pid,gid,offset,size);
+	if(loc>=size){
+		return;
+	}
 
-	const uint *cur_pids = bench->grids+(bench->config->grid_capacity+1)*gid+1+offset;
-	for(uint i=0;i<size;i++){
-		if(pid<cur_pids[i]||!bench->unit_lookup[pairid].inside){
-			double dist = distance(bench->points[pid].x, bench->points[pid].y, bench->points[cur_pids[i]].x, bench->points[cur_pids[i]].y);
-			if(dist<=max_dist){
-				uint loc = atomicAdd(&bench->reaches_counter, 1);
-				assert(loc<bench->reaches_capacity);
-				bench->reaches[loc].pid1 = min(pid,cur_pids[i]);
-				bench->reaches[loc].pid2 = max(cur_pids[i],pid);
-			}
+	uint pid = bench->grid_check[pairid].pid;
+	uint target_pid = *(bench->grids+bench->config->grid_capacity*gid+offset+loc);
+	if(!bench->grid_check[pairid].inside||pid<target_pid){
+		double dist = distance(bench->points[pid].x, bench->points[pid].y, bench->points[target_pid].x, bench->points[target_pid].y);
+		if(dist<=bench->config->reach_distance){
+			uint loc = atomicAdd(&bench->reaches_counter, 1);
+			assert(loc<bench->reaches_capacity);
+			bench->reaches[loc].pid1 = min(pid,target_pid);
+			bench->reaches[loc].pid2 = max(target_pid,pid);
 		}
 	}
+
 }
 
 /*
  * in this phase, only update or append
  * */
 __global__
-void update_meetings_cuda(workbench *bench){
+void cuda_update_meetings(workbench *bench){
 
 	int rid = blockIdx.x*blockDim.x+threadIdx.x;
 	if(rid>=bench->reaches_counter){
@@ -334,7 +335,7 @@ void update_meetings_cuda(workbench *bench){
 }
 
 __global__
-void compact_meetings_cuda(workbench *bench){
+void cuda_compact_meetings(workbench *bench){
 	int bid = blockIdx.x*blockDim.x+threadIdx.x;
 	if(bid>=bench->config->num_meeting_buckets){
 		return;
@@ -383,12 +384,14 @@ workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	h_bench.points = (Point *)gpu->allocate(bench->config->num_objects*sizeof(Point));
 
 	// space for the pids of all the grids
-	h_bench.grids = (uint *)gpu->allocate(bench->num_grids*(bench->config->grid_capacity+1)*sizeof(uint));
+	h_bench.grids = (uint *)gpu->allocate(bench->grids_capacity*bench->config->grid_capacity*sizeof(uint));
+	h_bench.grid_counter = (uint *)gpu->allocate(bench->grids_capacity*sizeof(uint));
+
 
 	// space for the pid-zid pairs
-	h_bench.unit_lookup = (checking_unit *)gpu->allocate(bench->unit_lookup_capacity*sizeof(checking_unit));
+	h_bench.grid_check = (checking_unit *)gpu->allocate(bench->grid_check_capacity*sizeof(checking_unit));
 	// space for the QTtree schema
-	h_bench.schema = (QTSchema *)gpu->allocate(bench->num_nodes*sizeof(QTSchema));
+	h_bench.schema = (QTSchema *)gpu->allocate(bench->schema_capacity*sizeof(QTSchema));
 	// space for processing stack
 	h_bench.lookup_stack[0] = (uint *)gpu->allocate(bench->stack_capacity*2*sizeof(uint));
 	h_bench.lookup_stack[1] = (uint *)gpu->allocate(bench->stack_capacity*2*sizeof(uint));
@@ -405,11 +408,11 @@ workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	workbench *d_bench = (workbench *)gpu->allocate(sizeof(workbench));
 
 	// the configuration and schema are fixed
-	CUDA_SAFE_CALL(cudaMemcpy(h_bench.schema, bench->schema, bench->num_nodes*sizeof(QTSchema), cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(h_bench.schema, bench->schema, bench->schema_capacity*sizeof(QTSchema), cudaMemcpyHostToDevice));
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench.config, bench->config, sizeof(configuration), cudaMemcpyHostToDevice));
 	CUDA_SAFE_CALL(cudaMemcpy(d_bench, &h_bench, sizeof(workbench), cudaMemcpyHostToDevice));
 
-	logt("allocating space %d MB", start,gpu->size_allocated()/1024/1024);
+	logt("GPU allocating space %ld MB", start,gpu->size_allocated()/1024/1024);
 
 	return d_bench;
 }
@@ -437,7 +440,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench.points, bench->points, bench->config->num_objects*sizeof(Point), cudaMemcpyHostToDevice));
 	logt("copying data", start);
 
-	partition_cuda<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
+	cuda_partition<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
@@ -445,34 +448,39 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 
 	uint stack_id = 0;
 	while(h_bench.stack_index[stack_id]>0){
-		lookup_cuda<<<h_bench.stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id,h_bench.stack_index[stack_id]);
+		cuda_lookup<<<h_bench.stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id,h_bench.stack_index[stack_id]);
 		check_execution();
 		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 		stack_id = !stack_id;
 	}
-	logt("%d pid-grid pairs need be checked", start,h_bench.unit_lookup_counter);
+	logt("%d pid-grid pairs need be checked", start,h_bench.grid_check_counter);
 
-	pack_lookup_units_cuda<<<h_bench.unit_lookup_counter/1024+1,1024>>>(d_bench,h_bench.unit_lookup_counter);
+	cuda_pack_lookup_units<<<h_bench.grid_check_counter/1024+1,1024>>>(d_bench,h_bench.grid_check_counter);
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-	logt("%d pid-grid-offset tuples need be checked", start,h_bench.unit_lookup_counter);
+	logt("%d pid-grid-offset tuples need be checked", start,h_bench.grid_check_counter);
+
 
 	// compute the reachability of objects in each partitions
-	reachability_cuda<<<h_bench.unit_lookup_counter/1024+1,1024>>>(d_bench);
+	uint thread_y = bench->config->zone_capacity;
+	uint thread_x = 1024/thread_y;
+	dim3 block(thread_x, thread_y);
+
+	cuda_reachability<<<h_bench.grid_check_counter/thread_x+1,block>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-	logt("%d reaches are found", start,h_bench.reaches_counter);
+	logt("%d reaches are found %d", start,h_bench.reaches_counter,h_bench.test_counter);
 
-	update_meetings_cuda<<<h_bench.reaches_counter/1024+1,1024>>>(d_bench);
+	cuda_update_meetings<<<h_bench.reaches_counter/1024+1,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	logt("meeting buckets are updated", start);
 
-	compact_meetings_cuda<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
+	cuda_compact_meetings<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
@@ -481,7 +489,9 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	// todo for test only, should not copy out so much stuff
 	if(bench->config->analyze){
 		CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench.grids,
-				bench->num_grids*(bench->config->grid_capacity+1)*sizeof(uint), cudaMemcpyDeviceToHost));
+				bench->grids_counter*bench->config->grid_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
+		CUDA_SAFE_CALL(cudaMemcpy(bench->grid_counter, h_bench.grid_counter,
+				bench->grids_counter*sizeof(uint), cudaMemcpyDeviceToHost));
 		CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets, h_bench.meeting_buckets,
 				bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
 		CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets_counter, h_bench.meeting_buckets_counter,
@@ -494,8 +504,8 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	}
 	logt("copy out", start);
 	// clean the device bench for next round of checking
-	cleargrids_cuda<<<bench->num_grids/1024+1,1024>>>(d_bench);
+	cuda_cleargrids<<<bench->grids_counter/1024+1,1024>>>(d_bench);
 	//clear_meeting_buckets_cuda<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
-	reset_bench_cuda<<<1,1>>>(d_bench);
+	cuda_reset_bench<<<1,1>>>(d_bench);
 	logt("clean", start);
 }

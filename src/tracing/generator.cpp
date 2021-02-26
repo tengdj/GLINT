@@ -225,7 +225,7 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 	return ret;
 }
 
-void *gentrace(void *arg){
+void *gentrace_unit(void *arg){
 	query_context *ctx = (query_context *)arg;
 	trace_generator *gen = (trace_generator *)ctx->target[0];
 	Point *result = (Point *)ctx->target[1];
@@ -263,9 +263,8 @@ Point *trace_generator::generate_trace(){
 	tctx.target[1] = (void *)ret;
 	tctx.num_units = config->num_objects;
 	tctx.report_gap = 1;
-	tctx.batch_size = 100;
 	for(int i=0;i<config->num_threads;i++){
-		pthread_create(&threads[i], NULL, gentrace, (void *)&tctx);
+		pthread_create(&threads[i], NULL, gentrace_unit, (void *)&tctx);
 	}
 	for(int i = 0; i < config->num_threads; i++ ){
 		void *status;

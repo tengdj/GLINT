@@ -28,7 +28,7 @@ public:
 	configuration *config = NULL;
 	size_t counter = 0;
 	size_t num_units = 0;
-	size_t batch_size = 10;
+	size_t num_batchs = 1000;
 	size_t report_gap = 100;
 	pthread_mutex_t lk[MAX_LOCK_NUM];
 
@@ -54,7 +54,7 @@ public:
 	bool next_batch(size_t &start, size_t &end){
 		pthread_mutex_lock(&lk[0]);
 		start = counter;
-		counter += batch_size;
+		counter += max((size_t)1, num_units/num_batchs);
 		end = counter;
 		if(end>num_units){
 			end = num_units;

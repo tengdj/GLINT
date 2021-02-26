@@ -8,29 +8,26 @@
 #include "workbench.h"
 
 
-workbench::workbench(workbench *bench){
-	config = bench->config;
-
-	stack_capacity = bench->stack_capacity;
-	reaches_capacity = bench->reaches_capacity;
-	meeting_capacity = bench->meeting_capacity;
-	meeting_bucket_capacity = bench->meeting_bucket_capacity;
-	unit_lookup_capacity = bench->unit_lookup_capacity;
-	num_grids = bench->num_grids;
-	num_nodes = bench->num_nodes;
-	for(int i=0;i<50;i++){
-		pthread_mutex_init(&insert_lk[i],NULL);
-	}
+workbench::workbench(workbench *bench):workbench(bench->config){
+	grids_counter = bench->grids_counter;
+	schema_counter = bench->schema_counter;
 }
 
 workbench::workbench(configuration *conf){
 	config = conf;
 
+	// setup the capacity of each container
+
+	// each grid contains averagely grid_capacity/2 objects, times 3 for enough space
+	grids_capacity = 3*max((uint)1, config->num_objects/config->grid_capacity);
+	// the number of all QTree Nodes
+	schema_capacity = 2*grids_capacity;
 	stack_capacity = 2*config->num_objects;
 	reaches_capacity = 10*config->num_objects;
 	meeting_capacity = 10*config->num_objects;
 	meeting_bucket_capacity = max((uint)20, reaches_capacity/config->num_meeting_buckets);
-	unit_lookup_capacity = config->num_objects*(config->grid_capacity/config->zone_capacity+1);
+	grid_check_capacity = config->num_objects*(config->grid_capacity/config->zone_capacity+1);
+
 	for(int i=0;i<50;i++){
 		pthread_mutex_init(&insert_lk[i],NULL);
 	}
@@ -40,8 +37,11 @@ void workbench::clear(){
 	if(grids){
 		delete []grids;
 	}
-	if(unit_lookup){
-		delete []unit_lookup;
+	if(grid_counter){
+		delete []grid_counter;
+	}
+	if(grid_check){
+		delete []grid_check;
 	}
 	if(schema){
 		delete []schema;
@@ -70,62 +70,63 @@ void workbench::clear(){
 }
 
 
-void workbench::claim_space(uint ng){
-	assert(ng>0);
+void workbench::claim_space(){
+
+	struct timeval start = get_cur_time();
 
 	double total_size = 0;
-	if(num_grids != ng){
-		if(grids){
-			delete []grids;
-		}
-		num_grids = ng;
-		grids = new uint[(config->grid_capacity+1)*num_grids];
-		double grid_size = (config->grid_capacity+1)*num_grids*sizeof(uint)/1024.0/1024.0;
-		log("\t%.2fMB grids",grid_size);
-		total_size += grid_size;
-	}
+	double tmp_size = 0;
 
-	if(!unit_lookup){
-		unit_lookup = new checking_unit[unit_lookup_capacity];
-		double cu_size = unit_lookup_capacity*sizeof(checking_unit)/1024.0/1024.0;
-		log("\t%.2fMB checking units",cu_size);
-	}
-	if(!reaches){
-		reaches = new reach_unit[reaches_capacity];
-		double rc_size = reaches_capacity*sizeof(reach_unit)/1024.0/1024.0;
-		log("\t%.2fMB reach space",rc_size);
-		total_size += rc_size;
-	}
-	if(!meeting_buckets){
-		meeting_buckets = new meeting_unit[config->num_meeting_buckets*meeting_bucket_capacity];
-		double mt_size = config->num_meeting_buckets*meeting_bucket_capacity*sizeof(meeting_unit)/1024.0/1024.0;
-		log("\t%.2fMB meeting bucket space",mt_size);
-		total_size += mt_size;
-	}
-	if(!meeting_buckets_counter){
-		meeting_buckets_counter = new uint[config->num_meeting_buckets];
-		memset(meeting_buckets_counter,0,config->num_meeting_buckets*sizeof(uint));
-		meeting_buckets_counter_tmp = new uint[config->num_meeting_buckets];
-		memset(meeting_buckets_counter_tmp,0,config->num_meeting_buckets*sizeof(uint));
-		double mt_size = 2*config->num_meeting_buckets*sizeof(uint)/1024.0/1024.0;
-		log("\t%.2fMB meeting bucket counter space",mt_size);
-		total_size += mt_size;
-	}
-	if(!meetings){
-		meetings = new meeting_unit[meeting_capacity];
-		double mt_size = meeting_capacity*sizeof(meeting_unit)/1024.0/1024.0;
-		log("\t%.2fMB meeting space",mt_size);
-		total_size += mt_size;
-	}
-	if(!lookup_stack[0]){
-		lookup_stack[0] = new uint[2*stack_capacity];
-		double st_size = stack_capacity*2*sizeof(uint)/1024.0/1024.0;
-		log("\t%.2fMB stack space",st_size);
-		total_size += st_size;
-	}
+	grids = new uint[config->grid_capacity*grids_capacity];
+	tmp_size = config->grid_capacity*grids_capacity*sizeof(uint)/1024.0/1024.0;
+	log("\t%.2f MB\tgrids",tmp_size);
+	total_size += tmp_size;
 
-	log("%.2fMB memory space is claimed",total_size);
+	grid_counter = new uint[grids_capacity];
+	tmp_size = grids_capacity*sizeof(uint)/1024.0/1024.0;
+	log("\t%.2f MB\tgrid counter",tmp_size);
+	total_size += tmp_size;
 
+	schema = new QTSchema[2*grids_capacity];
+	tmp_size = 2*grids_capacity*sizeof(QTSchema)/1024.0/1024.0;
+	log("\t%.2f MB  \tschema",tmp_size);
+	total_size += tmp_size;
+
+	grid_check = new checking_unit[grid_check_capacity];
+	tmp_size = grid_check_capacity*sizeof(checking_unit)/1024.0/1024.0;
+	log("\t%.2f MB\tchecking units",tmp_size);
+	total_size += tmp_size;
+
+	reaches = new reach_unit[reaches_capacity];
+	tmp_size = reaches_capacity*sizeof(reach_unit)/1024.0/1024.0;
+	log("\t%.2f MB\treach space",tmp_size);
+	total_size += tmp_size;
+
+	meeting_buckets = new meeting_unit[config->num_meeting_buckets*meeting_bucket_capacity];
+	tmp_size = config->num_meeting_buckets*meeting_bucket_capacity*sizeof(meeting_unit)/1024.0/1024.0;
+	log("\t%.2f MB\tmeeting bucket space",tmp_size);
+	total_size += tmp_size;
+
+	meeting_buckets_counter = new uint[config->num_meeting_buckets];
+	memset(meeting_buckets_counter,0,config->num_meeting_buckets*sizeof(uint));
+	meeting_buckets_counter_tmp = new uint[config->num_meeting_buckets];
+	memset(meeting_buckets_counter_tmp,0,config->num_meeting_buckets*sizeof(uint));
+	tmp_size = 2*config->num_meeting_buckets*sizeof(uint)/1024.0/1024.0;
+	log("\t%.2f MB  \tmeeting bucket counter space",tmp_size);
+	total_size += tmp_size;
+
+	meetings = new meeting_unit[meeting_capacity];
+	tmp_size = meeting_capacity*sizeof(meeting_unit)/1024.0/1024.0;
+	log("\t%.2f MB\tmeeting space",tmp_size);
+	total_size += tmp_size;
+
+	lookup_stack[0] = new uint[2*stack_capacity];
+	lookup_stack[1] = new uint[2*stack_capacity];
+	tmp_size = 2*stack_capacity*2*sizeof(uint)/1024.0/1024.0;
+	log("\t%.2f MB\tstack space",tmp_size);
+	total_size += tmp_size;
+
+	logt("%.2f MB memory space is claimed",start,total_size);
 }
 
 
@@ -133,17 +134,17 @@ bool workbench::insert(uint curnode, uint pid){
 	assert(schema[curnode].isleaf);
 	uint gid = schema[curnode].node_id;
 	lock(gid);
-	uint cur_size = grids[(config->grid_capacity+1)*gid];
-	grids[(config->grid_capacity+1)*gid]++;
+	uint cur_size = grid_counter[gid]++;
+	// todo handle overflow
 	if(cur_size<config->grid_capacity){
-		grids[(config->grid_capacity+1)*gid+1+cur_size] = pid;
+		grids[config->grid_capacity*gid+cur_size] = pid;
 	}
 	unlock(gid);
 	// first batch of lookup pairs, start from offset 0
-	unit_lookup[pid].pid = pid;
-	unit_lookup[pid].gid = gid;
-	unit_lookup[pid].offset = 0;
-	unit_lookup[pid].inside = true;
+	grid_check[pid].pid = pid;
+	grid_check[pid].gid = gid;
+	grid_check[pid].offset = 0;
+	grid_check[pid].inside = true;
 
 	// is this point too close to the border?
 	Point *p = points+pid;
@@ -168,15 +169,15 @@ bool workbench::insert(uint curnode, uint pid){
 //}
 
 bool workbench::check(uint gid, uint pid){
-	assert(gid<num_grids);
+	assert(gid<grids_counter);
 	lock();
 	uint offset = 0;
 	while(offset<get_grid_size(gid)){
-		assert(unit_lookup_counter<unit_lookup_capacity);
-		unit_lookup[unit_lookup_counter].pid = pid;
-		unit_lookup[unit_lookup_counter].gid = gid;
-		unit_lookup[unit_lookup_counter].offset = offset;
-		unit_lookup_counter++;
+		assert(grid_check_counter<grid_check_capacity);
+		grid_check[grid_check_counter].pid = pid;
+		grid_check[grid_check_counter].gid = gid;
+		grid_check[grid_check_counter].offset = offset;
+		grid_check_counter++;
 		offset += config->zone_capacity;
 	}
 	unlock();
@@ -189,11 +190,11 @@ bool workbench::batch_check(checking_unit *buffer, uint num){
 	}
 	uint cur_counter = 0;
 	lock();
-	assert(unit_lookup_counter+num<unit_lookup_capacity);
-	cur_counter = unit_lookup_counter;
-	unit_lookup_counter += num;
+	assert(grid_check_counter+num<grid_check_capacity);
+	cur_counter = grid_check_counter;
+	grid_check_counter += num;
 	unlock();
-	memcpy(unit_lookup+cur_counter,buffer,sizeof(checking_unit)*num);
+	memcpy(grid_check+cur_counter,buffer,sizeof(checking_unit)*num);
 	return true;
 }
 
@@ -274,7 +275,7 @@ void workbench::partition(){
 		void *status;
 		pthread_join(threads[i], &status);
 	}
-	unit_lookup_counter = config->num_objects;
+	grid_check_counter = config->num_objects;
 	logt("partition data: %d boundary points", start,stack_index[0]);
 }
 
@@ -284,19 +285,21 @@ void workbench::partition(){
  *
  * */
 
-void lookup_rec(QTSchema *schema, Point *p, uint curnode, vector<uint> &gids, double max_dist){
+void lookup_rec(QTSchema *schema, Point *p, uint curnode, vector<uint> &nodes, double max_dist, bool query_all){
 
+	int cur = schema[curnode].which(p);
 	// could be possibly in multiple children with buffers enabled
-	for(int i=0;i<4;i++){
+	for(int i=cur;i<4;i++){
 		uint child_offset = schema[curnode].children[i];
 		double dist = schema[child_offset].mbr.distance(*p, true);
 		if(dist<=max_dist){
 			if(schema[child_offset].isleaf){
-				if(dist>0){
-					gids.push_back(schema[child_offset].node_id);
+				//if(query_all||i>cur)
+				{
+					nodes.push_back(child_offset);
 				}
 			}else{
-				lookup_rec(schema, p, child_offset, gids, max_dist);
+				lookup_rec(schema, p, child_offset, nodes, max_dist, query_all);
 			}
 		}
 	}
@@ -310,16 +313,18 @@ void *lookup_unit(void *arg){
 	// pick one point for looking up
 	size_t start = 0;
 	size_t end = 0;
-	vector<uint> gids;
+	vector<uint> nodes;
 	checking_unit *cubuffer = new checking_unit[2000];
 	uint buffer_index = 0;
 	while(qctx->next_batch(start,end)){
 		for(uint sid=start;sid<end;sid++){
 			uint pid = bench->lookup_stack[0][2*sid];
 			Point *p = bench->points+pid;
-			lookup_rec(bench->schema, p, 0, gids, qctx->config->reach_distance);
-			for(uint gid:gids){
-				assert(gid<bench->num_grids);
+			lookup_rec(bench->schema, p, 0, nodes, qctx->config->reach_distance);
+			//log("%d",nodes.size());
+			for(uint n:nodes){
+				uint gid = bench->schema[n].node_id;
+				assert(gid<bench->grids_counter);
 				cubuffer[buffer_index].pid = pid;
 				cubuffer[buffer_index].gid = gid;
 				cubuffer[buffer_index].offset = 0;
@@ -330,7 +335,7 @@ void *lookup_unit(void *arg){
 					buffer_index = 0;
 				}
 			}
-			gids.clear();
+			nodes.clear();
 		}
 	}
 	bench->batch_check(cubuffer, buffer_index);
@@ -355,7 +360,7 @@ void workbench::lookup(){
 		void *status;
 		pthread_join(threads[i], &status);
 	}
-	logt("lookup: %d pid-gid pairs need be checked",start,unit_lookup_counter);
+	logt("lookup: %d pid-gid pairs need be checked",start,grid_check_counter);
 }
 
 
@@ -373,9 +378,9 @@ void *reachability_unit(void *arg){
 	size_t end = 0;
 	while(ctx->next_batch(start,end)){
 		for(uint pairid=start;pairid<end;pairid++){
-			uint pid = bench->unit_lookup[pairid].pid;
-			uint gid = bench->unit_lookup[pairid].gid;
-			uint offset = bench->unit_lookup[pairid].offset;
+			uint pid = bench->grid_check[pairid].pid;
+			uint gid = bench->grid_check[pairid].gid;
+			uint offset = bench->grid_check[pairid].offset;
 
 			uint size = min(bench->get_grid_size(gid)-offset, (uint)bench->config->zone_capacity);
 			uint *cur_pids = bench->get_grid(gid)+offset;
@@ -384,12 +389,12 @@ void *reachability_unit(void *arg){
 			Point *p1 = points + pid;
 			for(uint i=0;i<size;i++){
 				//pts.push_back(points + cur_pids[i]);
-				if(pid<cur_pids[i]||!bench->unit_lookup[pairid].inside){
+				if(pid<cur_pids[i]||!bench->grid_check[pairid].inside){
 					Point *p2 = points + cur_pids[i];
 					//p2->print();
 					if(p1->distance(p2, true)<=ctx->config->reach_distance){
-						reach_buffer[reach_index].pid1 = pid;
-						reach_buffer[reach_index].pid2 = cur_pids[i];
+						reach_buffer[reach_index].pid1 = min(pid,cur_pids[i]);
+						reach_buffer[reach_index].pid2 = max(cur_pids[i],pid);
 						if(++reach_index==2000){
 							bench->batch_reach(reach_buffer,reach_index);
 							reach_index = 0;
@@ -409,7 +414,7 @@ void workbench::reachability(){
 
 	query_context tctx;
 	tctx.config = config;
-	tctx.num_units = unit_lookup_counter;
+	tctx.num_units = grid_check_counter;
 	tctx.target[0] = (void *)this;
 
 	// generate a new batch of reaches
@@ -424,7 +429,7 @@ void workbench::reachability(){
 		void *status;
 		pthread_join(threads[i], &status);
 	}
-	//bench->unit_lookup_counter = 0;
+	//bench->grid_check_counter = 0;
 	logt("reachability compute: %d reaches are found",start,reaches_counter);
 }
 
@@ -557,7 +562,6 @@ void *compact_meetings_unit(void *arg){
 
 void workbench::compact_meetings(){
 	struct timeval start = get_cur_time();
-
 	query_context tctx;
 	tctx.config = config;
 	tctx.target[0] = (void *)this;
@@ -574,111 +578,4 @@ void workbench::compact_meetings(){
 	logt("compact meeting: %d meetings recorded",start,meeting_counter);
 
 }
-
-
-
-void workbench::analyze_grids(){
-
-	uint overflow = 0;
-	uint max_one = 0;
-	for(int gid=0;gid<num_grids;gid++){
-		uint gsize = grids[gid*(config->grid_capacity+1)];
-		if(gsize>config->grid_capacity*1.5){
-			overflow++;
-		}
-		if(max_one<gsize){
-			max_one = gsize;
-		}
-	}
-	log("%d/%d overflow %d max",overflow,num_grids,max_one);
-
-}
-
-void workbench::analyze_checkings(){
-
-}
-
-
-void workbench::analyze_meetings(){
-
-	/*
-	 *
-	 * some statistics printing for debuging only
-	 *
-	 * */
-
-	uint *unit_count = new uint[config->num_objects];
-	memset(unit_count,0,config->num_objects*sizeof(uint));
-	uint min_bucket = 0;
-	uint max_bucket = 0;
-	for(uint i=0;i<config->num_meeting_buckets;i++){
-		if(meeting_buckets_counter[min_bucket]>meeting_buckets_counter[i]){
-			min_bucket = i;
-		}
-		if(meeting_buckets_counter[max_bucket]<meeting_buckets_counter[i]){
-			max_bucket = i;
-		}
-		meeting_unit *bucket = meeting_buckets+i*this->meeting_bucket_capacity;
-		for(uint j=0;j<meeting_buckets_counter[i];j++){
-			unit_count[bucket[j].pid1]++;
-			if(bucket[j].pid1==0){
-				printf("%d %d %d\n",bucket[j].pid2,bucket[j].start,bucket[j].end);
-			}
-		}
-	}
-	log("bucket range: [%d, %d]",meeting_buckets_counter[min_bucket],meeting_buckets_counter[max_bucket]);
-	map<int, uint> connected;
-	uint max_one = 0;
-	for(int i=0;i<config->num_objects;i++){
-		if(connected.find(unit_count[i])==connected.end()){
-			connected[unit_count[i]] = 1;
-		}else{
-			connected[unit_count[i]]++;
-		}
-		if(unit_count[max_one]<unit_count[i]){
-			max_one = i;
-		}
-	}
-	log("%d contains max objects",max_one);
-	double cum_portion = 0;
-	for(auto a:connected){
-		cum_portion += 1.0*a.second/config->num_objects;
-		log("%d\t%d\t%f",a.first,a.second,cum_portion);
-	}
-	connected.clear();
-
-	vector<Point *> all_points;
-	vector<Point *> valid_points;
-	Point *p1 = points + max_one;
-	vector<uint> gids;
-	lookup_rec(schema, p1, 0, gids, config->reach_distance);
-
-	for(uint gid:gids){
-		uint *cur_pid = get_grid(gid);
-		for(uint i=0;i<get_grid_size(gid);i++){
-			Point *p2 = points+cur_pid[i];
-			if(p1==p2){
-				continue;
-			}
-			all_points.push_back(p2);
-			double dist = p1->distance(*p2,true);
-			if(dist<config->reach_distance){
-				valid_points.push_back(p2);
-			}
-		}
-	}
-
-
-	log("point %d has %d contacts in result, %ld checked, %ld validated"
-			,max_one,unit_count[max_one],all_points.size(), valid_points.size());
-	print_points(all_points);
-	print_points(valid_points);
-	p1->print();
-	all_points.clear();
-	valid_points.clear();
-	delete []unit_count;
-
-}
-
-
 
