@@ -56,6 +56,9 @@ void tracer::process(){
 			bench->analyze_grids();
 			bench->analyze_meetings();
 		}
+		if(config->dynamic_schema&&!config->gpu){
+			bench->update_schema();
+		}
 		logt("round %d",start,t);
 		log("");
 	}

@@ -45,11 +45,21 @@ public:
 	uint cur_time = 0;
 
 	// the pool of maintaining objects assignment
-	// each grid buffer: |num_objects|point_id1...point_idn|
+	// each grid buffer: |point_id1...point_idn|
 	uint *grids = NULL;
-	uint grids_capacity = 0;
-	uint grids_counter = 0;
 	uint *grid_counter = NULL;
+
+	// the stack that keeps the available grids
+	uint *grids_stack = NULL;
+	uint grids_stack_capacity = 0;
+	uint grids_stack_index = 0;
+
+	// the QTree schema
+	QTSchema *schema = NULL;
+	// stack that keeps the available schema nodes
+	uint *schema_stack = NULL;
+	uint schema_stack_capacity = 0;
+	uint schema_stack_index = 0;
 
 	// the space for point-unit pairs
 	checking_unit *grid_check = NULL;
@@ -72,20 +82,10 @@ public:
 	uint meeting_capacity = 0;
 	uint meeting_counter = 0;
 
-	// the QTree schema
-	QTSchema *schema = NULL;
-	uint schema_capacity = 0;
-	uint schema_counter = 0;
-
-	// todo make the schema can be update dynamically
-//	uint *schema_stack = NULL;
-//	uint schema_stack_capacity = 0;
-//	uint schema_stack_index = 0;
-
 	// the processing stack for looking up
 	uint *lookup_stack[2] = {NULL, NULL};
-	uint stack_index[2] = {0,0};
-	uint stack_capacity = 0;
+	uint lookup_stack_index[2] = {0,0};
+	uint lookup_stack_capacity = 0;
 
 	// external source
 	Point *points = NULL;
@@ -103,7 +103,10 @@ public:
 	bool check(uint gid, uint pid);
 	bool batch_check(checking_unit *cu, uint num);
 
+	void merge_node(uint cur_node);
+	void split_node(uint cur_node);
 	void partition();
+	void update_schema();
 	void lookup();
 	void reachability();
 
@@ -113,20 +116,20 @@ public:
 	void claim_space();
 	void reset(){
 		// reset the number of objects in each grid
-		for(int i=0;i<grids_counter;i++){
+		for(int i=0;i<grids_stack_capacity;i++){
 			grid_counter[i] = 0;
 		}
 		grid_check_counter = 0;
 		reaches_counter = 0;
-		stack_index[0] = 0;
-		stack_index[1] = 0;
+		lookup_stack_index[0] = 0;
+		lookup_stack_index[1] = 0;
 	}
 	inline uint get_grid_size(uint gid){
-		assert(gid<grids_counter);
+		assert(gid<grids_stack_capacity);
 		return min(grid_counter[gid],config->grid_capacity);
 	}
 	inline uint *get_grid(uint gid){
-		assert(gid<grids_counter);
+		assert(gid<grids_stack_capacity);
 		return grids + gid*config->grid_capacity;
 	}
 

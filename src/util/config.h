@@ -28,11 +28,13 @@ typedef struct configuration{
 	uint grid_capacity = 100;
 	uint zone_capacity = 100;
 	uint num_meeting_buckets = 100000;
+	uint schema_update_delay = 1; //
 	double reach_distance = 5;
 	double x_buffer = 0;
 	double y_buffer = 0;
 	bool gpu = false;
 	bool analyze = false;
+	bool dynamic_schema = false;
 
 	// for generator only
 	double grid_width = 5;
@@ -93,6 +95,7 @@ inline configuration get_parameters(int argc, char **argv){
 		("taxi_path", po::value<string>(&config.taxi_path), "path to the taxi file")
 		("trace_path", po::value<string>(&config.trace_path), "path to the trace file")
 		("distribution", po::value<double>(&config.distribution_rate), "percent of start points evenly distributed")
+		("dynamic_schema", "the schema is dynamically updated")
 
 		;
 	po::variables_map vm;
@@ -108,6 +111,9 @@ inline configuration get_parameters(int argc, char **argv){
 	}
 	if(vm.count("gpu")){
 		config.gpu = true;
+	}
+	if(vm.count("dynamic_schema")){
+		config.dynamic_schema = true;
 	}
 	if(!vm.count("zone_capacity")||!vm.count("gpu")){
 		config.zone_capacity = config.grid_capacity;

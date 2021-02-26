@@ -40,9 +40,11 @@ class QTNode;
  *
  * */
 typedef struct QTSchema{
-	uint node_id = 0;
+	uint grid_id = 0;
 	short level = 0;
 	short isleaf = 0;
+	short overflow_count = 0;
+	short underflow_count = 0;
 	double mid_x;
 	double mid_y;
 	box mbr;
@@ -317,7 +319,7 @@ public:
 		s.mid_x = mid_x;
 		s.mid_y = mid_y;
 		s.level = level;
-		s.node_id = node_id;
+		s.grid_id = node_id;
 		s.isleaf = isleaf();
 		s.mbr = mbr;
 		return s;

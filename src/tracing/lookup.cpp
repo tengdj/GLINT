@@ -8,7 +8,7 @@
 #include "workbench.h"
 
 bool workbench::check(uint gid, uint pid){
-	assert(gid<grids_counter);
+	assert(gid<grids_stack_capacity);
 	lock();
 	uint offset = 0;
 	while(offset<get_grid_size(gid)){
@@ -81,8 +81,7 @@ void *lookup_unit(void *arg){
 			Point *p = bench->points+pid;
 			lookup_rec(bench->schema, p, 0, nodes, qctx->config->reach_distance);
 			for(uint n:nodes){
-				uint gid = bench->schema[n].node_id;
-				assert(gid<bench->grids_counter);
+				uint gid = bench->schema[n].grid_id;
 				cubuffer[buffer_index].pid = pid;
 				cubuffer[buffer_index].gid = gid;
 				cubuffer[buffer_index].offset = 0;
@@ -107,7 +106,7 @@ void workbench::lookup(){
 	pthread_t threads[config->num_threads];
 	query_context qctx;
 	qctx.config = config;
-	qctx.num_units = stack_index[0];
+	qctx.num_units = lookup_stack_index[0];
 	qctx.target[0] = (void *)this;
 
 	// tree lookups
