@@ -366,7 +366,7 @@ inline void merge_node(workbench *bench, uint cur_node){
 __device__
 inline void split_node(workbench *bench, uint cur_node){
 	assert(bench->schema[cur_node].type==LEAF);
-	//printf("split\n");
+	printf("split: %d\n",cur_node);
 	//schema[cur_node].mbr.print();
 	bench->schema[cur_node].type = BRANCH;
 	// reuse by one of its child
@@ -378,6 +378,7 @@ inline void split_node(workbench *bench, uint cur_node){
 	for(int i=0;i<4;i++){
 		// pop space for schema and grid
 		uint idx = atomicAdd(&bench->schema_stack_index, 1);
+		printf("sidx: %d\n",idx);
 		assert(idx<bench->schema_stack_capacity);
 		uint child = bench->schema_stack[idx];
 		bench->schema[cur_node].children[i] = child;
@@ -386,6 +387,8 @@ inline void split_node(workbench *bench, uint cur_node){
 			idx = atomicAdd(&bench->grids_stack_index,1);
 			assert(idx<bench->grids_stack_capacity);
 			gid = bench->grids_stack[idx];
+			printf("gidx: %d\n",idx);
+
 		}
 		bench->schema[child].grid_id = gid;
 		bench->grid_counter[gid] = 0;
@@ -412,10 +415,8 @@ void cuda_update_schema_conduct(workbench *bench, uint size){
 	uint curnode = bench->lookup_stack[0][sidx];
 	//printf("%d\n",curnode);
 	if(bench->schema[curnode].type==LEAF){
-		printf("split: %d\n",curnode);
 		split_node(bench,curnode);
 	}else{
-		printf("merge: %d\n",curnode);
 		//merge_node(bench,curnode);
 	}
 }
