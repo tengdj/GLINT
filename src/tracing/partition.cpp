@@ -144,7 +144,7 @@ void workbench::partition(){
 
 
 void workbench::merge_node(uint cur_node){
-	assert(!schema[cur_node].type==BRANCH);
+	assert(schema[cur_node].type==BRANCH);
 	lock();
 	//printf("merge\n");
 
@@ -153,6 +153,7 @@ void workbench::merge_node(uint cur_node){
 	for(int i=0;i<4;i++){
 		uint child_offset = schema[cur_node].children[i];
 		assert(schema[child_offset].type==LEAF);
+		schema[child_offset].type = INVALID;
 		//schema[child_offset].mbr.print();
 		// push the schema and grid spaces to stack for reuse
 		schema_stack[--schema_stack_index] = child_offset;
@@ -186,6 +187,7 @@ void workbench::split_node(uint cur_node){
 		schema[child].grid_id = grids_stack[grids_stack_index++];
 		grid_counter[schema[child].grid_id] = 0;
 		schema[child].level = schema[cur_node].level+1;
+		assert(schema[child].type==INVALID);
 		schema[child].type = LEAF;
 		schema[child].overflow_count = 0;
 		schema[child].underflow_count = 0;
@@ -224,7 +226,7 @@ void *update_schema_unit(void *arg){
 				}else{
 					bench->schema[curnode].overflow_count = 0;
 				}
-			}else{
+			}else if(bench->schema[curnode].type==BRANCH){
 				int leafchild = 0;
 				int ncounter = 0;
 				for(int i=0;i<4;i++){
@@ -261,7 +263,7 @@ void workbench::update_schema(){
 	pthread_t threads[config->num_threads];
 	query_context qctx;
 	qctx.config = config;
-	qctx.num_units = schema_stack_index;
+	qctx.num_units = schema_stack_capacity;
 	qctx.target[0] = (void *)this;
 
 	for(int i=0;i<config->num_threads;i++){

@@ -94,6 +94,8 @@ void workbench::claim_space(){
 
 	schema = new QTSchema[2*schema_stack_capacity];
 	tmp_size = 2*grids_stack_capacity*sizeof(QTSchema)/1024.0/1024.0;
+	memset(schema,0,tmp_size);
+
 	log("\t%.2f MB\tschema",tmp_size);
 	total_size += tmp_size;
 
