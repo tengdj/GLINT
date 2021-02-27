@@ -411,10 +411,8 @@ void cuda_update_schema_split(workbench *bench, uint size){
 		return;
 	}
 	uint curnode = bench->lookup_stack[0][sidx];
-	//printf("%d\n",curnode);
-	if(bench->schema[curnode].type==LEAF){
-		split_node(bench,curnode);
-	}
+	split_node(bench,curnode);
+
 }
 __global__
 void cuda_update_schema_merge(workbench *bench, uint size){
@@ -422,11 +420,8 @@ void cuda_update_schema_merge(workbench *bench, uint size){
 	if(sidx>=size){
 		return;
 	}
-	uint curnode = bench->lookup_stack[0][sidx];
-	//printf("%d\n",curnode);
-	if(bench->schema[curnode].type==BRANCH){
-		merge_node(bench,curnode);
-	}
+	uint curnode = bench->lookup_stack[1][sidx];
+	merge_node(bench,curnode);
 }
 
 __global__
@@ -461,8 +456,8 @@ void cuda_update_schema_collect(workbench *bench){
 			// this node need be merged
 			if(++bench->schema[curnode].underflow_count>=bench->config->schema_update_delay){
 				//printf("%d\n",curnode);
-				uint sidx = atomicAdd(&bench->lookup_stack_index[0],1);
-				bench->lookup_stack[0][sidx] = curnode;
+				uint sidx = atomicAdd(&bench->lookup_stack_index[1],1);
+				bench->lookup_stack[1][sidx] = curnode;
 				bench->schema[curnode].underflow_count = 0;
 			}
 		}else{
@@ -639,7 +634,9 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 			cuda_update_schema_split<<<h_bench.lookup_stack_index[0],1024>>>(d_bench, h_bench.lookup_stack_index[0]);
 			check_execution();
 			cudaDeviceSynchronize();
-			cuda_update_schema_merge<<<h_bench.lookup_stack_index[0],1024>>>(d_bench, h_bench.lookup_stack_index[0]);
+		}
+		if(h_bench.lookup_stack_index[1]>0){
+			cuda_update_schema_merge<<<h_bench.lookup_stack_index[1],1024>>>(d_bench, h_bench.lookup_stack_index[1]);
 			check_execution();
 			cudaDeviceSynchronize();
 		}
