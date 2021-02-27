@@ -411,11 +411,10 @@ void cuda_update_schema_conduct(workbench *bench, uint size){
 		return;
 	}
 	uint curnode = bench->lookup_stack[0][sidx];
+	printf("%d\n",curnode);
 	if(bench->schema[curnode].type==LEAF){
-		printf("split: %d\n",curnode);
 		split_node(bench,curnode);
 	}else{
-		printf("merge: %d\n",curnode);
 		merge_node(bench,curnode);
 	}
 }
