@@ -408,7 +408,7 @@ void cuda_update_schema_conduct(workbench *bench, uint size){
 	if(sidx>=size){
 		return;
 	}
-	uint curnode = bench->lookup_stack[sidx];
+	uint curnode = bench->lookup_stack[0][sidx];
 	if(bench->schema[curnode].type==LEAF){
 		split_node(bench,curnode);
 	}else{
@@ -599,9 +599,11 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		check_execution();
 		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-		cuda_update_schema_conduct<<<bench->schema_stack_capacity,1024>>>(d_bench, h_bench.lookup_stack_index[0]);
-		check_execution();
-		cudaDeviceSynchronize();
+		if(h_bench.lookup_stack_index[0]>0){
+			cuda_update_schema_conduct<<<h_bench.lookup_stack_index[0],1024>>>(d_bench, h_bench.lookup_stack_index[0]);
+			check_execution();
+			cudaDeviceSynchronize();
+		}
 		logt("schema update", start);
 	}
 
