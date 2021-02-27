@@ -378,16 +378,16 @@ inline void split_node(workbench *bench, uint cur_node){
 	for(int i=0;i<4;i++){
 		// pop space for schema and grid
 		uint idx = atomicAdd(&bench->schema_stack_index, 1);
-		printf("sidx: %d\n",idx);
 		assert(idx<bench->schema_stack_capacity);
 		uint child = bench->schema_stack[idx];
+		printf("sidx: %d %d\n",idx,child);
 		bench->schema[cur_node].children[i] = child;
 
 		if(i>0){
 			idx = atomicAdd(&bench->grids_stack_index,1);
 			assert(idx<bench->grids_stack_capacity);
 			gid = bench->grids_stack[idx];
-			printf("gidx: %d\n",idx);
+			printf("gidx: %d %d\n",idx,gid);
 
 		}
 		bench->schema[child].grid_id = gid;
