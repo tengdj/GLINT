@@ -64,6 +64,8 @@ __global__
 void cuda_reset_bench(workbench *bench){
 	bench->grid_check_counter = 0;
 	bench->reaches_counter = 0;
+	bench->lookup_stack_index[0] = 0;
+	bench->lookup_stack_index[1] = 0;
 }
 
 
