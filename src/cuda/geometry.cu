@@ -413,8 +413,10 @@ void cuda_update_schema_conduct(workbench *bench, uint size){
 	uint curnode = bench->lookup_stack[0][sidx];
 	//printf("%d\n",curnode);
 	if(bench->schema[curnode].type==LEAF){
+		printf("split: %d\n",curnode);
 		split_node(bench,curnode);
 	}else{
+		printf("merge: %d\n",curnode);
 		merge_node(bench,curnode);
 	}
 }
@@ -429,7 +431,6 @@ void cuda_update_schema_collect(workbench *bench){
 		if(bench->grid_counter[bench->schema[curnode].grid_id]>bench->config->grid_capacity){
 			// this node is overflowed a continuous number of times, split it
 			if(++bench->schema[curnode].overflow_count>=bench->config->schema_update_delay){
-				printf("%d\n",curnode);
 				uint sidx = atomicAdd(&bench->lookup_stack_index[0],1);
 				bench->lookup_stack[0][sidx] = curnode;
 				bench->schema[curnode].overflow_count = 0;
