@@ -342,7 +342,7 @@ inline void merge_node(workbench *bench, uint cur_node){
 		bench->grid_counter[bench->schema[child_offset].grid_id] = 0;
 		if(i==3){
 			// push to stack
-			idx = atomicSub(&bench->grids_stack_index,1)-1;
+			uint idx = atomicSub(&bench->grids_stack_index,1)-1;
 			bench->grids_stack[idx] = bench->schema[child_offset].grid_id;
 		}else{
 			// reused by curnode
