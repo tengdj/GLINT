@@ -610,7 +610,8 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 			check_execution();
 			cudaDeviceSynchronize();
 		}
-		logt("schema update", start);
+		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+		logt("schema update %d grids", start, h_bench.grids_stack_index);
 	}
 
 	// clean the device bench for next round of checking
