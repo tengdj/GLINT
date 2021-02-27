@@ -62,6 +62,7 @@ void cuda_cleargrids(workbench *bench){
 
 __global__
 void cuda_reset_bench(workbench *bench){
+	printf("%d\n",bench->grid_check_counter);
 	bench->grid_check_counter = 0;
 	bench->reaches_counter = 0;
 }
@@ -591,7 +592,6 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	cuda_update_schema_split<<<bench->schema_stack_capacity,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
-	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	logt("schema update", start);
 
 	// clean the device bench for next round of checking
