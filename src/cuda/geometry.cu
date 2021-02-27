@@ -340,7 +340,7 @@ inline void merge_node(workbench *bench, uint cur_node){
 		// push the bench->schema and grid spaces to stack for reuse
 
 		bench->grid_counter[bench->schema[child_offset].grid_id] = 0;
-		if(i==3){
+		if(i<3){
 			// push to stack
 			uint idx = atomicSub(&bench->grids_stack_index,1)-1;
 			bench->grids_stack[idx] = bench->schema[child_offset].grid_id;
@@ -574,25 +574,28 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 				bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
 		CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets_counter, h_bench.meeting_buckets_counter,
 				bench->config->num_meeting_buckets*sizeof(uint), cudaMemcpyDeviceToHost));
+		if(h_bench.meeting_counter>0){
+			bench->meeting_counter = h_bench.meeting_counter;
+			CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench.meetings,
+					h_bench.meeting_counter*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
+		}
+		bench->schema_stack_index = h_bench.schema_stack_index;
+		bench->grids_stack_index = h_bench.grids_stack_index;
+		logt("copy out", start);
 	}
-	if(h_bench.meeting_counter>0){
-		bench->meeting_counter = h_bench.meeting_counter;
-		CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench.meetings,
-				h_bench.meeting_counter*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
-	}
-	logt("copy out", start);
 
+	// update the schema for future processing
 	cuda_update_schema_merge<<<bench->schema_stack_capacity,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
 	cuda_update_schema_split<<<bench->schema_stack_capacity,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
+	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	logt("schema update", start);
 
 	// clean the device bench for next round of checking
 	cuda_cleargrids<<<bench->grids_stack_capacity/1024+1,1024>>>(d_bench);
-	//clear_meeting_buckets_cuda<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
 	cuda_reset_bench<<<1,1>>>(d_bench);
 	logt("clean", start);
 }
