@@ -587,14 +587,16 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		logt("copy out", start);
 	}
 
-	// update the schema for future processing
-	cuda_update_schema_merge<<<bench->schema_stack_capacity,1024>>>(d_bench);
-	check_execution();
-	cudaDeviceSynchronize();
-	cuda_update_schema_split<<<bench->schema_stack_capacity,1024>>>(d_bench);
-	check_execution();
-	cudaDeviceSynchronize();
-	logt("schema update", start);
+	if(bench->config->dynamic_schema){
+		// update the schema for future processing
+		cuda_update_schema_merge<<<bench->schema_stack_capacity,1024>>>(d_bench);
+		check_execution();
+		cudaDeviceSynchronize();
+		cuda_update_schema_split<<<bench->schema_stack_capacity,1024>>>(d_bench);
+		check_execution();
+		cudaDeviceSynchronize();
+		logt("schema update", start);
+	}
 
 	// clean the device bench for next round of checking
 	cuda_cleargrids<<<bench->grids_stack_capacity/1024+1,1024>>>(d_bench);
