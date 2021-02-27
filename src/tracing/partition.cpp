@@ -146,7 +146,7 @@ void workbench::partition(){
 void workbench::merge_node(uint cur_node){
 	assert(schema[cur_node].type==BRANCH);
 	lock();
-	log("merge: %d\n",cur_node);
+	log("merge: %d",cur_node);
 
 	//schema[cur_node].mbr.print();
 	//reclaim the children
@@ -169,7 +169,7 @@ void workbench::split_node(uint cur_node){
 	assert(schema[cur_node].type==LEAF);
 	lock();
 
-	log("split: %d\n",cur_node);
+	log("split: %d",cur_node);
 	//schema[cur_node].mbr.print();
 	schema[cur_node].type = BRANCH;
 	grids_stack[--grids_stack_index] = schema[cur_node].grid_id;
