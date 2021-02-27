@@ -62,7 +62,6 @@ void cuda_cleargrids(workbench *bench){
 
 __global__
 void cuda_reset_bench(workbench *bench){
-	printf("%d\n",bench->grid_check_counter);
 	bench->grid_check_counter = 0;
 	bench->reaches_counter = 0;
 }
@@ -126,6 +125,9 @@ void cuda_pack_lookup_units(workbench *bench, uint inistial_size){
 	uint offset = bench->config->zone_capacity;
 	while(offset<grid_size){
 		uint cu_index = atomicAdd(&bench->grid_check_counter, 1);
+		if(cu_index>=bench->grid_check_capacity){
+			printf("%d %d %d\n",grid_size,cu_index,bench->grid_check_capacity);
+		}
 		assert(cu_index<bench->grid_check_capacity);
 		bench->grid_check[cu_index] = bench->grid_check[glid];
 		bench->grid_check[cu_index].offset = offset;
