@@ -405,7 +405,7 @@ inline void merge_node(workbench *bench, uint cur_node){
 
 
 __global__
-void cuda_update_schema_conduct(workbench *bench, uint size){
+void cuda_update_schema_split(workbench *bench, uint size){
 	uint sidx = blockIdx.x*blockDim.x+threadIdx.x;
 	if(sidx>=size){
 		return;
@@ -414,7 +414,17 @@ void cuda_update_schema_conduct(workbench *bench, uint size){
 	//printf("%d\n",curnode);
 	if(bench->schema[curnode].type==LEAF){
 		split_node(bench,curnode);
-	}else{
+	}
+}
+__global__
+void cuda_update_schema_merge(workbench *bench, uint size){
+	uint sidx = blockIdx.x*blockDim.x+threadIdx.x;
+	if(sidx>=size){
+		return;
+	}
+	uint curnode = bench->lookup_stack[0][sidx];
+	//printf("%d\n",curnode);
+	if(bench->schema[curnode].type==BRANCH){
 		merge_node(bench,curnode);
 	}
 }
@@ -448,7 +458,7 @@ void cuda_update_schema_collect(workbench *bench){
 		}
 		// this one need update
 		if(leafchild==4&&ncounter<bench->config->grid_capacity){
-			// the children of this node need be deallocated
+			// this node need be merged
 			if(++bench->schema[curnode].underflow_count>=bench->config->schema_update_delay){
 				//printf("%d\n",curnode);
 				uint sidx = atomicAdd(&bench->lookup_stack_index[0],1);
@@ -626,7 +636,10 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 		if(h_bench.lookup_stack_index[0]>0){
-			cuda_update_schema_conduct<<<h_bench.lookup_stack_index[0],1024>>>(d_bench, h_bench.lookup_stack_index[0]);
+			cuda_update_schema_split<<<h_bench.lookup_stack_index[0],1024>>>(d_bench, h_bench.lookup_stack_index[0]);
+			check_execution();
+			cudaDeviceSynchronize();
+			cuda_update_schema_merge<<<h_bench.lookup_stack_index[0],1024>>>(d_bench, h_bench.lookup_stack_index[0]);
 			check_execution();
 			cudaDeviceSynchronize();
 		}
