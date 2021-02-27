@@ -415,7 +415,7 @@ void cuda_update_schema_conduct(workbench *bench, uint size){
 	if(bench->schema[curnode].type==LEAF){
 		split_node(bench,curnode);
 	}else{
-		//merge_node(bench,curnode);
+		merge_node(bench,curnode);
 	}
 }
 

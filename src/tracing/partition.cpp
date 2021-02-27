@@ -144,7 +144,6 @@ void workbench::partition(){
 
 
 void workbench::merge_node(uint cur_node){
-	return;
 	assert(schema[cur_node].type==BRANCH);
 	lock();
 	//printf("merge: %d\n",cur_node);
