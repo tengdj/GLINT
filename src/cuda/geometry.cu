@@ -126,7 +126,7 @@ void cuda_pack_lookup_units(workbench *bench, uint inistial_size){
 	while(offset<grid_size){
 		uint cu_index = atomicAdd(&bench->grid_check_counter, 1);
 		if(cu_index>=bench->grid_check_capacity){
-			printf("%d %d %d\n",grid_size,cu_index,bench->grid_check_capacity);
+			printf("%d %d %d\n",bench->grid_counter[bench->grid_check[glid].gid],cu_index,bench->grid_check_capacity);
 		}
 		assert(cu_index<bench->grid_check_capacity);
 		bench->grid_check[cu_index] = bench->grid_check[glid];
