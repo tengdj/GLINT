@@ -169,7 +169,7 @@ void workbench::split_node(uint cur_node){
 	assert(schema[cur_node].type==LEAF);
 	lock();
 
-	printf("split: %d\n",curnode);
+	printf("split: %d\n",cur_node);
 	//schema[cur_node].mbr.print();
 	schema[cur_node].type = BRANCH;
 	grids_stack[--grids_stack_index] = schema[cur_node].grid_id;
