@@ -403,12 +403,37 @@ inline void split_node(workbench *bench, uint cur_node){
 }
 
 __global__
-void cuda_update_schema_merge(workbench *bench){
+void cuda_update_schema_conduct(workbench *bench, uint size){
+	uint sidx = blockIdx.x*blockDim.x+threadIdx.x;
+	if(sidx>=size){
+		return;
+	}
+	uint curnode = bench->lookup_stack[sidx];
+	if(bench->schema[curnode].type==LEAF){
+		split_node(bench,curnode);
+	}else{
+		merge_node(bench,curnode);
+	}
+}
+
+__global__
+void cuda_update_schema_collect(workbench *bench){
 	uint curnode = blockIdx.x*blockDim.x+threadIdx.x;
 	if(curnode>=bench->schema_stack_capacity){
 		return;
 	}
-	if(bench->schema[curnode].type==BRANCH){
+	if(bench->schema[curnode].type==LEAF){
+		if(bench->grid_counter[bench->schema[curnode].grid_id]>bench->config->grid_capacity){
+			// this node is overflowed a continuous number of times, split it
+			if(++bench->schema[curnode].overflow_count>=bench->config->schema_update_delay){
+				uint sidx = atomicAdd(&bench->lookup_stack_index[0],1);
+				bench->lookup_stack[0][sidx] = curnode;
+				bench->schema[curnode].overflow_count = 0;
+			}
+		}else{
+			bench->schema[curnode].overflow_count = 0;
+		}
+	}else if(bench->schema[curnode].type==BRANCH){
 		int leafchild = 0;
 		int ncounter = 0;
 		for(int i=0;i<4;i++){
@@ -422,31 +447,12 @@ void cuda_update_schema_merge(workbench *bench){
 		if(leafchild==4&&ncounter<bench->config->grid_capacity){
 			// the children of this node need be deallocated
 			if(++bench->schema[curnode].underflow_count>=bench->config->schema_update_delay){
-				merge_node(bench, curnode);
+				uint sidx = atomicAdd(&bench->lookup_stack_index[0],1);
+				bench->lookup_stack[0][sidx] = curnode;
 				bench->schema[curnode].underflow_count = 0;
 			}
 		}else{
 			bench->schema[curnode].underflow_count = 0;
-		}
-	}
-}
-
-__global__
-void cuda_update_schema_split(workbench *bench){
-	uint curnode = blockIdx.x*blockDim.x+threadIdx.x;
-	if(curnode>=bench->schema_stack_capacity){
-		return;
-	}
-
-	if(bench->schema[curnode].type==LEAF){
-		if(bench->grid_counter[bench->schema[curnode].grid_id]>bench->config->grid_capacity){
-			// this node is overflowed a continuous number of times, split it
-			if(++bench->schema[curnode].overflow_count>=bench->config->schema_update_delay){
-				split_node(bench, curnode);
-				bench->schema[curnode].overflow_count = 0;
-			}
-		}else{
-			bench->schema[curnode].overflow_count = 0;
 		}
 	}
 }
@@ -589,10 +595,11 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 
 	if(bench->config->dynamic_schema){
 		// update the schema for future processing
-		cuda_update_schema_merge<<<bench->schema_stack_capacity,1024>>>(d_bench);
+		cuda_update_schema_collect<<<bench->schema_stack_capacity,1024>>>(d_bench);
 		check_execution();
 		cudaDeviceSynchronize();
-		cuda_update_schema_split<<<bench->schema_stack_capacity,1024>>>(d_bench);
+		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+		cuda_update_schema_conduct<<<bench->schema_stack_capacity,1024>>>(d_bench, h_bench.lookup_stack_index[0]);
 		check_execution();
 		cudaDeviceSynchronize();
 		logt("schema update", start);
