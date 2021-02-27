@@ -54,7 +54,7 @@ void tracer::process(){
 		}
 		if(config->analyze){
 			bench->analyze_grids();
-			bench->analyze_meetings();
+			//bench->analyze_meetings();
 		}
 		if(config->dynamic_schema&&!config->gpu){
 			bench->update_schema();
