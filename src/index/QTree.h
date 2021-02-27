@@ -39,10 +39,17 @@ class QTNode;
  * of such child
  *
  * */
+
+enum SchemaType{
+	INVALID = 0,
+	BRANCH = 1,
+	LEAF = 2
+};
+
 typedef struct QTSchema{
 	uint grid_id = 0;
 	short level = 0;
-	short isleaf = 0;
+	short type = INVALID;
 	short overflow_count = 0;
 	short underflow_count = 0;
 	double mid_x;
@@ -320,7 +327,11 @@ public:
 		s.mid_y = mid_y;
 		s.level = level;
 		s.grid_id = node_id;
-		s.isleaf = isleaf();
+		if(isleaf()){
+			s.type = LEAF;
+		}else{
+			s.type = BRANCH;
+		}
 		s.mbr = mbr;
 		return s;
 	}

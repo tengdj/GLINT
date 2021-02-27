@@ -44,7 +44,7 @@ void lookup_rec(QTSchema *schema, Point *p, uint curnode, vector<uint> &nodes, d
 		uint child_offset = schema[curnode].children[i];
 		double dist = schema[child_offset].mbr.distance(*p, true);
 		if(dist<=max_dist){
-			if(schema[child_offset].isleaf){
+			if(schema[child_offset].type==LEAF){
 				// the node is on the top or right
 				if(query_all||
 				   p->y<schema[child_offset].mbr.low[1]||

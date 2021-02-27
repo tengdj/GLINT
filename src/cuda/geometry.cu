@@ -84,7 +84,7 @@ void cuda_partition(workbench *bench){
 		int loc = (p->y>bench->schema[curnode].mid_y)*2 + (p->x>bench->schema[curnode].mid_x);
 		curnode = bench->schema[curnode].children[loc];
 		// is leaf
-		if(bench->schema[curnode].isleaf){
+		if(bench->schema[curnode].type==LEAF){
 			gid = bench->schema[curnode].grid_id;
 			break;
 		}
@@ -186,7 +186,7 @@ void cuda_lookup(workbench *bench, uint stack_id, uint stack_size){
 		uint child_offset = bench->schema[curnode].children[i];
 		double dist = distance(&bench->schema[child_offset].mbr, p);
 		if(dist<=bench->config->reach_distance){
-			if(bench->schema[child_offset].isleaf){
+			if(bench->schema[child_offset].type==LEAF){
 				if(p->y<bench->schema[child_offset].mbr.low[1]||
 				   (p->y<bench->schema[child_offset].mbr.high[1]
 					&& p->x<bench->schema[child_offset].mbr.low[0])){
@@ -325,6 +325,129 @@ void cuda_compact_meetings(workbench *bench){
 	bench->meeting_buckets_counter_tmp[bid] = active_count;
 }
 
+
+__device__
+inline void merge_node(workbench *bench, uint cur_node){
+	assert(bench->schema[cur_node].type==BRANCH);
+	//printf("merge\n");
+
+	//reclaim the children
+	uint gid = 0;
+	for(int i=0;i<4;i++){
+		uint child_offset = bench->schema[cur_node].children[i];
+		assert(bench->schema[child_offset].type==LEAF);
+		//bench->schema[child_offset].mbr.print();
+		// push the bench->schema and grid spaces to stack for reuse
+
+		bench->grid_counter[bench->schema[child_offset].grid_id] = 0;
+		if(i==3){
+			// push to stack
+			idx = atomicSub(&bench->grids_stack_index,1)-1;
+			bench->grids_stack[idx] = bench->schema[child_offset].grid_id;
+		}else{
+			// reused by curnode
+			gid = bench->schema[child_offset].grid_id;
+		}
+		bench->schema[child_offset].type = INVALID;
+		uint idx = atomicSub(&bench->schema_stack_index,1)-1;
+		bench->schema_stack[idx] = child_offset;
+	}
+	bench->schema[cur_node].type = LEAF;
+	// reuse the grid of one of its child
+	bench->schema[cur_node].grid_id = gid;
+}
+
+
+__device__
+inline void split_node(workbench *bench, uint cur_node){
+	assert(bench->schema[cur_node].type==LEAF);
+	//printf("split\n");
+	//schema[cur_node].mbr.print();
+	bench->schema[cur_node].type = BRANCH;
+	// reuse by one of its child
+	uint gid = bench->schema[cur_node].grid_id;
+
+	double xhalf = bench->schema[cur_node].mid_x-bench->schema[cur_node].mbr.low[0];
+	double yhalf = bench->schema[cur_node].mid_y-bench->schema[cur_node].mbr.low[1];
+
+	for(int i=0;i<4;i++){
+		// pop space for schema and grid
+		uint idx = atomicAdd(&bench->schema_stack_index, 1);
+		assert(idx<bench->schema_stack_capacity);
+		uint child = bench->schema_stack[idx];
+		bench->schema[cur_node].children[i] = child;
+
+		if(i>0){
+			idx = atomicAdd(&bench->grids_stack_index,1);
+			assert(idx<bench->grids_stack_capacity);
+			gid = bench->grids_stack[idx];
+		}
+		bench->schema[child].grid_id = gid;
+		bench->grid_counter[gid] = 0;
+		bench->schema[child].level = bench->schema[cur_node].level+1;
+		bench->schema[child].type = LEAF;
+		bench->schema[child].overflow_count = 0;
+		bench->schema[child].underflow_count = 0;
+
+		bench->schema[child].mbr.low[0] = bench->schema[cur_node].mbr.low[0]+(i%2==1)*xhalf;
+		bench->schema[child].mbr.low[1] = bench->schema[cur_node].mbr.low[1]+(i/2==1)*yhalf;
+		bench->schema[child].mbr.high[0] = bench->schema[cur_node].mid_x+(i%2==1)*xhalf;
+		bench->schema[child].mbr.high[1] = bench->schema[cur_node].mid_y+(i/2==1)*yhalf;
+		bench->schema[child].mid_x = (bench->schema[child].mbr.low[0]+bench->schema[child].mbr.high[0])/2;
+		bench->schema[child].mid_y = (bench->schema[child].mbr.low[1]+bench->schema[child].mbr.high[1])/2;
+		//schema[child].mbr.print();
+	}
+}
+
+__global__
+void cuda_update_schema_merge(workbench *bench){
+	uint curnode = blockIdx.x*blockDim.x+threadIdx.x;
+	if(curnode>=bench->schema_stack_capacity){
+		return;
+	}
+	if(bench->schema[curnode].type==BRANCH){
+		int leafchild = 0;
+		int ncounter = 0;
+		for(int i=0;i<4;i++){
+			uint child_node = bench->schema[curnode].children[i];
+			if(bench->schema[child_node].type==LEAF){
+				leafchild++;
+				ncounter += bench->grid_counter[bench->schema[child_node].grid_id];
+			}
+		}
+		// this one need update
+		if(leafchild==4&&ncounter<bench->config->grid_capacity){
+			// the children of this node need be deallocated
+			if(++bench->schema[curnode].underflow_count>=bench->config->schema_update_delay){
+				merge_node(bench, curnode);
+				bench->schema[curnode].underflow_count = 0;
+			}
+		}else{
+			bench->schema[curnode].underflow_count = 0;
+		}
+	}
+}
+
+__global__
+void cuda_update_schema_split(workbench *bench){
+	uint curnode = blockIdx.x*blockDim.x+threadIdx.x;
+	if(curnode>=bench->schema_stack_capacity){
+		return;
+	}
+
+	if(bench->schema[curnode].type==LEAF){
+		if(bench->grid_counter[bench->schema[curnode].grid_id]>bench->config->grid_capacity){
+			// this node is overflowed a continuous number of times, split it
+			if(++bench->schema[curnode].overflow_count>=bench->config->schema_update_delay){
+				split_node(bench, curnode);
+				bench->schema[curnode].overflow_count = 0;
+			}
+		}else{
+			bench->schema[curnode].overflow_count = 0;
+		}
+	}
+}
+
 workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	struct timeval start = get_cur_time();
 	gpu->clear();
@@ -445,6 +568,8 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 				bench->grids_stack_capacity*bench->grid_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
 		CUDA_SAFE_CALL(cudaMemcpy(bench->grid_counter, h_bench.grid_counter,
 				bench->grids_stack_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
+		CUDA_SAFE_CALL(cudaMemcpy(bench->schema, h_bench.schema,
+				bench->schema_stack_capacity*sizeof(QTSchema), cudaMemcpyDeviceToHost));
 		CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets, h_bench.meeting_buckets,
 				bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
 		CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets_counter, h_bench.meeting_buckets_counter,

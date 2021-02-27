@@ -52,7 +52,7 @@ workbench *partitioner::build_schema(Point *points, size_t num_objects){
 }
 
 bool workbench::insert(uint curnode, uint pid){
-	assert(schema[curnode].isleaf);
+	assert(schema[curnode].type==LEAF);
 	uint gid = schema[curnode].grid_id;
 	assert(gid<grids_stack_capacity);
 	lock(gid);
@@ -108,7 +108,7 @@ void *partition_unit(void *arg){
 				int child = (p->y>bench->schema[curnode].mid_y)*2+(p->x>bench->schema[curnode].mid_x);
 				curnode = bench->schema[curnode].children[child];
 				// is leaf
-				if(bench->schema[curnode].isleaf){
+				if(bench->schema[curnode].type==LEAF){
 					break;
 				}
 			}
@@ -144,7 +144,7 @@ void workbench::partition(){
 
 
 void workbench::merge_node(uint cur_node){
-	assert(!schema[cur_node].isleaf);
+	assert(!schema[cur_node].type==BRANCH);
 	lock();
 	//printf("merge\n");
 
@@ -152,25 +152,25 @@ void workbench::merge_node(uint cur_node){
 	//reclaim the children
 	for(int i=0;i<4;i++){
 		uint child_offset = schema[cur_node].children[i];
-		assert(schema[child_offset].isleaf);
+		assert(schema[child_offset].type==LEAF);
 		//schema[child_offset].mbr.print();
 		// push the schema and grid spaces to stack for reuse
 		schema_stack[--schema_stack_index] = child_offset;
 		grids_stack[--grids_stack_index] = schema[child_offset].grid_id;
 		grid_counter[schema[child_offset].grid_id] = 0;
 	}
-	schema[cur_node].isleaf = true;
+	schema[cur_node].type = LEAF;
 	schema[cur_node].grid_id = grids_stack[grids_stack_index++];
 	unlock();
 }
 
 void workbench::split_node(uint cur_node){
-	assert(schema[cur_node].isleaf);
+	assert(schema[cur_node].type==LEAF);
 	lock();
 
 	//printf("split\n");
 	//schema[cur_node].mbr.print();
-	schema[cur_node].isleaf = false;
+	schema[cur_node].type = BRANCH;
 	grids_stack[--grids_stack_index] = schema[cur_node].grid_id;
 
 	double xhalf = schema[cur_node].mid_x-schema[cur_node].mbr.low[0];
@@ -186,7 +186,7 @@ void workbench::split_node(uint cur_node){
 		schema[child].grid_id = grids_stack[grids_stack_index++];
 		grid_counter[schema[child].grid_id] = 0;
 		schema[child].level = schema[cur_node].level+1;
-		schema[child].isleaf = true;
+		schema[child].type = LEAF;
 		schema[child].overflow_count = 0;
 		schema[child].underflow_count = 0;
 
@@ -213,7 +213,7 @@ void *update_schema_unit(void *arg){
 	while(qctx->next_batch(start,end)){
 		for(uint i=start;i<end;i++){
 			uint curnode = bench->schema_stack[i];
-			if(bench->schema[curnode].isleaf){
+			if(bench->schema[curnode].type==LEAF){
 				if(bench->grid_counter[bench->schema[curnode].grid_id]>bench->config->grid_capacity){
 					bench->schema[curnode].overflow_count++;
 					// this node is overflowed a continuous number of times, split it
@@ -229,7 +229,7 @@ void *update_schema_unit(void *arg){
 				int ncounter = 0;
 				for(int i=0;i<4;i++){
 					uint child_node = bench->schema[curnode].children[i];
-					if(bench->schema[child_node].isleaf){
+					if(bench->schema[child_node].type==LEAF){
 						leafchild++;
 						ncounter += bench->grid_counter[bench->schema[child_node].grid_id];
 					}
