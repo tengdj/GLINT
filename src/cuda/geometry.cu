@@ -581,6 +581,15 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 				h_bench.meeting_counter*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
 	}
 	logt("copy out", start);
+
+	cuda_update_schema_merge<<<bench->schema_stack_capacity,1024>>>(d_bench);
+	check_execution();
+	cudaDeviceSynchronize();
+	cuda_update_schema_split<<<bench->schema_stack_capacity,1024>>>(d_bench);
+	check_execution();
+	cudaDeviceSynchronize();
+	logt("schema update", start);
+
 	// clean the device bench for next round of checking
 	cuda_cleargrids<<<bench->grids_stack_capacity/1024+1,1024>>>(d_bench);
 	//clear_meeting_buckets_cuda<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
