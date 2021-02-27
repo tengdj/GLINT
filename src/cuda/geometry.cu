@@ -400,7 +400,6 @@ inline void split_node(workbench *bench, uint cur_node){
 		bench->schema[child].mbr.high[1] = bench->schema[cur_node].mid_y+(i/2==1)*yhalf;
 		bench->schema[child].mid_x = (bench->schema[child].mbr.low[0]+bench->schema[child].mbr.high[0])/2;
 		bench->schema[child].mid_y = (bench->schema[child].mbr.low[1]+bench->schema[child].mbr.high[1])/2;
-		//schema[child].mbr.print();
 	}
 }
 
@@ -417,7 +416,7 @@ void cuda_update_schema_conduct(workbench *bench, uint size){
 		split_node(bench,curnode);
 	}else{
 		printf("merge: %d\n",curnode);
-		merge_node(bench,curnode);
+		//merge_node(bench,curnode);
 	}
 }
 
