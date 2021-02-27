@@ -10,15 +10,10 @@
 bool workbench::check(uint gid, uint pid){
 	assert(gid<grids_stack_capacity);
 	lock();
-	uint offset = 0;
-	while(offset<get_grid_size(gid)){
-		assert(grid_check_counter<grid_check_capacity);
-		grid_check[grid_check_counter].pid = pid;
-		grid_check[grid_check_counter].gid = gid;
-		grid_check[grid_check_counter].offset = offset;
-		grid_check_counter++;
-		offset += config->zone_capacity;
-	}
+	assert(grid_check_counter<grid_check_capacity);
+	grid_check[grid_check_counter].pid = pid;
+	grid_check[grid_check_counter].gid = gid;
+	grid_check_counter++;
 	unlock();
 	return true;
 }
@@ -53,7 +48,8 @@ void lookup_rec(QTSchema *schema, Point *p, uint curnode, vector<uint> &nodes, d
 				// the node is on the top or right
 				if(query_all||
 				   p->y<schema[child_offset].mbr.low[1]||
-				   p->x<schema[child_offset].mbr.low[0]){
+				   (p->y<schema[child_offset].mbr.high[1]
+				    && p->x<schema[child_offset].mbr.low[0])){
 					//schema[child_offset].mbr.print();
 					nodes.push_back(child_offset);
 				}
@@ -84,7 +80,6 @@ void *lookup_unit(void *arg){
 				uint gid = bench->schema[n].grid_id;
 				cubuffer[buffer_index].pid = pid;
 				cubuffer[buffer_index].gid = gid;
-				cubuffer[buffer_index].offset = 0;
 				cubuffer[buffer_index].inside = false;
 				buffer_index++;
 				if(buffer_index==2000){

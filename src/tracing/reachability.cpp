@@ -38,10 +38,9 @@ void *reachability_unit(void *arg){
 		for(uint pairid=start;pairid<end;pairid++){
 			uint pid = bench->grid_check[pairid].pid;
 			uint gid = bench->grid_check[pairid].gid;
-			uint offset = bench->grid_check[pairid].offset;
 
-			uint size = min(bench->get_grid_size(gid)-offset, (uint)bench->config->zone_capacity);
-			uint *cur_pids = bench->get_grid(gid)+offset;
+			uint size = bench->get_grid_size(gid);
+			uint *cur_pids = bench->get_grid(gid);
 
 			//vector<Point *> pts;
 			Point *p1 = points + pid;

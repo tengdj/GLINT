@@ -47,6 +47,7 @@ public:
 	// the pool of maintaining objects assignment
 	// each grid buffer: |point_id1...point_idn|
 	uint *grids = NULL;
+	uint grid_capacity = 0;
 	uint *grid_counter = NULL;
 
 	// the stack that keeps the available grids
@@ -126,11 +127,11 @@ public:
 	}
 	inline uint get_grid_size(uint gid){
 		assert(gid<grids_stack_capacity);
-		return min(grid_counter[gid],config->grid_capacity);
+		return min(grid_counter[gid],grid_capacity);
 	}
 	inline uint *get_grid(uint gid){
 		assert(gid<grids_stack_capacity);
-		return grids + gid*config->grid_capacity;
+		return grids + gid*grid_capacity;
 	}
 
 	void update_meetings();

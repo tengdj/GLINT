@@ -17,7 +17,7 @@ workbench::workbench(configuration *conf){
 	config = conf;
 
 	// setup the capacity of each container
-
+	grid_capacity = 10*config->grid_capacity;
 	// each grid contains averagely grid_capacity/2 objects, times 3 for enough space
 	grids_stack_capacity = 3*max((uint)1, config->num_objects/config->grid_capacity);
 	// the number of all QTree Nodes
@@ -77,8 +77,8 @@ void workbench::claim_space(){
 	double total_size = 0;
 	double tmp_size = 0;
 
-	grids = new uint[config->grid_capacity*grids_stack_capacity];
-	tmp_size = config->grid_capacity*grids_stack_capacity*sizeof(uint)/1024.0/1024.0;
+	grids = new uint[grid_capacity*grids_stack_capacity];
+	tmp_size = grid_capacity*grids_stack_capacity*sizeof(uint)/1024.0/1024.0;
 	log("\t%.2f MB\tgrids",tmp_size);
 	total_size += tmp_size;
 

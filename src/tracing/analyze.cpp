@@ -19,7 +19,6 @@ void workbench::analyze_grids(){
 	for(int i=0;i<grids_stack_index;i++){
 		uint gid = grids_stack[i];
 		uint gsize = grid_counter[gid];
-
 		// todo increase the actuall capacity
 		if(gsize>config->grid_capacity){
 			overflow++;
@@ -47,7 +46,9 @@ void workbench::analyze_meetings(){
 	memset(unit_count,0,config->num_objects*sizeof(uint));
 	uint min_bucket = 0;
 	uint max_bucket = 0;
+	uint total = 0;
 	for(uint i=0;i<config->num_meeting_buckets;i++){
+		total += meeting_buckets_counter[i];
 		if(meeting_buckets_counter[min_bucket]>meeting_buckets_counter[i]){
 			min_bucket = i;
 		}
@@ -60,7 +61,8 @@ void workbench::analyze_meetings(){
 			unit_count[bucket[j].pid2]++;
 		}
 	}
-	log("bucket range: [%d, %d]",meeting_buckets_counter[min_bucket],meeting_buckets_counter[max_bucket]);
+	log("total active meetings %d average %d bucket range: [%d, %d]",total,total/config->num_meeting_buckets,
+			meeting_buckets_counter[min_bucket],meeting_buckets_counter[max_bucket]);
 	map<int, uint> connected;
 	uint max_one = 0;
 	for(int i=0;i<config->num_objects;i++){
@@ -104,6 +106,7 @@ void workbench::analyze_meetings(){
 		uint gid = schema[n].grid_id;
 		uint *cur_pid = get_grid(gid);
 		for(uint i=0;i<get_grid_size(gid);i++){
+
 			Point *p2 = points+cur_pid[i];
 			if(p1==p2){
 				continue;
@@ -116,12 +119,14 @@ void workbench::analyze_meetings(){
 		}
 	}
 
-	log("point %d has %d contacts in result, %ld checked, %ld validated"
-			,max_one,unit_count[max_one],all_points.size(), valid_points.size());
+
 	p1->print();
 	print_points(max_reaches);
-	print_points(all_points);
 	print_points(valid_points);
+	print_points(all_points);
+
+	log("point %d has %d contacts in result, %ld checked, %ld validated"
+			,max_one,unit_count[max_one],all_points.size(), valid_points.size());
 	max_reaches.clear();
 	all_points.clear();
 	valid_points.clear();

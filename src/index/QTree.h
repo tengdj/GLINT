@@ -162,7 +162,7 @@ public:
 
 	bool split(){
 		bool should_split = object_index>=config->grid_capacity &&
-				   	   	    mbr.width(true)>config->reach_distance;
+				   	   	    mbr.width(true)/2>config->reach_distance;
 		if(!should_split){
 			return false;
 		}

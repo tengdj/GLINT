@@ -92,9 +92,9 @@ void cuda_partition(workbench *bench){
 
 	// insert current pid to proper memory space of the target gid
 	// todo: consider the situation that grid buffer is too small
-	uint *cur_grid = bench->grids+bench->config->grid_capacity*gid;
+	uint *cur_grid = bench->grids+bench->grid_capacity*gid;
 	uint cur_loc = atomicAdd(bench->grid_counter+gid,1);
-	if(cur_loc<bench->config->grid_capacity){
+	if(cur_loc<bench->grid_capacity){
 		*(cur_grid+cur_loc) = pid;
 	}
 	uint glid = atomicAdd(&bench->grid_check_counter,1);
@@ -120,7 +120,7 @@ void cuda_pack_lookup_units(workbench *bench, uint inistial_size){
 		return;
 	}
 
-	uint grid_size = min(bench->grid_counter[bench->grid_check[glid].gid],bench->config->grid_capacity);
+	uint grid_size = min(bench->grid_counter[bench->grid_check[glid].gid],bench->grid_capacity);
 	// the first batch already inserted during the partition and lookup steps
 	uint offset = bench->config->zone_capacity;
 	while(offset<grid_size){
@@ -188,7 +188,8 @@ void cuda_lookup(workbench *bench, uint stack_id, uint stack_size){
 		if(dist<=bench->config->reach_distance){
 			if(bench->schema[child_offset].isleaf){
 				if(p->y<bench->schema[child_offset].mbr.low[1]||
-				   p->x<bench->schema[child_offset].mbr.low[0]){
+				   (p->y<bench->schema[child_offset].mbr.high[1]
+					&& p->x<bench->schema[child_offset].mbr.low[0])){
 					uint gid = bench->schema[child_offset].grid_id;
 					assert(gid<bench->grids_stack_capacity);
 					uint gl = atomicAdd(&bench->grid_check_counter,1);
@@ -225,7 +226,7 @@ void cuda_reachability(workbench *bench){
 
 	uint gid = bench->grid_check[pairid].gid;
 	uint offset = bench->grid_check[pairid].offset;
-	uint size = min(bench->grid_counter[gid],bench->config->grid_capacity)-offset;
+	uint size = min(bench->grid_counter[gid],bench->grid_capacity)-offset;
 	if(size>bench->config->zone_capacity){
 		size = bench->config->zone_capacity;
 	}
@@ -234,7 +235,7 @@ void cuda_reachability(workbench *bench){
 	}
 
 	uint pid = bench->grid_check[pairid].pid;
-	uint target_pid = *(bench->grids+bench->config->grid_capacity*gid+offset+loc);
+	uint target_pid = *(bench->grids+bench->grid_capacity*gid+offset+loc);
 	if(!bench->grid_check[pairid].inside||pid<target_pid){
 		double dist = distance(bench->points[pid].x, bench->points[pid].y, bench->points[target_pid].x, bench->points[target_pid].y);
 		if(dist<=bench->config->reach_distance){
@@ -333,7 +334,7 @@ workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	h_bench.points = (Point *)gpu->allocate(bench->config->num_objects*sizeof(Point));
 
 	// space for the pids of all the grids
-	h_bench.grids = (uint *)gpu->allocate(bench->grids_stack_capacity*bench->config->grid_capacity*sizeof(uint));
+	h_bench.grids = (uint *)gpu->allocate(bench->grids_stack_capacity*bench->grid_capacity*sizeof(uint));
 	h_bench.grid_counter = (uint *)gpu->allocate(bench->grids_stack_capacity*sizeof(uint));
 	h_bench.grids_stack = (uint *)gpu->allocate(bench->grids_stack_capacity*sizeof(uint));
 
@@ -441,7 +442,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	// todo for test only, should not copy out so much stuff
 	if(bench->config->analyze){
 		CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench.grids,
-				bench->grids_stack_capacity*bench->config->grid_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
+				bench->grids_stack_capacity*bench->grid_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
 		CUDA_SAFE_CALL(cudaMemcpy(bench->grid_counter, h_bench.grid_counter,
 				bench->grids_stack_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
 		CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets, h_bench.meeting_buckets,

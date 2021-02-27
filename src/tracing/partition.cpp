@@ -58,14 +58,13 @@ bool workbench::insert(uint curnode, uint pid){
 	lock(gid);
 	uint cur_size = grid_counter[gid]++;
 	// todo handle overflow
-	if(cur_size<config->grid_capacity){
-		grids[config->grid_capacity*gid+cur_size] = pid;
+	if(cur_size<grid_capacity){
+		grids[grid_capacity*gid+cur_size] = pid;
 	}
 	unlock(gid);
 	// first batch of lookup pairs, start from offset 0
 	grid_check[pid].pid = pid;
 	grid_check[pid].gid = gid;
-	grid_check[pid].offset = 0;
 	grid_check[pid].inside = true;
 
 	// is this point too close to the border?
@@ -82,11 +81,11 @@ bool workbench::insert(uint curnode, uint pid){
 }
 
 bool workbench::batch_insert(uint gid, uint num_objects, uint *pids){
-	assert(num_objects<config->grid_capacity);
+	assert(num_objects<grid_capacity);
 	// can only batch insert to an empty grid
 	assert(grid_counter[gid]==0);
 	lock(gid);
-	memcpy(grids+config->grid_capacity*gid,pids,num_objects*sizeof(uint));
+	memcpy(grids+grid_capacity*gid,pids,num_objects*sizeof(uint));
 	grid_counter[gid] += num_objects;
 	unlock(gid);
 	return true;
