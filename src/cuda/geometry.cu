@@ -429,6 +429,7 @@ void cuda_update_schema_collect(workbench *bench){
 		if(bench->grid_counter[bench->schema[curnode].grid_id]>bench->config->grid_capacity){
 			// this node is overflowed a continuous number of times, split it
 			if(++bench->schema[curnode].overflow_count>=bench->config->schema_update_delay){
+				printf("%d\n",curnode);
 				uint sidx = atomicAdd(&bench->lookup_stack_index[0],1);
 				bench->lookup_stack[0][sidx] = curnode;
 				bench->schema[curnode].overflow_count = 0;
@@ -450,6 +451,7 @@ void cuda_update_schema_collect(workbench *bench){
 		if(leafchild==4&&ncounter<bench->config->grid_capacity){
 			// the children of this node need be deallocated
 			if(++bench->schema[curnode].underflow_count>=bench->config->schema_update_delay){
+				printf("%d\n",curnode);
 				uint sidx = atomicAdd(&bench->lookup_stack_index[0],1);
 				bench->lookup_stack[0][sidx] = curnode;
 				bench->schema[curnode].underflow_count = 0;
