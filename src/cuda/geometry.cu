@@ -463,6 +463,24 @@ void cuda_update_schema_collect(workbench *bench){
 	}
 }
 
+
+__global__
+void cuda_init_schema_stack(workbench *bench){
+	uint curnode = blockIdx.x*blockDim.x+threadIdx.x;
+	if(curnode>=bench->schema_stack_capacity){
+		return;
+	}
+	bench->schema_stack[curnode] = curnode;
+}
+__global__
+void cuda_init_grids_stack(workbench *bench){
+	uint curnode = blockIdx.x*blockDim.x+threadIdx.x;
+	if(curnode>=bench->grids_stack_capacity){
+		return;
+	}
+	bench->grids_stack[curnode] = curnode;
+}
+
 workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	struct timeval start = get_cur_time();
 	gpu->clear();
@@ -502,6 +520,11 @@ workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench.schema, bench->schema, bench->schema_stack_capacity*sizeof(QTSchema), cudaMemcpyHostToDevice));
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench.config, bench->config, sizeof(configuration), cudaMemcpyHostToDevice));
 	CUDA_SAFE_CALL(cudaMemcpy(d_bench, &h_bench, sizeof(workbench), cudaMemcpyHostToDevice));
+
+	cuda_init_grids_stack<<<bench->grids_stack_capacity>>>(d_bench);
+	cuda_init_schema_stack<<<bench->schema_stack_capacity>>>(d_bench);
+
+
 
 	logt("GPU allocating space %ld MB", start,gpu->size_allocated()/1024/1024);
 
