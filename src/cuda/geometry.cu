@@ -521,8 +521,8 @@ workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench.config, bench->config, sizeof(configuration), cudaMemcpyHostToDevice));
 	CUDA_SAFE_CALL(cudaMemcpy(d_bench, &h_bench, sizeof(workbench), cudaMemcpyHostToDevice));
 
-	cuda_init_grids_stack<<<bench->grids_stack_capacity>>>(d_bench);
-	cuda_init_schema_stack<<<bench->schema_stack_capacity>>>(d_bench);
+	cuda_init_grids_stack<<<bench->grids_stack_capacity/1024, 1024>>>(d_bench);
+	cuda_init_schema_stack<<<bench->schema_stack_capacity/1024, 1024>>>(d_bench);
 
 
 
