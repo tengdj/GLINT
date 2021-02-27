@@ -16,15 +16,17 @@ void workbench::analyze_grids(){
 
 	uint overflow = 0;
 	uint max_one = 0;
-	for(int i=0;i<grids_stack_index;i++){
-		uint gid = grids_stack[i];
-		uint gsize = grid_counter[gid];
-		// todo increase the actuall capacity
-		if(gsize>config->grid_capacity){
-			overflow++;
-		}
-		if(max_one<gsize){
-			max_one = gsize;
+	for(int i=0;i<schema_stack_capacity;i++){
+		if(schema[i].type==LEAF){
+			uint gid = schema[i].grid_id;
+			uint gsize = grid_counter[gid];
+			// todo increase the actuall capacity
+			if(gsize>config->grid_capacity){
+				overflow++;
+			}
+			if(max_one<gsize){
+				max_one = gsize;
+			}
 		}
 	}
 	log("%d/%d overflow %d max",overflow,grids_stack_index,max_one);

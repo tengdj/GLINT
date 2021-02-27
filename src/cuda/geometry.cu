@@ -330,39 +330,6 @@ void cuda_compact_meetings(workbench *bench){
 	bench->meeting_buckets_counter_tmp[bid] = active_count;
 }
 
-
-__device__
-inline void merge_node(workbench *bench, uint cur_node){
-	assert(bench->schema[cur_node].type==BRANCH);
-	//printf("merge\n");
-
-	//reclaim the children
-	uint gid = 0;
-	for(int i=0;i<4;i++){
-		uint child_offset = bench->schema[cur_node].children[i];
-		assert(bench->schema[child_offset].type==LEAF);
-		//bench->schema[child_offset].mbr.print();
-		// push the bench->schema and grid spaces to stack for reuse
-
-		bench->grid_counter[bench->schema[child_offset].grid_id] = 0;
-		if(i<3){
-			// push to stack
-			uint idx = atomicSub(&bench->grids_stack_index,1)-1;
-			bench->grids_stack[idx] = bench->schema[child_offset].grid_id;
-		}else{
-			// reused by curnode
-			gid = bench->schema[child_offset].grid_id;
-		}
-		bench->schema[child_offset].type = INVALID;
-		uint idx = atomicSub(&bench->schema_stack_index,1)-1;
-		bench->schema_stack[idx] = child_offset;
-	}
-	bench->schema[cur_node].type = LEAF;
-	// reuse the grid of one of its child
-	bench->schema[cur_node].grid_id = gid;
-}
-
-
 __device__
 inline void split_node(workbench *bench, uint cur_node){
 	assert(bench->schema[cur_node].type==LEAF);
@@ -404,6 +371,38 @@ inline void split_node(workbench *bench, uint cur_node){
 		bench->schema[child].mid_y = (bench->schema[child].mbr.low[1]+bench->schema[child].mbr.high[1])/2;
 	}
 }
+
+__device__
+inline void merge_node(workbench *bench, uint cur_node){
+	assert(bench->schema[cur_node].type==BRANCH);
+	//printf("merge\n");
+
+	//reclaim the children
+	uint gid = 0;
+	for(int i=0;i<4;i++){
+		uint child_offset = bench->schema[cur_node].children[i];
+		assert(bench->schema[child_offset].type==LEAF);
+		//bench->schema[child_offset].mbr.print();
+		// push the bench->schema and grid spaces to stack for reuse
+
+		bench->grid_counter[bench->schema[child_offset].grid_id] = 0;
+		if(i<3){
+			// push to stack
+			uint idx = atomicSub(&bench->grids_stack_index,1)-1;
+			bench->grids_stack[idx] = bench->schema[child_offset].grid_id;
+		}else{
+			// reused by curnode
+			gid = bench->schema[child_offset].grid_id;
+		}
+		bench->schema[child_offset].type = INVALID;
+		uint idx = atomicSub(&bench->schema_stack_index,1)-1;
+		bench->schema_stack[idx] = child_offset;
+	}
+	bench->schema[cur_node].type = LEAF;
+	// reuse the grid of one of its child
+	bench->schema[cur_node].grid_id = gid;
+}
+
 
 __global__
 void cuda_update_schema_conduct(workbench *bench, uint size){
@@ -613,8 +612,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 				bench->config->num_meeting_buckets*sizeof(uint), cudaMemcpyDeviceToHost));
 		if(h_bench.meeting_counter>0){
 			bench->meeting_counter = h_bench.meeting_counter;
-			CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench.meetings,
-					h_bench.meeting_counter*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
+			CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench.meetings, h_bench.meeting_counter*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
 		}
 		bench->schema_stack_index = h_bench.schema_stack_index;
 		bench->grids_stack_index = h_bench.grids_stack_index;
