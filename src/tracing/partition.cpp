@@ -107,6 +107,7 @@ void *partition_unit(void *arg){
 				// assign to a child 0-3
 				int child = (p->y>bench->schema[curnode].mid_y)*2+(p->x>bench->schema[curnode].mid_x);
 				curnode = bench->schema[curnode].children[child];
+				assert(bench->schema[curnode].type!=INVALID);
 				// is leaf
 				if(bench->schema[curnode].type==LEAF){
 					break;
