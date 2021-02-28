@@ -21,7 +21,7 @@ void workbench::analyze_grids(){
 			uint gid = schema[i].grid_id;
 			uint gsize = grid_counter[gid];
 			// todo increase the actuall capacity
-			if(gsize>config->grid_capacity){
+			if(gsize>grid_capacity){
 				overflow++;
 			}
 			if(max_one<gsize){

@@ -59,7 +59,7 @@ void tracer::process(){
 		if(config->dynamic_schema&&!config->gpu){
 			bench->update_schema();
 		}
-		logt("round %d",start,t);
+		logt("round %d",start,t+config->start_time);
 		log("");
 	}
 }
