@@ -145,8 +145,8 @@ void workbench::partition(){
 
 
 void workbench::merge_node(uint cur_node){
-	assert(schema[cur_node].type==BRANCH);
 	lock();
+	assert(schema[cur_node].type==BRANCH);
 	//printf("merge: %d\n",cur_node);
 
 	//schema[cur_node].mbr.print();
@@ -167,12 +167,12 @@ void workbench::merge_node(uint cur_node){
 }
 
 void workbench::split_node(uint cur_node){
-	assert(schema[cur_node].type==LEAF);
 	lock();
-
+	assert(schema[cur_node].type==LEAF);
 	//printf("split: %d\n",cur_node);
 	//schema[cur_node].mbr.print();
 	schema[cur_node].type = BRANCH;
+	assert(grids_stack_index>0);
 	grids_stack[--grids_stack_index] = schema[cur_node].grid_id;
 
 	double xhalf = schema[cur_node].mid_x-schema[cur_node].mbr.low[0];
@@ -183,12 +183,12 @@ void workbench::split_node(uint cur_node){
 		assert(schema_stack_index<schema_stack_capacity);
 		uint child = schema_stack[schema_stack_index++];
 		schema[cur_node].children[i] = child;
+		assert(schema[child].type==INVALID);
 
 		assert(grids_stack_index<grids_stack_capacity);
 		schema[child].grid_id = grids_stack[grids_stack_index++];
 		grid_counter[schema[child].grid_id] = 0;
 		schema[child].level = schema[cur_node].level+1;
-		assert(schema[child].type==INVALID);
 		schema[child].type = LEAF;
 		schema[child].overflow_count = 0;
 		schema[child].underflow_count = 0;
@@ -214,8 +214,7 @@ void *update_schema_unit(void *arg){
 	size_t start = 0;
 	size_t end = 0;
 	while(qctx->next_batch(start,end)){
-		for(uint i=start;i<end;i++){
-			uint curnode = bench->schema_stack[i];
+		for(uint curnode=start;curnode<end;curnode++){
 			if(bench->schema[curnode].type==LEAF){
 				if(bench->grid_counter[bench->schema[curnode].grid_id]>bench->config->grid_capacity){
 					bench->schema[curnode].overflow_count++;

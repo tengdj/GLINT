@@ -97,7 +97,6 @@ void workbench::claim_space(){
 
 	schema = new QTSchema[2*schema_stack_capacity];
 	tmp_size = 2*grids_stack_capacity*sizeof(QTSchema)/1024.0/1024.0;
-	memset(schema,0,tmp_size);
 	log("\t%.2f MB\tschema",tmp_size);
 	total_size += tmp_size;
 
@@ -107,6 +106,7 @@ void workbench::claim_space(){
 	total_size += tmp_size;
 	for(int i=0;i<schema_stack_capacity;i++){
 		schema_stack[i] = i;
+		schema[i].type = INVALID;
 	}
 
 	grid_check = new checking_unit[grid_check_capacity];
