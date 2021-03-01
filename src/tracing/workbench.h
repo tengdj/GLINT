@@ -16,29 +16,29 @@
 typedef struct checking_unit{
 	uint pid;
 	uint gid;
-	uint offset;
-	bool inside;
+	unsigned short offset;
+	unsigned short inside;
 }checking_unit;
 
 typedef struct meeting_unit{
 	uint pid1;
 	uint pid2;
-	uint start;
-	uint end;
+	unsigned short start;
+	unsigned short end;
 }meeting_unit;
 
 typedef struct reach_unit{
 	uint pid1;
 	uint pid2;
+	unsigned short updated;
 }reach_unit;
 
 // the workbench where stores the memory space
 // used for processing
 
-#define MAX_LOCK_NUM 100
 
 class workbench{
-	pthread_mutex_t insert_lk[MAX_LOCK_NUM];
+	pthread_mutex_t *insert_lk;
 public:
 	uint test_counter = 0;
 	configuration *config = NULL;
@@ -76,7 +76,6 @@ public:
 	meeting_unit *meeting_buckets = NULL;
 	uint meeting_bucket_capacity = 0;
 	uint *meeting_buckets_counter = NULL;
-	uint *meeting_buckets_counter_tmp = NULL;
 
 	// the space for the valid meeting information now
 	meeting_unit *meetings = NULL;
@@ -84,9 +83,9 @@ public:
 	uint meeting_counter = 0;
 
 	// the processing stack for looking up
-	uint *lookup_stack[2] = {NULL, NULL};
-	uint lookup_stack_index[2] = {0,0};
-	uint lookup_stack_capacity = 0;
+	uint *global_stack[2] = {NULL, NULL};
+	uint global_stack_index[2] = {0,0};
+	uint global_stack_capacity = 0;
 
 	// external source
 	Point *points = NULL;
@@ -122,8 +121,8 @@ public:
 		}
 		grid_check_counter = 0;
 		reaches_counter = 0;
-		lookup_stack_index[0] = 0;
-		lookup_stack_index[1] = 0;
+		global_stack_index[0] = 0;
+		global_stack_index[1] = 0;
 	}
 	inline uint get_grid_size(uint gid){
 		assert(gid<grids_stack_capacity);
@@ -136,9 +135,10 @@ public:
 
 	void update_meetings();
 	void compact_meetings();
+	void append_meetings();
 
 	void analyze_grids();
-	void analyze_checkings();
+	void analyze_reaches();
 	void analyze_meetings();
 	void analyze_meeting_buckets();
 

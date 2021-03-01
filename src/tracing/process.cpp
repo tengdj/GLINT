@@ -42,6 +42,7 @@ void tracer::process(){
 			bench->reachability();
 			bench->update_meetings();
 			bench->compact_meetings();
+			bench->append_meetings();
 		}else{
 #ifdef USE_GPU
 			process_with_gpu(bench,d_bench,gpu);
@@ -52,9 +53,14 @@ void tracer::process(){
 			print_trace(bench->meetings[luck].pid1);
 			print_trace(bench->meetings[luck].pid2);
 		}
-		if(config->analyze){
+		if(config->analyze_grid){
 			bench->analyze_grids();
-			//bench->analyze_meetings();
+		}
+		if(config->analyze_reach){
+			bench->analyze_reaches();
+		}
+		if(config->analyze_meeting){
+			bench->analyze_meetings();
 		}
 		if(config->dynamic_schema&&!config->gpu){
 			bench->update_schema();

@@ -72,9 +72,9 @@ bool workbench::insert(uint curnode, uint pid){
 	if(p->x+config->x_buffer>schema[curnode].mbr.high[0]||
 	   p->y+config->y_buffer>schema[curnode].mbr.high[1]){
 		lock();
-		lookup_stack[0][lookup_stack_index[0]*2] = pid;
-		lookup_stack[0][lookup_stack_index[0]*2+1] = 0;
-		lookup_stack_index[0]++;
+		global_stack[0][global_stack_index[0]*2] = pid;
+		global_stack[0][global_stack_index[0]*2+1] = 0;
+		global_stack_index[0]++;
 		unlock();
 	}
 	return true;
@@ -140,7 +140,7 @@ void workbench::partition(){
 	}
 	// each point added one point-grid pair with offset 0
 	grid_check_counter = config->num_objects;
-	logt("partition data: %d boundary points", start,lookup_stack_index[0]);
+	logt("partition data: %d boundary points", start,global_stack_index[0]);
 }
 
 
@@ -216,7 +216,8 @@ void *update_schema_unit(void *arg){
 	while(qctx->next_batch(start,end)){
 		for(uint curnode=start;curnode<end;curnode++){
 			if(bench->schema[curnode].type==LEAF){
-				if(bench->grid_counter[bench->schema[curnode].grid_id]>bench->config->grid_capacity){
+				if(bench->schema[curnode].mbr.width(true)>bench->config->reach_distance*2&&
+						bench->grid_counter[bench->schema[curnode].grid_id]>bench->config->grid_capacity){
 					bench->schema[curnode].overflow_count++;
 					// this node is overflowed a continuous number of times, split it
 					if(bench->schema[curnode].overflow_count>=bench->config->schema_update_delay){

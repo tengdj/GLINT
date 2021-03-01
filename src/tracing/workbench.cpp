@@ -22,13 +22,14 @@ workbench::workbench(configuration *conf){
 	grids_stack_capacity = 3*max((uint)1, config->num_objects/config->grid_capacity);
 	// the number of all QTree Nodes
 	schema_stack_capacity = 2*grids_stack_capacity;
-	lookup_stack_capacity = 2*config->num_objects;
+	global_stack_capacity = 2*config->num_objects;
 	reaches_capacity = 10*config->num_objects;
 	meeting_capacity = 10*config->num_objects;
 	meeting_bucket_capacity = max((uint)20, reaches_capacity/config->num_meeting_buckets);
 	grid_check_capacity = config->num_objects*(config->grid_capacity/config->zone_capacity+1);
 
-	for(int i=0;i<50;i++){
+	insert_lk = new pthread_mutex_t[MAX_LOCK_NUM];
+	for(int i=0;i<MAX_LOCK_NUM;i++){
 		pthread_mutex_init(&insert_lk[i],NULL);
 	}
 }
@@ -55,18 +56,17 @@ void workbench::clear(){
 	if(meeting_buckets_counter){
 		delete []meeting_buckets_counter;
 	}
-	if(meeting_buckets_counter_tmp){
-		delete []meeting_buckets_counter_tmp;
-	}
 	if(meetings){
 		delete []meetings;
 	}
-	if(lookup_stack[0]){
-		delete lookup_stack[0];
+	if(global_stack[0]){
+		delete global_stack[0];
 	}
-	if(lookup_stack[1]){
-		delete lookup_stack[1];
+	if(global_stack[1]){
+		delete global_stack[1];
 	}
+
+	delete insert_lk;
 }
 
 
@@ -126,8 +126,6 @@ void workbench::claim_space(){
 
 	meeting_buckets_counter = new uint[config->num_meeting_buckets];
 	memset(meeting_buckets_counter,0,config->num_meeting_buckets*sizeof(uint));
-	meeting_buckets_counter_tmp = new uint[config->num_meeting_buckets];
-	memset(meeting_buckets_counter_tmp,0,config->num_meeting_buckets*sizeof(uint));
 	tmp_size = 2*config->num_meeting_buckets*sizeof(uint)/1024.0/1024.0;
 	log("\t%.2f MB  \tmeeting bucket counter space",tmp_size);
 	total_size += tmp_size;
@@ -137,9 +135,9 @@ void workbench::claim_space(){
 	log("\t%.2f MB\tmeeting space",tmp_size);
 	total_size += tmp_size;
 
-	lookup_stack[0] = new uint[2*lookup_stack_capacity];
-	lookup_stack[1] = new uint[2*lookup_stack_capacity];
-	tmp_size = 2*lookup_stack_capacity*2*sizeof(uint)/1024.0/1024.0;
+	global_stack[0] = new uint[2*global_stack_capacity];
+	global_stack[1] = new uint[2*global_stack_capacity];
+	tmp_size = 2*global_stack_capacity*2*sizeof(uint)/1024.0/1024.0;
 	log("\t%.2f MB\tstack space",tmp_size);
 	total_size += tmp_size;
 

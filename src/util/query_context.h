@@ -10,7 +10,7 @@
 #include "config.h"
 #include <pthread.h>
 
-#define MAX_LOCK_NUM 100
+#define MAX_LOCK_NUM 10000
 
 #define MAX_TARGET_NUM 10
 
@@ -30,7 +30,7 @@ public:
 	size_t num_units = 0;
 	size_t num_batchs = 1000;
 	size_t report_gap = 100;
-	pthread_mutex_t lk[MAX_LOCK_NUM];
+	pthread_mutex_t *lk;
 
 	// query source
 	void *target[MAX_TARGET_NUM];
@@ -39,8 +39,10 @@ public:
 		for(int i=0;i<MAX_TARGET_NUM;i++){
 			target[i] = NULL;
 		}
+		delete []lk;
 	}
 	query_context(){
+		lk = new pthread_mutex_t[MAX_LOCK_NUM];
 		for(int i=0;i<MAX_LOCK_NUM;i++){
 			pthread_mutex_init(&lk[i], NULL);
 		}

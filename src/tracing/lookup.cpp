@@ -73,7 +73,7 @@ void *lookup_unit(void *arg){
 	uint buffer_index = 0;
 	while(qctx->next_batch(start,end)){
 		for(uint sid=start;sid<end;sid++){
-			uint pid = bench->lookup_stack[0][2*sid];
+			uint pid = bench->global_stack[0][2*sid];
 			Point *p = bench->points+pid;
 			lookup_rec(bench->schema, p, 0, nodes, qctx->config->reach_distance);
 			for(uint n:nodes){
@@ -101,7 +101,7 @@ void workbench::lookup(){
 	pthread_t threads[config->num_threads];
 	query_context qctx;
 	qctx.config = config;
-	qctx.num_units = lookup_stack_index[0];
+	qctx.num_units = global_stack_index[0];
 	qctx.target[0] = (void *)this;
 
 	// tree lookups

@@ -19,7 +19,7 @@ typedef struct configuration{
 	int thread_id = 0;
 	uint num_threads = 1;
 	uint duration = 1000;
-	uint min_meet_time = 1;
+	uint min_meet_time = 10;
 	uint num_objects = 1000;
 	string trace_path = "/gisdata/chicago/traces";
 
@@ -29,11 +29,13 @@ typedef struct configuration{
 	uint zone_capacity = 100;
 	uint num_meeting_buckets = 100000;
 	uint schema_update_delay = 1; //
-	double reach_distance = 5;
+	double reach_distance = 2;
 	double x_buffer = 0;
 	double y_buffer = 0;
 	bool gpu = false;
-	bool analyze = false;
+	bool analyze_reach = false;
+	bool analyze_grid = false;
+	bool analyze_meeting = false;
 	bool dynamic_schema = false;
 
 	// for generator only
@@ -64,8 +66,9 @@ inline void print_config(configuration &config){
 	printf("taxi path:\t%s\n",config.taxi_path.c_str());
 	printf("trace path:\t%s\n",config.trace_path.c_str());
 	printf("use gpu:\t%s\n",config.gpu?"yes":"no");
-	printf("analyze:\t%s\n",config.analyze?"yes":"no");
-
+	printf("analyze_reach:\t%s\n",config.analyze_reach?"yes":"no");
+	printf("analyze_grid:\t%s\n",config.analyze_grid?"yes":"no");
+	printf("analyze_meeting:\t%s\n",config.analyze_meeting?"yes":"no");
 }
 
 inline configuration get_parameters(int argc, char **argv){
@@ -77,7 +80,9 @@ inline configuration get_parameters(int argc, char **argv){
 	desc.add_options()
 		("help,h", "produce help message")
 		("gpu,g", "use gpu for processing")
-		("analyze,a", "analyze the processed data")
+		("analyze_reach", "analyze the reaches statistics")
+		("analyze_meeting", "analyze the meeting bucket statistics")
+		("analyze_grid", "analyze the grid statistics")
 		("threads,n", po::value<uint>(&config.num_threads), "number of threads")
 		("grid_capacity", po::value<uint>(&config.grid_capacity), "maximum number of objects per grid ")
 		("zone_capacity", po::value<uint>(&config.zone_capacity), "maximum number of objects per zone buffer")
@@ -106,17 +111,26 @@ inline configuration get_parameters(int argc, char **argv){
 	}
 	po::notify(vm);
 
-	if(vm.count("analyze")){
-		config.analyze = true;
-	}
 	if(vm.count("gpu")){
 		config.gpu = true;
+	}
+	if(vm.count("analyze_reach")){
+		config.analyze_reach = true;
+	}
+	if(vm.count("analyze_meeting")){
+		config.analyze_meeting = true;
+	}
+	if(vm.count("analyze_grid")){
+		config.analyze_grid = true;
 	}
 	if(vm.count("dynamic_schema")){
 		config.dynamic_schema = true;
 	}
 	if(!vm.count("zone_capacity")||!vm.count("gpu")){
 		config.zone_capacity = config.grid_capacity;
+	}
+	if(!vm.count("num_buckets")){
+		config.num_meeting_buckets = config.num_objects;
 	}
 	config.grid_width = max(config.grid_width, config.reach_distance);
 
