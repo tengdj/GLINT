@@ -74,6 +74,10 @@ void trace_generator::analyze_trips(const char *path, int limit){
 		delete total;
 	}
 	std::ifstream file(path);
+	if(!file.is_open()){
+		log("%s cannot be opened",path);
+		exit(0);
+	}
 	std::string str;
 	//skip the head
 	std::getline(file, str);

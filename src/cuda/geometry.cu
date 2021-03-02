@@ -585,7 +585,6 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	logt("%d pid-grid-offset tuples need be checked", start,h_bench.grid_check_counter);
 
-
 	// compute the reachability of objects in each partitions
 	uint thread_y = bench->config->zone_capacity;
 	uint thread_x = 1024/thread_y;

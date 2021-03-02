@@ -12,14 +12,12 @@
 
 #include "util.h"
 namespace po = boost::program_options;
-
-
-typedef struct configuration{
+class configuration{
+public:
 	// shared parameters
 	int thread_id = 0;
 	uint num_threads = 1;
 	uint duration = 1000;
-	uint min_meet_time = 10;
 	uint num_objects = 1000;
 	string trace_path = "/gisdata/chicago/traces";
 
@@ -28,7 +26,9 @@ typedef struct configuration{
 	uint grid_capacity = 100;
 	uint zone_capacity = 100;
 	uint num_meeting_buckets = 100000;
+	bool dynamic_schema = false;
 	uint schema_update_delay = 1; //
+	uint min_meet_time = 10;
 	double reach_distance = 2;
 	double x_buffer = 0;
 	double y_buffer = 0;
@@ -36,46 +36,37 @@ typedef struct configuration{
 	bool analyze_reach = false;
 	bool analyze_grid = false;
 	bool analyze_meeting = false;
-	bool dynamic_schema = false;
 
-	// for generator only
-	double grid_width = 5;
-	string map_path = "/gisdata/chicago/streets";
-	string taxi_path = "/gisdata/chicago/taxi.csv";
-	// how many percent of the initial points are evenly distributed
-	double distribution_rate = 0.3;
-	double walk_rate = 0.4;
-	double walk_speed = 1.0;
-	double drive_rate = 0.2;
-	double drive_speed = 15.0;
-}configuration;
+	void print(){
+		printf("configuration:\n");
+		printf("num threads:\t%d\n",num_threads);
+		printf("num objects:\t%d\n",num_objects);
+		printf("grid capacity:\t%d\n",grid_capacity);
+		printf("zone capacity:\t%d\n",zone_capacity);
+		printf("start time:\t%d\n",start_time);
+		printf("duration:\t%d\n",duration);
+		printf("reach distance:\t%.0f m\n",reach_distance);
+		printf("minimum meeting time:\t%d\n",min_meet_time);
 
-inline void print_config(configuration &config){
-	printf("configuration:\n");
-	printf("num threads:\t%d\n",config.num_threads);
-	printf("num objects:\t%d\n",config.num_objects);
-	printf("grid capacity:\t%d\n",config.grid_capacity);
-	printf("zone capacity:\t%d\n",config.zone_capacity);
-	printf("start time:\t%d\n",config.start_time);
-	printf("duration:\t%d\n",config.duration);
-	printf("reach distance:\t%.0f m\n",config.reach_distance);
-	printf("grid width:\t%.0f m\n",config.grid_width);
-	printf("num buckets:\t%d\n",config.num_meeting_buckets);
+		printf("num buckets:\t%d\n",num_meeting_buckets);
 
-	printf("map path:\t%s\n",config.map_path.c_str());
-	printf("taxi path:\t%s\n",config.taxi_path.c_str());
-	printf("trace path:\t%s\n",config.trace_path.c_str());
-	printf("use gpu:\t%s\n",config.gpu?"yes":"no");
-	printf("analyze_reach:\t%s\n",config.analyze_reach?"yes":"no");
-	printf("analyze_grid:\t%s\n",config.analyze_grid?"yes":"no");
-	printf("analyze_meeting:\t%s\n",config.analyze_meeting?"yes":"no");
-}
+		printf("trace path:\t%s\n",trace_path.c_str());
+		printf("use gpu:\t%s\n",gpu?"yes":"no");
+		printf("dynamic schema:\t%s\n",dynamic_schema?"yes":"no");
+		printf("schema update gap:\t%d\n",schema_update_delay);
+
+		printf("analyze reach:\t%s\n",analyze_reach?"yes":"no");
+		printf("analyze grid:\t%s\n",analyze_grid?"yes":"no");
+		printf("analyze meeting:\t%s\n",analyze_meeting?"yes":"no");
+
+	}
+};
+
 
 inline configuration get_parameters(int argc, char **argv){
 	configuration config;
 	config.num_threads = get_num_threads();
 
-	string query_method = "qtree";
 	po::options_description desc("query usage");
 	desc.add_options()
 		("help,h", "produce help message")
@@ -86,7 +77,6 @@ inline configuration get_parameters(int argc, char **argv){
 		("threads,n", po::value<uint>(&config.num_threads), "number of threads")
 		("grid_capacity", po::value<uint>(&config.grid_capacity), "maximum number of objects per grid ")
 		("zone_capacity", po::value<uint>(&config.zone_capacity), "maximum number of objects per zone buffer")
-		("grid_width", po::value<double>(&config.grid_width), "the width of each grid (in meters)")
 		("objects,o", po::value<uint>(&config.num_objects), "number of objects")
 		("num_buckets,b", po::value<uint>(&config.num_meeting_buckets), "number of meeting buckets")
 
@@ -96,10 +86,7 @@ inline configuration get_parameters(int argc, char **argv){
 		("start_time,s", po::value<uint>(&config.start_time), "the start time of the duration")
 
 		("reachable_distance,r", po::value<double>(&config.reach_distance), "reachable distance (in meters)")
-		("map_path", po::value<string>(&config.map_path), "path to the map file")
-		("taxi_path", po::value<string>(&config.taxi_path), "path to the taxi file")
 		("trace_path", po::value<string>(&config.trace_path), "path to the trace file")
-		("distribution", po::value<double>(&config.distribution_rate), "percent of start points evenly distributed")
 		("dynamic_schema", "the schema is dynamically updated")
 
 		;
@@ -132,10 +119,75 @@ inline configuration get_parameters(int argc, char **argv){
 	if(!vm.count("num_buckets")){
 		config.num_meeting_buckets = config.num_objects;
 	}
-	config.grid_width = max(config.grid_width, config.reach_distance);
+
+	config.print();
+	return config;
+}
+
+
+class generator_configuration:public configuration{
+public:
+	// the grid width for data collection
+	double grid_width = 5;
+
+	// how many percent of the initial points are evenly distributed
+	double distribution_rate = 0.3;
+	double walk_rate = 0.4;
+	double walk_speed = 1.0;
+	double drive_rate = 0.2;
+	double drive_speed = 15.0;
+
+	string map_path = "/gisdata/chicago/streets";
+	string taxi_path = "/gisdata/chicago/taxi.csv";
+	void print(){
+		printf("generator configuration:\n");
+		printf("num threads:\t%d\n",num_threads);
+		printf("num objects:\t%d\n",num_objects);
+		printf("duration:\t%d\n",duration);
+		printf("grid width:\t%.0f m\n",grid_width);
+		printf("distribution rate:\t%.2f",distribution_rate);
+		printf("walk rate:\t%.2f",walk_rate);
+		printf("walk speed:\t%.2f",walk_speed);
+		printf("drive rate:\t%.2f",drive_rate);
+		printf("drive speed:\t%.2f",drive_speed);
+
+		printf("map path:\t%s\n",map_path.c_str());
+		printf("taxi path:\t%s\n",taxi_path.c_str());
+		printf("trace path:\t%s\n",trace_path.c_str());
+	}
+};
+
+
+inline generator_configuration get_generator_parameters(int argc, char **argv){
+	generator_configuration config;
+	config.num_threads = get_num_threads();
+
+	po::options_description desc("generator usage");
+	desc.add_options()
+		("help,h", "produce help message")
+		("threads,n", po::value<uint>(&config.num_threads), "number of threads")
+		("grid_width", po::value<double>(&config.grid_width), "the width of each grid (in meters)")
+		("objects,o", po::value<uint>(&config.num_objects), "number of objects")
+		("duration,d", po::value<uint>(&config.duration), "duration of the trace")
+		("map_path", po::value<string>(&config.map_path), "path to the map file")
+		("taxi_path", po::value<string>(&config.taxi_path), "path to the taxi file")
+		("trace_path", po::value<string>(&config.trace_path), "path to the trace file")
+		("distribution", po::value<double>(&config.distribution_rate), "percent of start points evenly distributed")
+		("walk_rate", po::value<double>(&config.walk_rate), "percent of walk")
+		("walk_speed", po::value<double>(&config.walk_speed), "the speed of walk (meters/second)")
+		("drive_rate", po::value<double>(&config.drive_rate), "percent of drive")
+		("drive_speed", po::value<double>(&config.drive_speed), "the speed of drive (meters/second)")
+		;
+	po::variables_map vm;
+	po::store(po::parse_command_line(argc, argv, desc), vm);
+	if (vm.count("help")) {
+		cout << desc << "\n";
+		exit(0);
+	}
+	po::notify(vm);
 
 	assert(config.walk_rate+config.drive_rate<=1);
-	print_config(config);
+	config.print();
 	return config;
 }
 

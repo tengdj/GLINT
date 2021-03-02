@@ -225,6 +225,10 @@ void Map::loadFrom(const char *path) {
 
 	struct timeval start_time = get_cur_time();
 	ifstream in(path, ios::in | ios::binary);
+	if(!in.is_open()){
+		log("%s cannot be opened",path);
+		exit(0);
+	}
 
 	vector<vector<unsigned int>> connected;
 
@@ -278,6 +282,10 @@ void Map::loadFrom(const char *path) {
 void Map::loadFromCSV(const char *path){
 
 	std::ifstream file(path);
+	if(!file.is_open()){
+		log("%s cannot be opened",path);
+		exit(0);
+	}
 	std::string str;
 	vector<string> fields;
 	//skip the head

@@ -79,10 +79,10 @@ class trace_generator{
 public:
 
     Map *map = NULL;
-    configuration *config = NULL;
+    generator_configuration *config = NULL;
 
 	// construct with some parameters
-	trace_generator(configuration *conf, Map *m){
+	trace_generator(generator_configuration *conf, Map *m){
 		config = conf;
 		assert(config->num_threads>0);
 		map = m;
@@ -207,9 +207,13 @@ public:
 		int total_duration;
 		struct timeval start_time = get_cur_time();
 		ifstream in(path, ios::in | ios::binary);
+		if(!in.is_open()){
+			log("%s cannot be opened",path);
+			exit(0);
+		}
 		in.read((char *)&total_num_objects, sizeof(total_num_objects));
 		in.read((char *)&total_duration, sizeof(total_duration));
-		cout<<total_num_objects<<" "<<total_duration<<endl;
+		//cout<<total_num_objects<<" "<<total_duration<<endl;
 		in.read((char *)&mbr, sizeof(mbr));
 		mbr.to_squre(true);
 		assert(config->num_objects<=total_num_objects);
