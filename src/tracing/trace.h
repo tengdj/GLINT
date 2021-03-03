@@ -20,104 +20,6 @@
 
 using namespace std;
 
-
-/*
- *
- * the statistics of the trips parsed from the taxi data
- * each zone
- *
- * */
-class ZoneStats{
-public:
-	int zoneid = 0;
-	long count = 0;
-	long duration = 0;
-	double length = 0.0;
-	ZoneStats(int id){
-		zoneid = id;
-	}
-	~ZoneStats(){
-	}
-};
-
-class Event{
-public:
-	int timestamp;
-	Point coordinate;
-};
-
-enum TripType{
-	REST = 0,
-	WALK = 1,
-	DRIVE = 2
-};
-
-class Trip {
-public:
-	Event start;
-	Event end;
-	TripType type = REST;
-	Trip(){};
-	Trip(string str);
-	void print_trip();
-	int duration(){
-		return end.timestamp-start.timestamp;
-	}
-	double speed(){
-		return length()/duration();
-	}
-	double length(){
-		return end.coordinate.distance(start.coordinate, true);
-	}
-	void resize(int max_duration);
-};
-
-class trace_generator{
-	Grid *grid = NULL;
-	vector<ZoneStats *> zones;
-	ZoneStats *total = NULL;
-public:
-
-    Map *map = NULL;
-    generator_configuration *config = NULL;
-
-	// construct with some parameters
-	trace_generator(generator_configuration *conf, Map *m){
-		config = conf;
-		assert(config->num_threads>0);
-		map = m;
-		grid = new Grid(*m->getMBR(),config->grid_width);
-		zones.resize(grid->get_grid_num());
-		for(int i=0;i<zones.size();i++){
-			zones[i] = new ZoneStats(i);
-		}
-	}
-	~trace_generator(){
-		map = NULL;
-		for(ZoneStats *z:zones){
-			delete z;
-		}
-		zones.clear();
-		if(grid){
-			delete grid;
-		}
-		if(total){
-			delete total;
-		}
-	}
-
-	Point get_random_location();
-	// generate the destination with the given source point
-	Trip *next_trip(Trip *former=NULL);
-
-	void analyze_trips(const char *path, int limit = 2147483647);
-	Point *generate_trace();
-	// generate a trace with given duration
-	vector<Point *> get_trace(Map *mymap = NULL);
-
-};
-
-
 class tracer{
 	// the statistic for the data set
 	Point *trace = NULL;
@@ -233,11 +135,7 @@ public:
 	}
 
 	void print(){
-		double sample_rate = 1;
-		if(config->num_objects>10000){
-			sample_rate = 10000.0/config->num_objects;
-		}
-		print_points(trace,config->num_objects,sample_rate);
+		print_points(trace,config->num_objects,min(config->num_objects,(uint)10000));
 	}
 	void print_trace(int oid){
 		vector<Point *> points;

@@ -139,6 +139,9 @@ public:
 
 	string map_path = "/gisdata/chicago/streets";
 	string taxi_path = "/gisdata/chicago/taxi.csv";
+	string tweet_path = "/gisdata/chicago/tweet.dat";
+	string meta_path = "/gisdata/chicago/tweet.dat";
+
 	void print(){
 		printf("generator configuration:\n");
 		printf("num threads:\t%d\n",num_threads);
@@ -146,13 +149,14 @@ public:
 		printf("duration:\t%d\n",duration);
 		printf("grid width:\t%.0f m\n",grid_width);
 		printf("distribution rate:\t%.2f",distribution_rate);
-		printf("walk rate:\t%.2f",walk_rate);
-		printf("walk speed:\t%.2f",walk_speed);
-		printf("drive rate:\t%.2f",drive_rate);
-		printf("drive speed:\t%.2f",drive_speed);
+		printf("walk rate:\t%.2f\n",walk_rate);
+		printf("walk speed:\t%.2f\n",walk_speed);
+		printf("drive rate:\t%.2f\n",drive_rate);
+		printf("drive speed:\t%.2f\n",drive_speed);
 
 		printf("map path:\t%s\n",map_path.c_str());
 		printf("taxi path:\t%s\n",taxi_path.c_str());
+		printf("metadata path:\t%s\n",meta_path.c_str());
 		printf("trace path:\t%s\n",trace_path.c_str());
 	}
 };
@@ -172,6 +176,7 @@ inline generator_configuration get_generator_parameters(int argc, char **argv){
 		("map_path", po::value<string>(&config.map_path), "path to the map file")
 		("taxi_path", po::value<string>(&config.taxi_path), "path to the taxi file")
 		("trace_path", po::value<string>(&config.trace_path), "path to the trace file")
+		("meta_path", po::value<string>(&config.meta_path), "path to the metadata file")
 		("distribution", po::value<double>(&config.distribution_rate), "percent of start points evenly distributed")
 		("walk_rate", po::value<double>(&config.walk_rate), "percent of walk")
 		("walk_speed", po::value<double>(&config.walk_speed), "the speed of walk (meters/second)")

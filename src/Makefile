@@ -47,6 +47,9 @@ trace:	tools/trace.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 	
 printtrace:	tools/printtrace.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 	$(CXX) -o ../build/$@ $^ $(LIBS) 
+
+parse:	tools/parsetweets.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
+	$(CXX) -o ../build/$@ $^ $(LIBS) 
 	
 cudatest:	tools/cudatest.o $(CU_OBJS)
 	$(CXX) -o ../build/$@ $^ $(LIBS) $(CUDALIBS)

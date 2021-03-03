@@ -6,7 +6,8 @@
  */
 
 #include "../index/QTree.h"
-#include "trace.h"
+
+#include "generator.h"
 
 /*
  *
@@ -65,60 +66,115 @@ void Trip::resize(int md){
  *
  * */
 
-bool orderzone(ZoneStats *i, ZoneStats *j) { return (i->count>j->count); }
+trace_generator::trace_generator(generator_configuration *conf, Map *m){
+	assert(conf && m);
 
-void trace_generator::analyze_trips(const char *path, int limit){
-	struct timeval start = get_cur_time();
+	config = conf;
+	map = m;
 
-	if(total){
-		delete total;
-	}
-	std::ifstream file(path);
-	if(!file.is_open()){
-		log("%s cannot be opened",path);
+	ifstream infile(config->meta_path.c_str(), ios::in | ios::binary);
+	if(!infile.is_open()){
+		log("failed opening %s",config->meta_path.c_str());
 		exit(0);
 	}
-	std::string str;
-	//skip the head
-	std::getline(file, str);
-	total = new ZoneStats(0);
 
-	while (std::getline(file, str)&&--limit>0){
-		Trip *t = new Trip(str);
-		t->start.coordinate.x += 0.02*(get_rand_double()-0.5);
-		t->start.coordinate.y += 0.012*(get_rand_double()-0.5);
-		t->end.coordinate.x += 0.02*(get_rand_double()-0.5);
-		t->end.coordinate.y += 0.012*(get_rand_double()-0.5);
-		// a valid trip should be covered by the map,
-		// last for a while and the distance larger than 0
-		if(map->getMBR()->contain(t->start.coordinate)&&
-		   map->getMBR()->contain(t->end.coordinate)&&
-		   t->length()>0&&
-		   t->duration()>0){
-
-			int gids[2];
-			gids[0] = grid->getgridid(&t->start.coordinate);
-			gids[1] = grid->getgridid(&t->end.coordinate);
-			double dist = t->start.coordinate.distance(t->end.coordinate, true);
-			for(int i=0;i<2;i++){
-				int zid = gids[i];
-				int ezid = gids[!i];
-				zones[zid]->count++;
-				zones[zid]->duration += t->duration();
-				zones[zid]->length += dist;
-				total->count++;
-				total->duration += t->duration();
-				total->length += dist;
-			}
-		}
-		delete t;
+	infile.read((char *)&tweet_count, sizeof(tweet_count));
+	tweets = new Point[tweet_count];
+	tweets_assign = new uint[tweet_count];
+	for(int i=0;i<tweet_count;i++){
+		infile.read((char *)&tweets[i], sizeof(Point));
+		infile.read((char *)&tweets_assign[i], sizeof(uint));
 	}
-	file.close();
 
-	// reorganize
-	sort(zones.begin(),zones.end(),orderzone);
-	logt("analyze trips in %s",start, path);
+	infile.read((char *)&core_count, sizeof(core_count));
+	cores = new gen_core[core_count];
+	for(int i=0;i<core_count;i++){
+		cores[i].id = i;
+		infile.read((char *)&cores[i].core, sizeof(Point));
+		int dest_num = 0;
+		infile.read((char *)&dest_num, sizeof(dest_num));
+		int d = 0;
+		double r = 0.0;
+		for(int j=0;j<dest_num;j++){
+			infile.read((char *)&d, sizeof(d));
+			infile.read((char *)&r, sizeof(r));
+			cores[i].destination.push_back(pair<int, double>(d,r));
+		}
+	}
+
+	for(int i=0;i<tweet_count;i++){
+		cores[tweets_assign[i]].assigned_tweets.push_back(i);
+	}
+	cout<<tweet_count<<" "<<core_count<<endl;
+	infile.close();
 }
+trace_generator::~trace_generator(){
+	map = NULL;
+	if(tweets){
+		delete []tweets;
+	}
+	if(tweets_assign){
+		delete []tweets_assign;
+	}
+	if(cores){
+		delete []cores;
+	}
+}
+
+//bool orderzone(ZoneStats *i, ZoneStats *j) { return (i->count>j->count); }
+//
+//void trace_generator::analyze_trips(const char *path, int limit){
+//	struct timeval start = get_cur_time();
+//
+//	if(total){
+//		delete total;
+//	}
+//	std::ifstream file(path);
+//	if(!file.is_open()){
+//		log("%s cannot be opened",path);
+//		exit(0);
+//	}
+//	std::string str;
+//	//skip the head
+//	std::getline(file, str);
+//	total = new ZoneStats(0);
+//
+//	while (std::getline(file, str)&&--limit>0){
+//		Trip *t = new Trip(str);
+//		t->start.coordinate.x += 0.02*(get_rand_double()-0.5);
+//		t->start.coordinate.y += 0.012*(get_rand_double()-0.5);
+//		t->end.coordinate.x += 0.02*(get_rand_double()-0.5);
+//		t->end.coordinate.y += 0.012*(get_rand_double()-0.5);
+//		// a valid trip should be covered by the map,
+//		// last for a while and the distance larger than 0
+//		if(map->getMBR()->contain(t->start.coordinate)&&
+//		   map->getMBR()->contain(t->end.coordinate)&&
+//		   t->length()>0&&
+//		   t->duration()>0){
+//
+//			int gids[2];
+//			gids[0] = grid->getgridid(&t->start.coordinate);
+//			gids[1] = grid->getgridid(&t->end.coordinate);
+//			double dist = t->start.coordinate.distance(t->end.coordinate, true);
+//			for(int i=0;i<2;i++){
+//				int zid = gids[i];
+//				int ezid = gids[!i];
+//				zones[zid]->count++;
+//				zones[zid]->duration += t->duration();
+//				zones[zid]->length += dist;
+//				total->count++;
+//				total->duration += t->duration();
+//				total->length += dist;
+//			}
+//		}
+//		delete t;
+//	}
+//	file.close();
+//
+//	// reorganize
+//	sort(zones.begin(),zones.end(),orderzone);
+//	logt("analyze trips in %s",start, path);
+//}
 
 
 /*
@@ -129,28 +185,21 @@ void trace_generator::analyze_trips(const char *path, int limit){
  * */
 
 
-Point trace_generator::get_random_location(){
-	int start_x = -1;
-	int start_y = -1;
-	// certain portion follows the distribution
-	// of analyzed dataset, the rest randomly generate
-	if(tryluck(1.0-config->distribution_rate)){
-		double target = get_rand_double();
-		//log("%f",target);
-		double cum = 0;
-		for(ZoneStats *z:zones){
-			//log("%d",z->count);
-			double next_cum = cum + z->count*1.0/total->count;
-			if(target>=cum&&target<=next_cum){
-				start_x = z->zoneid%grid->dimx;
-				start_y = z->zoneid/grid->dimx;
-				break;
-			}
-			cum = next_cum;
+Point trace_generator::get_random_location(int seed){
+	int tid = 0;
+	if(seed==-1){
+		tid = get_rand_number(tweet_count)-1;
+	}else{
+		if(cores[seed].assigned_tweets.size()>0){
+			tid = get_rand_number(cores[seed].assigned_tweets.size())-1;
+			tid = cores[seed].assigned_tweets[tid];
+		}else{
+			tid = get_rand_number(tweet_count)-1;
 		}
-		assert(start_x>=0);
 	}
-	return grid->get_random_point(start_x, start_y);
+	double xval = tweets[tid].x + (0.5-get_rand_double())*100*degree_per_meter_longitude(tweets[tid].y);
+	double yval = tweets[tid].y + (0.5-get_rand_double())*100*degree_per_meter_latitude;
+	return Point(xval, yval);
 }
 
 /*
@@ -158,7 +207,7 @@ Point trace_generator::get_random_location(){
  *
  * */
 
-Trip *trace_generator::next_trip(Trip *former){
+Trip *trace_generator::next_trip(Trip *former, int former_seed){
 	Trip *next = new Trip();
 	// get a start location if no previous trip
 	if(former==NULL){
@@ -168,16 +217,26 @@ Trip *trace_generator::next_trip(Trip *former){
 		next->start = former->end;
 	}
 
-	// rest for a while until the end, the time is adjustable
 	if(tryluck(config->walk_rate)){
 		next->type = WALK;
-		next->end.coordinate = get_random_location();
-		next->end.timestamp = next->start.timestamp+next->end.coordinate.distance(next->start.coordinate, true)/config->walk_speed;
+		next->end.coordinate = get_random_location(former_seed);
 	}else if(tryluck(config->drive_rate)){
 		next->type = DRIVE;
-		next->end.coordinate = get_random_location();
-		next->end.timestamp = next->start.timestamp+(next->end.coordinate.distance(next->start.coordinate, true))/config->drive_speed+1;
+		int next_seed = former_seed;
+		if(former_seed>0){
+			double target = get_rand_double();
+			double cum = 0;
+			for(int i=0;i<cores[former_seed].destination.size();i++){
+				cum += cores[former_seed].destination[i].second;
+				if(cum>=target){
+					next_seed = cores[former_seed].destination[i].first;
+					break;
+				}
+			}
+		}
+		next->end.coordinate = get_random_location(next_seed);
 	}else{
+		// take a rest
 		next->end = next->start;
 		next->type = REST;
 	}
@@ -192,20 +251,24 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 	}
 	assert(mymap);
 	vector<Point *> ret;
+	Point cur_loc;
+	int cur_seed = get_rand_number(core_count);
+
 	Trip *trip = next_trip();
+
 	trip->resize(config->duration);
 	Point *first_point = new Point(trip->start.coordinate.x,trip->start.coordinate.y);
 	ret.push_back(first_point);
 	while(ret.size()<config->duration){
 		// stay here
 		if(trip->type==REST){
-			for(int i=0;i<trip->duration()&&ret.size()<config->duration;i++){
+			int dur = config->duration*get_rand_double();
+			for(int i=0;i<dur&&ret.size()<config->duration;i++){
 				ret.push_back(new Point(&trip->start.coordinate));
 			}
 		}else if(trip->type==WALK){ //walk
-			const double step = 1.0/trip->duration();
-			double portion = 0;
-			for(int i=0;i<trip->duration()&&ret.size()<config->duration;i++){
+			const double step = trip->length()/config->walk_speed;
+			for(double portion = 0;portion<1&&ret.size()<config->duration;){
 				double px = trip->start.coordinate.x+portion*(trip->end.coordinate.x - trip->start.coordinate.x);
 				double py = trip->start.coordinate.y+portion*(trip->end.coordinate.y - trip->start.coordinate.y);
 				ret.push_back(new Point(px,py));

@@ -391,8 +391,13 @@ inline void print_linestring(vector<Point *> trajectory, double sample_rate=1.0)
 	printf(")\n");
 }
 
-inline void print_points(vector<Point *> trajectory, double sample_rate=1.0){
-	assert(sample_rate<=1&&sample_rate>0);
+inline void print_points(vector<Point *> trajectory, uint max_num = INT_MAX){
+
+	double sample_rate = 1.0*max_num/trajectory.size();
+	if(sample_rate>1){
+		sample_rate = 1.0;
+	}
+
 	printf("MULTIPOINT (");
 	bool first = true;
 	for(int i=0;i<trajectory.size();i++){
@@ -410,8 +415,11 @@ inline void print_points(vector<Point *> trajectory, double sample_rate=1.0){
 	printf(")\n");
 }
 
-inline void print_points(Point *trajectory, size_t num_objects, double sample_rate=1.0){
-	assert(sample_rate<=1&&sample_rate>=0);
+inline void print_points(Point *trajectory, size_t num_objects, uint max_num = INT_MAX){
+	double sample_rate = 1.0*max_num/num_objects;
+	if(sample_rate>1){
+		sample_rate = 1.0;
+	}
 	printf("MULTIPOINT (");
 	bool first = true;
 	for(int i=0;i<num_objects;i++){
