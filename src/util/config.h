@@ -128,7 +128,6 @@ inline configuration get_parameters(int argc, char **argv){
 class generator_configuration:public configuration{
 public:
 	// how many percent of the initial points are evenly distributed
-	double distribution_rate = 0.3;
 	double walk_rate = 0.4;
 	double walk_speed = 1.0;
 	double drive_rate = 0.2;
@@ -143,7 +142,6 @@ public:
 		printf("num threads:\t%d\n",num_threads);
 		printf("num objects:\t%d\n",num_objects);
 		printf("duration:\t%d\n",duration);
-		printf("distribution rate:\t%.2f",distribution_rate);
 		printf("walk rate:\t%.2f\n",walk_rate);
 		printf("walk speed:\t%.2f\n",walk_speed);
 		printf("drive rate:\t%.2f\n",drive_rate);
@@ -169,7 +167,6 @@ inline generator_configuration get_generator_parameters(int argc, char **argv){
 		("map_path", po::value<string>(&config.map_path), "path to the map file")
 		("trace_path", po::value<string>(&config.trace_path), "path to the trace file")
 		("meta_path", po::value<string>(&config.meta_path), "path to the metadata file")
-		("distribution", po::value<double>(&config.distribution_rate), "percent of start points evenly distributed")
 		("walk_rate", po::value<double>(&config.walk_rate), "percent of walk")
 		("walk_speed", po::value<double>(&config.walk_speed), "the speed of walk (meters/second)")
 		("drive_rate", po::value<double>(&config.drive_rate), "percent of drive")
