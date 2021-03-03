@@ -138,8 +138,6 @@ public:
 	double drive_speed = 15.0;
 
 	string map_path = "/gisdata/chicago/streets";
-	string taxi_path = "/gisdata/chicago/taxi.csv";
-	string tweet_path = "/gisdata/chicago/tweet.dat";
 	string meta_path = "/gisdata/chicago/tweet.dat";
 
 	void print(){
@@ -155,7 +153,6 @@ public:
 		printf("drive speed:\t%.2f\n",drive_speed);
 
 		printf("map path:\t%s\n",map_path.c_str());
-		printf("taxi path:\t%s\n",taxi_path.c_str());
 		printf("metadata path:\t%s\n",meta_path.c_str());
 		printf("trace path:\t%s\n",trace_path.c_str());
 	}
@@ -174,7 +171,6 @@ inline generator_configuration get_generator_parameters(int argc, char **argv){
 		("objects,o", po::value<uint>(&config.num_objects), "number of objects")
 		("duration,d", po::value<uint>(&config.duration), "duration of the trace")
 		("map_path", po::value<string>(&config.map_path), "path to the map file")
-		("taxi_path", po::value<string>(&config.taxi_path), "path to the taxi file")
 		("trace_path", po::value<string>(&config.trace_path), "path to the trace file")
 		("meta_path", po::value<string>(&config.meta_path), "path to the metadata file")
 		("distribution", po::value<double>(&config.distribution_rate), "percent of start points evenly distributed")

@@ -105,7 +105,6 @@ trace_generator::trace_generator(generator_configuration *conf, Map *m){
 	for(int i=0;i<tweet_count;i++){
 		cores[tweets_assign[i]].assigned_tweets.push_back(i);
 	}
-	cout<<tweet_count<<" "<<core_count<<endl;
 	infile.close();
 }
 trace_generator::~trace_generator(){
@@ -190,6 +189,7 @@ Point trace_generator::get_random_location(int seed){
 	if(seed==-1){
 		tid = get_rand_number(tweet_count)-1;
 	}else{
+		assert(seed<core_count);
 		if(cores[seed].assigned_tweets.size()>0){
 			tid = get_rand_number(cores[seed].assigned_tweets.size())-1;
 			tid = cores[seed].assigned_tweets[tid];
@@ -202,47 +202,24 @@ Point trace_generator::get_random_location(int seed){
 	return Point(xval, yval);
 }
 
-/*
- * simulate next move.
- *
- * */
-
-Trip *trace_generator::next_trip(Trip *former, int former_seed){
-	Trip *next = new Trip();
-	// get a start location if no previous trip
-	if(former==NULL){
-		next->start.coordinate = get_random_location();
-		next->start.timestamp = 0;
+int trace_generator::get_core(int seed){
+	int next_seed = 0;
+	if(seed==-1){
+		next_seed = get_rand_number(core_count)-1;
+		assert(next_seed>=0&&next_seed<core_count);
 	}else{
-		next->start = former->end;
-	}
-
-	if(tryluck(config->walk_rate)){
-		next->type = WALK;
-		next->end.coordinate = get_random_location(former_seed);
-	}else if(tryluck(config->drive_rate)){
-		next->type = DRIVE;
-		int next_seed = former_seed;
-		if(former_seed>0){
-			double target = get_rand_double();
-			double cum = 0;
-			for(int i=0;i<cores[former_seed].destination.size();i++){
-				cum += cores[former_seed].destination[i].second;
-				if(cum>=target){
-					next_seed = cores[former_seed].destination[i].first;
-					break;
-				}
+		double target = get_rand_double();
+		double cum = 0;
+		for(int i=0;i<cores[seed].destination.size();i++){
+			cum += cores[seed].destination[i].second;
+			if(cum>=target){
+				next_seed = cores[seed].destination[i].first;
+				break;
 			}
 		}
-		next->end.coordinate = get_random_location(next_seed);
-	}else{
-		// take a rest
-		next->end = next->start;
-		next->type = REST;
 	}
-	return next;
+	return next_seed;
 }
-
 
 vector<Point *> trace_generator::get_trace(Map *mymap){
 	// use the default map for single thread mode
@@ -251,44 +228,43 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 	}
 	assert(mymap);
 	vector<Point *> ret;
-	Point cur_loc;
-	int cur_seed = get_rand_number(core_count);
-
-	Trip *trip = next_trip();
-
-	trip->resize(config->duration);
-	Point *first_point = new Point(trip->start.coordinate.x,trip->start.coordinate.y);
-	ret.push_back(first_point);
+	int cur_core = get_core();
+	Point cur_loc = get_random_location(cur_core);
 	while(ret.size()<config->duration){
-		// stay here
-		if(trip->type==REST){
-			int dur = config->duration*get_rand_double();
-			for(int i=0;i<dur&&ret.size()<config->duration;i++){
-				ret.push_back(new Point(&trip->start.coordinate));
-			}
-		}else if(trip->type==WALK){ //walk
-			const double step = trip->length()/config->walk_speed;
+		Point next_loc = cur_loc;
+
+		if(tryluck(config->drive_rate)){
+			// drive
+			cur_core = get_core(cur_core);
+			next_loc = get_random_location(cur_core);
+
+			mymap->navigate(ret, &cur_loc, &next_loc, config->drive_speed);
+			cur_loc = next_loc;
+
+		}else if(tryluck(config->walk_rate)){
+			//walk
+			next_loc = get_random_location(cur_core);
+			const double step = next_loc.distance(cur_loc, true)/config->walk_speed;
 			for(double portion = 0;portion<1&&ret.size()<config->duration;){
-				double px = trip->start.coordinate.x+portion*(trip->end.coordinate.x - trip->start.coordinate.x);
-				double py = trip->start.coordinate.y+portion*(trip->end.coordinate.y - trip->start.coordinate.y);
+				double px = cur_loc.x+portion*(next_loc.x - cur_loc.x);
+				double py = cur_loc.y+portion*(next_loc.y - cur_loc.y);
 				ret.push_back(new Point(px,py));
 				portion += step;
 			}
-		}else{//drive
-			mymap->navigate(ret, &trip->start.coordinate, &trip->end.coordinate, trip->speed());
+			cur_loc = next_loc;
+		}else{
+			// stay here
+			int dur = config->duration*get_rand_double();
+			for(int i=0;i<dur&&ret.size()<config->duration;i++){
+				ret.push_back(new Point(&cur_loc));
+			}
 		}
-		// move to another trip following last trip
-		Trip *newtrip = next_trip(trip);
-		delete trip;
-		trip = newtrip;
-		trip->resize(config->duration-ret.size());
 	}
 	for(int i=config->duration;i<ret.size();i++){
 		delete ret[i];
 	}
 	ret.erase(ret.begin()+config->duration,ret.end());
 	assert(ret.size()==config->duration);
-	delete trip;
 	return ret;
 }
 

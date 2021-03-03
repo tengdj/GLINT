@@ -87,13 +87,12 @@ public:
 	~trace_generator();
 
 	Point get_random_location(int seed = -1);
-	// generate the destination with the given source point
-	Trip *next_trip(Trip *former=NULL, int former_seed=-1);
 
 	//void analyze_trips(const char *path, int limit = 2147483647);
 	Point *generate_trace();
 	// generate a trace with given duration
 	vector<Point *> get_trace(Map *mymap = NULL);
+	int get_core(int seed=-1);
 
 };
 
