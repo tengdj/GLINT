@@ -127,15 +127,13 @@ inline configuration get_parameters(int argc, char **argv){
 
 class generator_configuration:public configuration{
 public:
-	// the grid width for data collection
-	double grid_width = 5;
-
 	// how many percent of the initial points are evenly distributed
 	double distribution_rate = 0.3;
 	double walk_rate = 0.4;
 	double walk_speed = 1.0;
 	double drive_rate = 0.2;
 	double drive_speed = 15.0;
+	int max_rest_time = 600;
 
 	string map_path = "/gisdata/chicago/streets";
 	string meta_path = "/gisdata/chicago/tweet.dat";
@@ -145,7 +143,6 @@ public:
 		printf("num threads:\t%d\n",num_threads);
 		printf("num objects:\t%d\n",num_objects);
 		printf("duration:\t%d\n",duration);
-		printf("grid width:\t%.0f m\n",grid_width);
 		printf("distribution rate:\t%.2f",distribution_rate);
 		printf("walk rate:\t%.2f\n",walk_rate);
 		printf("walk speed:\t%.2f\n",walk_speed);
@@ -167,7 +164,6 @@ inline generator_configuration get_generator_parameters(int argc, char **argv){
 	desc.add_options()
 		("help,h", "produce help message")
 		("threads,n", po::value<uint>(&config.num_threads), "number of threads")
-		("grid_width", po::value<double>(&config.grid_width), "the width of each grid (in meters)")
 		("objects,o", po::value<uint>(&config.num_objects), "number of objects")
 		("duration,d", po::value<uint>(&config.duration), "duration of the trace")
 		("map_path", po::value<string>(&config.map_path), "path to the map file")

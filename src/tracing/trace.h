@@ -140,7 +140,7 @@ public:
 	void print_trace(int oid){
 		vector<Point *> points;
 		for(int i=0;i<config->duration;i++){
-			points.push_back(trace+oid+i*config->num_objects);
+			points.push_back(trace+i*config->num_objects+oid);
 		}
 		print_points(points);
 		points.clear();

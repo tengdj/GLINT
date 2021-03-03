@@ -230,8 +230,10 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 	vector<Point *> ret;
 	int cur_core = get_core();
 	Point cur_loc = get_random_location(cur_core);
+	bool rested = false;
 	while(ret.size()<config->duration){
 		Point next_loc = cur_loc;
+		//uint o = ret.size();
 
 		if(tryluck(config->drive_rate)){
 			// drive
@@ -240,11 +242,12 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 
 			mymap->navigate(ret, &cur_loc, &next_loc, config->drive_speed);
 			cur_loc = next_loc;
-
+			rested = false;
+			//cout<<"drive "<<ret.size()-o<<endl;
 		}else if(tryluck(config->walk_rate)){
 			//walk
 			next_loc = get_random_location(cur_core);
-			const double step = next_loc.distance(cur_loc, true)/config->walk_speed;
+			const double step = config->walk_speed/next_loc.distance(cur_loc, true);
 			for(double portion = 0;portion<1&&ret.size()<config->duration;){
 				double px = cur_loc.x+portion*(next_loc.x - cur_loc.x);
 				double py = cur_loc.y+portion*(next_loc.y - cur_loc.y);
@@ -252,12 +255,16 @@ vector<Point *> trace_generator::get_trace(Map *mymap){
 				portion += step;
 			}
 			cur_loc = next_loc;
-		}else{
+			rested = false;
+			//cout<<"walk "<<ret.size()-o<<endl;
+		}else if(!rested){
 			// stay here
-			int dur = config->duration*get_rand_double();
+			int dur = config->max_rest_time*get_rand_double();
 			for(int i=0;i<dur&&ret.size()<config->duration;i++){
 				ret.push_back(new Point(&cur_loc));
 			}
+			rested = true;
+			//cout<<"rest "<<ret.size()-o<<endl;
 		}
 	}
 	for(int i=config->duration;i<ret.size();i++){
@@ -306,6 +313,7 @@ Point *trace_generator::generate_trace(){
 	tctx.target[1] = (void *)ret;
 	tctx.num_units = config->num_objects;
 	tctx.report_gap = 1;
+	tctx.num_batchs = 100;
 	for(int i=0;i<config->num_threads;i++){
 		pthread_create(&threads[i], NULL, gentrace_unit, (void *)&tctx);
 	}
