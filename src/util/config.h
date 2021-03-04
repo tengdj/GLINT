@@ -27,6 +27,7 @@ public:
 	uint zone_capacity = 100;
 	uint num_meeting_buckets = 100000;
 	bool dynamic_schema = false;
+	bool recursive_lookup = false;
 	uint schema_update_delay = 1; //
 	uint min_meet_time = 10;
 	double reach_distance = 2;
@@ -71,6 +72,7 @@ inline configuration get_parameters(int argc, char **argv){
 	desc.add_options()
 		("help,h", "produce help message")
 		("gpu,g", "use gpu for processing")
+		("recursive_lookup", "use a single stack for each lookup")
 		("analyze_reach", "analyze the reaches statistics")
 		("analyze_meeting", "analyze the meeting bucket statistics")
 		("analyze_grid", "analyze the grid statistics")
@@ -118,6 +120,9 @@ inline configuration get_parameters(int argc, char **argv){
 	}
 	if(!vm.count("num_buckets")){
 		config.num_meeting_buckets = config.num_objects;
+	}
+	if(vm.count("recursive_lookup")){
+		config.recursive_lookup = true;
 	}
 
 	config.print();

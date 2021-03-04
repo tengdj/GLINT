@@ -7,35 +7,61 @@
 
 #include "trace.h"
 
+
+// single thread function for assigning objects into grids following certain schema
+void *qtree_unit(void *arg){
+	query_context *qctx = (query_context *)arg;
+	QTNode *qtree = (QTNode *)qctx->target[0];
+
+	// pick one batch of point-grid pair for processing
+	size_t start = 0;
+	size_t end = 0;
+	while(qctx->next_batch(start,end)){
+		for(uint pid=start;pid<end;pid++){
+			qtree->insert(pid);
+		}
+	}
+	return NULL;
+}
+
 workbench *partitioner::build_schema(Point *points, size_t num_objects){
 	struct timeval start = get_cur_time();
+
+
 	config->x_buffer = config->reach_distance*degree_per_meter_longitude(mbr.low[1]);
 	config->y_buffer = config->reach_distance*degree_per_meter_latitude;
 
 	// construct the QTree
-	// todo parallelize it
 	QTNode *qtree = new QTNode(mbr, config, points);
-	for(uint pid=0;pid<num_objects;pid++){
-		//log("%d",pid);
-		qtree->insert(pid);
+	pthread_t threads[config->num_threads];
+	query_context qctx;
+	qctx.config = config;
+	qctx.num_units = config->num_objects;
+	qctx.target[0] = (void *)qtree;
+
+	for(int i=0;i<config->num_threads;i++){
+		pthread_create(&threads[i], NULL, qtree_unit, (void *)&qctx);
 	}
+	for(int i = 0; i < config->num_threads; i++){
+		void *status;
+		pthread_join(threads[i], &status);
+	}
+	logt("building QTree",start);
 
 	// set the ids and other stuff
 	qtree->finalize();
 	//qtree->print();
+//	vector<QTNode *> leafs;
+//	qtree->get_leafs(leafs,false);
+//	for(QTNode *n:leafs){
+//		log("%d",n->object_index);
+//	}
 
 	// create and initialize the workbench
 	workbench *bench = new workbench(config);
 	bench->claim_space();
+	logt("claim memory space",start);
 
-	// initialize the schema stack
-	for(int i=0;i<bench->schema_stack_capacity;i++){
-		bench->schema_stack[i] = i;
-	}
-	// initialize the grid stack
-	for(int i=0;i<bench->grids_stack_capacity;i++){
-		bench->grids_stack[i] = i;
-	}
 
 	// pop the top grids and schema nodes
 	bench->schema_stack_index += qtree->node_count();
@@ -45,7 +71,6 @@ workbench *partitioner::build_schema(Point *points, size_t num_objects){
 	// construct the schema with the QTree
 	uint offset = 0;
 	qtree->create_schema(bench->schema, offset);
-
 	delete qtree;
 	logt("partitioning schema is with %d grids",start,bench->grids_stack_index);
 	return bench;
