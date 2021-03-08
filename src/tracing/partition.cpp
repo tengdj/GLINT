@@ -27,7 +27,6 @@ void *qtree_unit(void *arg){
 workbench *partitioner::build_schema(Point *points, size_t num_objects){
 	struct timeval start = get_cur_time();
 
-
 	config->x_buffer = config->reach_distance*degree_per_meter_longitude(mbr.low[1]);
 	config->y_buffer = config->reach_distance*degree_per_meter_latitude;
 
@@ -91,17 +90,6 @@ bool workbench::insert(uint curnode, uint pid){
 	grid_check[pid].pid = pid;
 	grid_check[pid].gid = gid;
 	grid_check[pid].inside = true;
-
-	// is this point too close to the border?
-	Point *p = points+pid;
-	if(p->x+config->x_buffer>schema[curnode].mbr.high[0]||
-	   p->y+config->y_buffer>schema[curnode].mbr.high[1]){
-		lock();
-		global_stack[0][global_stack_index[0]*2] = pid;
-		global_stack[0][global_stack_index[0]*2+1] = 0;
-		global_stack_index[0]++;
-		unlock();
-	}
 	return true;
 }
 
@@ -116,6 +104,60 @@ bool workbench::batch_insert(uint gid, uint num_objects, uint *pids){
 	return true;
 }
 
+
+/*
+ *
+ * the CPU functions for looking up QTree with points
+ *
+ * */
+void lookup_rec(QTSchema *schema, Point *p, uint curnode, vector<uint> &nodes, double max_dist, bool query_all){
+
+	// could be possibly in multiple children with buffers enabled
+	for(int i=0;i<4;i++){
+		uint child_offset = schema[curnode].children[i];
+		double dist = schema[child_offset].mbr.distance(*p, true);
+		if(dist<=max_dist){
+			if(schema[child_offset].type==LEAF){
+				// the node is on the top or right
+				if(query_all||
+				   p->y<schema[child_offset].mbr.low[1]||
+				   (p->y<schema[child_offset].mbr.high[1]
+				    && p->x<schema[child_offset].mbr.low[0])){
+					//schema[child_offset].mbr.print();
+					nodes.push_back(child_offset);
+				}
+			}else{
+				lookup_rec(schema, p, child_offset, nodes, max_dist, query_all);
+			}
+		}
+	}
+}
+
+bool workbench::check(uint gid, uint pid){
+	assert(gid<grids_stack_capacity);
+	lock();
+	assert(grid_check_counter<grid_check_capacity);
+	grid_check[grid_check_counter].pid = pid;
+	grid_check[grid_check_counter].gid = gid;
+	grid_check_counter++;
+	unlock();
+	return true;
+}
+
+bool workbench::batch_check(checking_unit *buffer, uint num){
+	if(num == 0){
+		return false;
+	}
+	uint cur_counter = 0;
+	lock();
+	assert(grid_check_counter+num<grid_check_capacity);
+	cur_counter = grid_check_counter;
+	grid_check_counter += num;
+	unlock();
+	memcpy(grid_check+cur_counter,buffer,sizeof(checking_unit)*num);
+	return true;
+}
+
 // single thread function for assigning objects into grids following certain schema
 void *partition_unit(void *arg){
 	query_context *qctx = (query_context *)arg;
@@ -124,15 +166,27 @@ void *partition_unit(void *arg){
 	// pick one batch of point-grid pair for processing
 	size_t start = 0;
 	size_t end = 0;
+	uint *tmp_stack = new uint[2*200];
+	uint tmp_stack_index = 0;
+	vector<uint> nodes;
+	checking_unit *cubuffer = new checking_unit[2000];
+	uint buffer_index = 0;
 	while(qctx->next_batch(start,end)){
 		for(uint pid=start;pid<end;pid++){
 			uint curnode = 0;
 			Point *p = bench->points+pid;
+			uint last_valid = 0;
+
 			while(true){
 				// assign to a child 0-3
 				int child = (p->y>bench->schema[curnode].mid_y)*2+(p->x>bench->schema[curnode].mid_x);
 				curnode = bench->schema[curnode].children[child];
 				assert(bench->schema[curnode].type!=INVALID);
+				// not near the right and top border
+				if(p->x+bench->config->x_buffer<bench->schema[curnode].mbr.high[0]&&
+				   p->y+bench->config->y_buffer<bench->schema[curnode].mbr.high[1]){
+					last_valid = curnode;
+				}
 				// is leaf
 				if(bench->schema[curnode].type==LEAF){
 					break;
@@ -140,8 +194,30 @@ void *partition_unit(void *arg){
 			}
 			// pid belongs to such node
 			bench->insert(curnode, pid);
+
+			// is this point too close to the border?
+			if(last_valid!=curnode){
+				lookup_rec(bench->schema, p, last_valid, nodes, bench->config->reach_distance);
+				for(uint n:nodes){
+					uint gid = bench->schema[n].grid_id;
+					cubuffer[buffer_index].pid = pid;
+					cubuffer[buffer_index].gid = gid;
+					cubuffer[buffer_index].inside = false;
+					if(++buffer_index==2000){
+						bench->batch_check(cubuffer, buffer_index);
+						buffer_index = 0;
+					}
+				}
+				nodes.clear();
+			}
 		}
 	}
+
+	if(buffer_index>0){
+		bench->batch_check(cubuffer, buffer_index);
+		buffer_index = 0;
+	}
+	delete []tmp_stack;
 	return NULL;
 }
 
@@ -155,7 +231,9 @@ void workbench::partition(){
 	qctx.config = config;
 	qctx.num_units = config->num_objects;
 	qctx.target[0] = (void *)this;
+	qctx.num_batchs = 10000;
 
+	grid_check_counter = config->num_objects;
 	for(int i=0;i<config->num_threads;i++){
 		pthread_create(&threads[i], NULL, partition_unit, (void *)&qctx);
 	}
@@ -164,7 +242,6 @@ void workbench::partition(){
 		pthread_join(threads[i], &status);
 	}
 	// each point added one point-grid pair with offset 0
-	grid_check_counter = config->num_objects;
 	logt("partition data: %d boundary points", start,global_stack_index[0]);
 }
 

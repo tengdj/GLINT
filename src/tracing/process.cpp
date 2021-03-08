@@ -32,13 +32,14 @@ void tracer::process(){
 	struct timeval start = get_cur_time();
 
 	for(int t=0;t<config->duration;t++){
+		log("");
 		bench->reset();
 		bench->points = trace+t*config->num_objects;
 		bench->cur_time = t;
 		// process the coordinate in this time points
 		if(!config->gpu){
 			bench->partition();
-			bench->lookup();
+			//bench->lookup();
 			bench->reachability();
 			bench->update_meetings();
 			bench->compact_meetings();
@@ -66,6 +67,5 @@ void tracer::process(){
 			bench->update_schema();
 		}
 		logt("round %d",start,t+config->start_time);
-		log("");
 	}
 }
