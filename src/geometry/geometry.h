@@ -73,7 +73,7 @@ public:
 		high[1] = b->high[1];
 	}
 
-	void update(Point &p){
+	void update(Point p){
 		if(low[0]>p.x){
 			low[0] = p.x;
 		}
@@ -87,6 +87,13 @@ public:
 		if(high[1]<p.y){
 			high[1] = p.y;
 		}
+	}
+
+	void update(box &b){
+		update(Point(b.low[0],b.low[1]));
+		update(Point(b.low[0],b.high[1]));
+		update(Point(b.high[0],b.low[1]));
+		update(Point(b.high[0],b.high[1]));
 	}
 
 	bool intersect(box &target){

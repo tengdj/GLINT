@@ -17,7 +17,7 @@ int main(int argc, char **argv){
 
 	configuration config = get_parameters(argc, argv);
 	tracer *tr = new tracer(&config);
-	tr->print();
+	tr->print_traces();
 	delete tr;
 	return 0;
 }

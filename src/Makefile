@@ -50,6 +50,9 @@ printtrace:	tools/printtrace.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 
 parse:	tools/parsetweets.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 	$(CXX) -o ../build/$@ $^ $(LIBS) 
+
+combiner:	tools/combiner.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
+	$(CXX) -o ../build/$@ $^ $(LIBS) 
 	
 cudatest:	tools/cudatest.o $(CU_OBJS)
 	$(CXX) -o ../build/$@ $^ $(LIBS) $(CUDALIBS)

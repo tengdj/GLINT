@@ -115,7 +115,7 @@ public:
 		}
 		in.read((char *)&total_num_objects, sizeof(total_num_objects));
 		in.read((char *)&total_duration, sizeof(total_duration));
-		//cout<<total_num_objects<<" "<<total_duration<<endl;
+		log("%d objects last for %d seconds in file",total_num_objects,total_duration);
 		in.read((char *)&mbr, sizeof(mbr));
 		mbr.to_squre(true);
 		assert(config->num_objects<=total_num_objects);
@@ -141,6 +141,16 @@ public:
 		vector<Point *> points;
 		for(int i=0;i<config->duration;i++){
 			points.push_back(trace+i*config->num_objects+oid);
+		}
+		print_points(points);
+		points.clear();
+	}
+	void print_traces(){
+		vector<Point *> points;
+		for(int oid=0;oid<config->num_objects;oid++){
+			for(int i=0;i<config->duration;i++){
+				points.push_back(trace+i*config->num_objects+oid);
+			}
 		}
 		print_points(points);
 		points.clear();
