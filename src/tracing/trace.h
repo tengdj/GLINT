@@ -118,8 +118,9 @@ public:
 		log("%d objects last for %d seconds in file",total_num_objects,total_duration);
 		in.read((char *)&mbr, sizeof(mbr));
 		mbr.to_squre(true);
-		assert(config->num_objects<=total_num_objects);
-		assert(config->duration+config->start_time<=total_duration);
+		assert(config->num_objects*(config->start_time+config->duration)<=total_num_objects*total_duration);
+		//assert(config->num_objects<=total_num_objects);
+		//assert(config->start_time+config->duration<=total_duration);
 
 		in.seekg(config->start_time*total_num_objects*sizeof(Point), ios_base::cur);
 		trace = (Point *)malloc(config->duration*config->num_objects*sizeof(Point));

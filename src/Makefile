@@ -5,7 +5,7 @@ NVCC = nvcc
 SRCS := $(wildcard */*.cpp)
 OBJS := $(patsubst %.cpp,%.o,$(SRCS))
 
-INCLUDES	= -I /usr/include -I ./src
+INCLUDES	= -I /usr/include -I ./src -I /usr/local/cuda/targets/x86_64-linux/include/
 LIBS		= -L/usr/lib/x86_64-linux-gnu -lboost_program_options -lpthread
 CPPFLAGS	= -g -std=c++14 -Wno-cpp
 
@@ -54,7 +54,7 @@ parse:	tools/parsetweets.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 combiner:	tools/combiner.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 	$(CXX) -o ../build/$@ $^ $(LIBS) 
 	
-cudatest:	tools/cudatest.o $(CU_OBJS)
+cudatest:	tools/cudatest.o cuda/test_cu.o
 	$(CXX) -o ../build/$@ $^ $(LIBS) $(CUDALIBS)
 	
 clean:
