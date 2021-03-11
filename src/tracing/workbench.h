@@ -24,13 +24,11 @@ typedef struct meeting_unit{
 	uint pid1;
 	uint pid2;
 	unsigned short start;
-	unsigned short end;
 }meeting_unit;
 
 typedef struct reach_unit{
 	uint pid1;
 	uint pid2;
-	unsigned short updated;
 }reach_unit;
 
 // the workbench where stores the memory space
@@ -39,6 +37,10 @@ typedef struct reach_unit{
 
 class workbench{
 	pthread_mutex_t *insert_lk;
+	void *data[100];
+	size_t data_size[100];
+	uint data_index = 0;
+	void *allocate(size_t size);
 public:
 	uint test_counter = 0;
 	configuration *config = NULL;
@@ -67,15 +69,11 @@ public:
 	uint grid_check_capacity = 0;
 	uint grid_check_counter = 0;
 
-	// the space for a reach unit in one time point
-	reach_unit *reaches = NULL;
-	uint reaches_capacity = 0;
-	uint reaches_counter = 0;
-
 	// the space for the overall meeting information maintaining now
-	meeting_unit *meeting_buckets = NULL;
+	uint current_bucket = 0;
+	meeting_unit *meeting_buckets[2] = {NULL,NULL};
+	uint *meeting_buckets_counter[2] = {NULL,NULL};
 	uint meeting_bucket_capacity = 0;
-	uint *meeting_buckets_counter = NULL;
 
 	// the space for the valid meeting information now
 	meeting_unit *meetings = NULL;
@@ -107,11 +105,7 @@ public:
 	void split_node(uint cur_node);
 	void partition();
 	void update_schema();
-	void lookup();
 	void reachability();
-
-	bool batch_reach(reach_unit *ru, uint num);
-	bool batch_meet(meeting_unit *mu, uint num);
 
 	void claim_space();
 	void reset(){
@@ -120,7 +114,6 @@ public:
 			grid_counter[i] = 0;
 		}
 		grid_check_counter = 0;
-		reaches_counter = 0;
 		global_stack_index[0] = 0;
 		global_stack_index[1] = 0;
 	}
@@ -133,10 +126,8 @@ public:
 		return grids + gid*grid_capacity;
 	}
 
+	void sort_meeting();
 	void update_meetings();
-	void compact_meetings();
-	void append_meetings();
-
 	void analyze_grids();
 	void analyze_reaches();
 	void analyze_meetings();

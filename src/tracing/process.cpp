@@ -39,11 +39,8 @@ void tracer::process(){
 		// process the coordinate in this time points
 		if(!config->gpu){
 			bench->partition();
-			//bench->lookup();
 			bench->reachability();
 			bench->update_meetings();
-			bench->compact_meetings();
-			bench->append_meetings();
 		}else{
 #ifdef USE_GPU
 			process_with_gpu(bench,d_bench,gpu);
@@ -67,5 +64,6 @@ void tracer::process(){
 			bench->update_schema();
 		}
 		logt("round %d",start,t+config->start_time);
+		bench->current_bucket = !bench->current_bucket;
 	}
 }

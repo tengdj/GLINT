@@ -8,10 +8,6 @@
 
 #include "workbench.h"
 
-
-
-
-
 void workbench::analyze_grids(){
 	uint overflow = 0;
 	uint max_one = 0;
@@ -20,7 +16,7 @@ void workbench::analyze_grids(){
 			uint gid = schema[i].grid_id;
 			uint gsize = grid_counter[gid];
 			// todo increase the actuall capacity
-			if(gsize>grid_capacity){
+			if(gsize>2*config->grid_capacity){
 				overflow++;
 			}
 			if(max_one<gsize){
@@ -37,9 +33,12 @@ void workbench::analyze_reaches(){
 	uint min_bucket = 0;
 	uint max_bucket = 0;
 	uint total = 0;
-	for(uint i=0;i<reaches_counter;i++){
-		unit_count[reaches[i].pid1]++;
-		unit_count[reaches[i].pid2]++;
+	for(int i=0;i<config->num_meeting_buckets;i++){
+		meeting_unit *bucket = meeting_buckets[current_bucket] + i*this->meeting_bucket_capacity;
+		for(uint j=0;j<meeting_buckets_counter[current_bucket][i];j++){
+			unit_count[bucket[j].pid1]++;
+			unit_count[bucket[j].pid2]++;
+		}
 	}
 	uint max_one = 0;
 	for(int i=0;i<config->num_objects;i++){
@@ -57,17 +56,20 @@ void workbench::analyze_reaches(){
 	double cum_portion = 0;
 	for(int i=0;i<=unit_count[max_one];i++){
 		cum_portion += 1.0*counter[i]/config->num_objects;
-		log("%d\t%d\t%f",i,counter[i],cum_portion);
+		log("%d\t%d\t%.3f",i,counter[i],cum_portion);
 	}
 	delete counter;
 
 	vector<Point *> max_reaches;
-	for(uint i=0;i<reaches_counter;i++){
-		if(reaches[i].pid2==max_one){
-			max_reaches.push_back(points+reaches[i].pid1);
-		}
-		if(reaches[i].pid1==max_one){
-			max_reaches.push_back(points+reaches[i].pid2);
+	for(int i=0;i<config->num_meeting_buckets;i++){
+		meeting_unit *bucket = meeting_buckets[current_bucket] + i*this->meeting_bucket_capacity;
+		for(uint j=0;j<meeting_buckets_counter[current_bucket][i];j++){
+			if(bucket[j].pid2==max_one){
+				max_reaches.push_back(points+bucket[j].pid1);
+			}
+			if(bucket[j].pid1==max_one){
+				max_reaches.push_back(points+bucket[j].pid2);
+			}
 		}
 	}
 
@@ -121,24 +123,38 @@ void workbench::analyze_meetings(){
 	uint min_bucket = 0;
 	uint max_bucket = 0;
 	uint total = 0;
+	uint overflow = 0;
+	uint overflow_count = 0;
 	for(uint i=0;i<config->num_meeting_buckets;i++){
-		total += meeting_buckets_counter[i];
-		if(meeting_buckets_counter[min_bucket]>meeting_buckets_counter[i]){
+		total += meeting_buckets_counter[current_bucket][i];
+		if(meeting_buckets_counter[current_bucket][min_bucket]>meeting_buckets_counter[current_bucket][i]){
 			min_bucket = i;
 		}
-		if(meeting_buckets_counter[max_bucket]<meeting_buckets_counter[i]){
+		if(meeting_buckets_counter[current_bucket][max_bucket]<meeting_buckets_counter[current_bucket][i]){
 			max_bucket = i;
 		}
-		bucket_count[meeting_buckets_counter[i]]++;
+		if(meeting_buckets_counter[current_bucket][i]<this->meeting_capacity){
+			bucket_count[meeting_buckets_counter[current_bucket][i]]++;
+		}else{
+			overflow++;
+			overflow_count += meeting_buckets_counter[current_bucket][i];
+		}
 	}
-	log("total active meetings %d average %d bucket range: [%d, %d]",total,total/config->num_meeting_buckets,
-			meeting_buckets_counter[min_bucket],meeting_buckets_counter[max_bucket]);
+	log("total active meetings %d average %d bucket range: [%d, %d, %d]",
+			total,total/config->num_meeting_buckets,
+			meeting_buckets_counter[current_bucket][min_bucket],
+			meeting_buckets_counter[current_bucket][max_bucket],
+			meeting_bucket_capacity);
 	double cum_portion = 0;
 	for(int i=0;i<meeting_bucket_capacity;i++){
 		if(bucket_count[i]>0){
-			cum_portion += 1.0*bucket_count[i]/config->num_objects;
-			log("%d\t%d\t%f",i,bucket_count[i],cum_portion);
+			cum_portion += 1.0*bucket_count[i]*i/total;
+			log("%d\t%d\t%.3f",i,bucket_count[i],cum_portion);
 		}
+	}
+	if(overflow>0){
+		cum_portion += 1.0*overflow_count/total;
+		log("overflow\t%d\t%.3f",overflow,cum_portion);
 	}
 
 	delete []bucket_count;

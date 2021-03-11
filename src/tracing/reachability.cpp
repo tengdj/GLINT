@@ -7,29 +7,10 @@
 
 #include "workbench.h"
 
-
-bool workbench::batch_reach(reach_unit *buffer, uint num){
-	if(num == 0){
-		return false;
-	}
-	uint cur_counter = 0;
-	lock();
-	assert(reaches_counter+num<reaches_capacity);
-	cur_counter = reaches_counter;
-	reaches_counter += num;
-	unlock();
-	memcpy(reaches+cur_counter,buffer,sizeof(reach_unit)*num);
-	return true;
-}
-
-
-
 void *reachability_unit(void *arg){
 	query_context *ctx = (query_context *)arg;
 	workbench *bench = (workbench *)ctx->target[0];
 	Point *points = bench->points;
-	reach_unit *reach_buffer = new reach_unit[2000];
-	uint reach_index = 0;
 
 	// pick one batch of point-grid pair for processing
 	size_t start = 0;
@@ -50,11 +31,17 @@ void *reachability_unit(void *arg){
 					Point *p2 = points + cur_pids[i];
 					//p2->print();
 					if(p1->distance(p2, true)<=ctx->config->reach_distance){
-						reach_buffer[reach_index].pid1 = min(pid,cur_pids[i]);
-						reach_buffer[reach_index].pid2 = max(cur_pids[i],pid);
-						if(++reach_index==2000){
-							bench->batch_reach(reach_buffer,reach_index);
-							reach_index = 0;
+						uint bid = (pid+cur_pids[i])%bench->config->num_meeting_buckets;
+						meeting_unit *bucket = bench->meeting_buckets[bench->current_bucket]+bid*bench->meeting_bucket_capacity;
+						bench->lock(bid);
+						int loc = bench->meeting_buckets_counter[bench->current_bucket][bid]++;
+						bench->unlock(bid);
+
+						// todo handling overflow
+						if(loc<bench->meeting_bucket_capacity){
+							bucket[loc].pid1 = min(pid,cur_pids[i]);
+							bucket[loc].pid2 = max(cur_pids[i],pid);
+							bucket[loc].start = bench->cur_time;
 						}
 					}
 				}
@@ -62,8 +49,6 @@ void *reachability_unit(void *arg){
 		}
 	}
 
-	bench->batch_reach(reach_buffer,reach_index);
-	delete []reach_buffer;
 	return NULL;
 }
 
@@ -75,7 +60,6 @@ void workbench::reachability(){
 	tctx.target[0] = (void *)this;
 
 	// generate a new batch of reaches
-	reaches_counter = 0;
 	struct timeval start = get_cur_time();
 	pthread_t threads[tctx.config->num_threads];
 
@@ -87,7 +71,7 @@ void workbench::reachability(){
 		pthread_join(threads[i], &status);
 	}
 	//bench->grid_check_counter = 0;
-	logt("reachability compute: %d reaches are found",start,reaches_counter);
+	logt("reachability compute",start);
 }
 
 

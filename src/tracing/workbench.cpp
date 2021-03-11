@@ -11,6 +11,8 @@
 workbench::workbench(workbench *bench):workbench(bench->config){
 	grids_stack_index = bench->grids_stack_index;
 	schema_stack_index = bench->schema_stack_index;
+	current_bucket = bench->current_bucket;
+	cur_time = bench->cur_time;
 }
 
 workbench::workbench(configuration *conf){
@@ -19,127 +21,114 @@ workbench::workbench(configuration *conf){
 	// setup the capacity of each container
 	grid_capacity = 10*config->grid_capacity;
 	// each grid contains averagely grid_capacity/2 objects, times 3 for enough space
-	grids_stack_capacity = 3*max((uint)1, config->num_objects/config->grid_capacity);
+	grids_stack_capacity = 4*max((uint)1, config->num_objects/config->grid_capacity);
 	// the number of all QTree Nodes
 	schema_stack_capacity = 2*grids_stack_capacity;
 	global_stack_capacity = 2*config->num_objects;
-	reaches_capacity = 10*config->num_objects;
 	meeting_capacity = 10*config->num_objects;
-	meeting_bucket_capacity = max((uint)20, reaches_capacity/config->num_meeting_buckets);
+	meeting_bucket_capacity = max((uint)20, 5*config->num_objects/config->num_meeting_buckets);
 	grid_check_capacity = config->num_objects*(config->grid_capacity/config->zone_capacity+1);
 
 	insert_lk = new pthread_mutex_t[MAX_LOCK_NUM];
 	for(int i=0;i<MAX_LOCK_NUM;i++){
 		pthread_mutex_init(&insert_lk[i],NULL);
 	}
+	for(int i=0;i<100;i++){
+		data[i] = NULL;
+		data_size[i] = 0;
+	}
 }
 
 void workbench::clear(){
-	if(grids){
-		delete []grids;
+	for(int i=0;i<100;i++){
+		if(data[i]!=NULL){
+			free(data[i]);
+			data[i] = NULL;
+			data_size[i] = 0;
+		}
+		data_index = 0;
 	}
-	if(grid_counter){
-		delete []grid_counter;
-	}
-	if(grid_check){
-		delete []grid_check;
-	}
-	if(schema){
-		delete []schema;
-	}
-	if(reaches){
-		delete []reaches;
-	}
-	if(meeting_buckets){
-		delete []meeting_buckets;
-	}
-	if(meeting_buckets_counter){
-		delete []meeting_buckets_counter;
-	}
-	if(meetings){
-		delete []meetings;
-	}
-	if(global_stack[0]){
-		delete global_stack[0];
-	}
-	if(global_stack[1]){
-		delete global_stack[1];
-	}
-
 	delete insert_lk;
 }
 
+
+void *workbench::allocate(size_t size){
+	lock();
+	uint cur_idx = data_index++;
+	unlock();
+	data[cur_idx] = malloc(size);
+	data_size[cur_idx] = size;
+	return data[cur_idx];
+}
 
 void workbench::claim_space(){
 
 	struct timeval start = get_cur_time();
 
 	double total_size = 0;
-	double tmp_size = 0;
+	size_t size = 0;
 
-	grids = new uint[grid_capacity*grids_stack_capacity];
-	tmp_size = grid_capacity*grids_stack_capacity*sizeof(uint)/1024.0/1024.0;
-	log("\t%.2f MB\tgrids",tmp_size);
-	total_size += tmp_size;
+	size = grid_capacity*grids_stack_capacity*sizeof(uint);
+	grids = (uint *)allocate(size);
+	log("\t%.2f MB\tgrids",size/1024.0/1024.0);
+	total_size += size;
 
-	grid_counter = new uint[grids_stack_capacity];
-	tmp_size = grids_stack_capacity*sizeof(uint)/1024.0/1024.0;
-	log("\t%.2f MB\tgrid counter",tmp_size);
-	total_size += tmp_size;
+	size = grids_stack_capacity*sizeof(uint);
+	grid_counter = (uint *)allocate(size);
+	log("\t%.2f MB\tgrid counter",size/1024.0/1024.0);
+	total_size += size;
 
-	grids_stack = new uint[grids_stack_capacity];
-	tmp_size = grids_stack_capacity*sizeof(uint)/1024.0/1024.0;
-	log("\t%.2f MB\tgrids stack",tmp_size);
-	total_size += tmp_size;
+	size = grids_stack_capacity*sizeof(uint);
+	grids_stack = (uint *)allocate(size);
+	log("\t%.2f MB\tgrids stack",size/1024.0/1024.0);
+	total_size += size;
 	for(int i=0;i<grids_stack_capacity;i++){
 		grids_stack[i] = i;
 	}
 
-	schema = new QTSchema[2*schema_stack_capacity];
-	tmp_size = 2*grids_stack_capacity*sizeof(QTSchema)/1024.0/1024.0;
-	log("\t%.2f MB\tschema",tmp_size);
-	total_size += tmp_size;
+	size = 2*grids_stack_capacity*sizeof(QTSchema);
+	schema = (QTSchema*)allocate(size);
+	log("\t%.2f MB\tschema",size/1024.0/1024.0);
+	total_size += size;
 
-	schema_stack = new uint[schema_stack_capacity];
-	tmp_size = schema_stack_capacity*sizeof(uint)/1024.0/1024.0;
-	log("\t%.2f MB\tschema stack",tmp_size);
-	total_size += tmp_size;
+	size = schema_stack_capacity*sizeof(uint);
+	schema_stack = (uint *)allocate(size);
+	log("\t%.2f MB\tschema stack",size/1024.0/1024.0);
+	total_size += size;
 	for(int i=0;i<schema_stack_capacity;i++){
 		schema_stack[i] = i;
 		schema[i].type = INVALID;
 	}
 
-	grid_check = new checking_unit[grid_check_capacity];
-	tmp_size = grid_check_capacity*sizeof(checking_unit)/1024.0/1024.0;
-	log("\t%.2f MB\tchecking units",tmp_size);
-	total_size += tmp_size;
+	size = grid_check_capacity*sizeof(checking_unit);
+	grid_check = (checking_unit *)allocate(size);
+	log("\t%.2f MB\tchecking units",size/1024.0/1024.0);
+	total_size += size;
 
-	reaches = new reach_unit[reaches_capacity];
-	tmp_size = reaches_capacity*sizeof(reach_unit)/1024.0/1024.0;
-	log("\t%.2f MB\treach space",tmp_size);
-	total_size += tmp_size;
+	size = config->num_meeting_buckets*meeting_bucket_capacity*sizeof(meeting_unit);
+	meeting_buckets[0] = (meeting_unit *)allocate(size);
+	meeting_buckets[1] = (meeting_unit *)allocate(size);
+	log("\t%.2f MB\tmeeting bucket space",2*size/1024.0/1024.0);
+	total_size += 2*size;
 
-	meeting_buckets = new meeting_unit[config->num_meeting_buckets*meeting_bucket_capacity];
-	tmp_size = config->num_meeting_buckets*meeting_bucket_capacity*sizeof(meeting_unit)/1024.0/1024.0;
-	log("\t%.2f MB\tmeeting bucket space",tmp_size);
-	total_size += tmp_size;
+	size = config->num_meeting_buckets*sizeof(uint);
+	meeting_buckets_counter[0] = (uint *)allocate(size);
+	memset(meeting_buckets_counter[0],0,config->num_meeting_buckets*sizeof(uint));
+	meeting_buckets_counter[1] = (uint *)allocate(size);
+	memset(meeting_buckets_counter[1],0,config->num_meeting_buckets*sizeof(uint));
+	log("\t%.2f MB  \tmeeting bucket counter space",2*size/1024.0/1024.0);
+	total_size += 2*size;
 
-	meeting_buckets_counter = new uint[config->num_meeting_buckets];
-	memset(meeting_buckets_counter,0,config->num_meeting_buckets*sizeof(uint));
-	tmp_size = 2*config->num_meeting_buckets*sizeof(uint)/1024.0/1024.0;
-	log("\t%.2f MB  \tmeeting bucket counter space",tmp_size);
-	total_size += tmp_size;
+	size = meeting_capacity*sizeof(meeting_unit);
+	meetings = (meeting_unit *)allocate(size);
+	log("\t%.2f MB\tmeeting space",size/1024.0/1024.0);
+	total_size += size;
 
-	meetings = new meeting_unit[meeting_capacity];
-	tmp_size = meeting_capacity*sizeof(meeting_unit)/1024.0/1024.0;
-	log("\t%.2f MB\tmeeting space",tmp_size);
-	total_size += tmp_size;
+	size = global_stack_capacity*2*sizeof(uint);
+	global_stack[0] = (uint *)allocate(size);
+	global_stack[1] = (uint *)allocate(size);
+	log("\t%.2f MB\tstack space",2*size/1024.0/1024.0);
+	total_size += 2*size;
 
-	global_stack[0] = new uint[2*global_stack_capacity];
-	global_stack[1] = new uint[2*global_stack_capacity];
-	tmp_size = 2*global_stack_capacity*2*sizeof(uint)/1024.0/1024.0;
-	log("\t%.2f MB\tstack space",tmp_size);
-	total_size += tmp_size;
-
-	logt("%.2f MB memory space is claimed",start,total_size);
+	logt("%.2f MB memory space is claimed",start,total_size/1024.0/1024.0);
 }

@@ -75,7 +75,6 @@ void cuda_cleargrids(workbench *bench){
 __global__
 void cuda_reset_bench(workbench *bench){
 	bench->grid_check_counter = 0;
-	bench->reaches_counter = 0;
 	bench->global_stack_index[0] = 0;
 	bench->global_stack_index[1] = 0;
 }
@@ -280,103 +279,57 @@ void cuda_reachability(workbench *bench){
 	if(!bench->grid_check[pairid].inside||pid<target_pid){
 		double dist = distance(bench->points[pid].x, bench->points[pid].y, bench->points[target_pid].x, bench->points[target_pid].y);
 		if(dist<=bench->config->reach_distance){
-			uint loc = atomicAdd(&bench->reaches_counter, 1);
-			assert(loc<bench->reaches_capacity);
-			bench->reaches[loc].pid1 = min(pid,target_pid);
-			bench->reaches[loc].pid2 = max(target_pid,pid);
+			uint bid = (pid+target_pid)%bench->config->num_meeting_buckets;
+			uint loc = atomicAdd(bench->meeting_buckets_counter[bench->current_bucket]+bid,1);
+
+			// todo handling overflow
+			if(loc<bench->meeting_bucket_capacity){
+				meeting_unit *bucket = bench->meeting_buckets[bench->current_bucket]+bid*bench->meeting_bucket_capacity;
+				bucket[loc].pid1 = min(pid,target_pid);
+				bucket[loc].pid2 = max(target_pid,pid);
+				bucket[loc].start = bench->cur_time;
+			}
 		}
 	}
-
 }
 
 /*
- * in this phase, only update
+ * update the first meet
  * */
 __global__
 void cuda_update_meetings(workbench *bench){
 
-	int rid = blockIdx.x*blockDim.x+threadIdx.x;
-	if(rid>=bench->reaches_counter){
-		return;
-	}
-	uint pid1 = bench->reaches[rid].pid1;
-	uint pid2 = bench->reaches[rid].pid2;
-	uint bid = (pid1+pid2)%bench->config->num_meeting_buckets;
-	meeting_unit *bucket = bench->meeting_buckets+bid*bench->meeting_bucket_capacity;
-
-	bench->reaches[rid].updated = false;
-	uint size = bench->meeting_buckets_counter[bid];
-	for(uint i=0;i<size;i++){
-		// a former meeting is encountered, update it
-		if(bucket[i].pid1==pid1&&bucket[i].pid2==pid2){
-			bucket[i].end = bench->cur_time;
-			bench->reaches[rid].updated = true;
-			break;
-		}
-	}
-
-}
-/*
- * in this phase, only append the meetings got from this round of check
- * */
-__global__
-void cuda_append_meetings(workbench *bench){
-
-	int rid = blockIdx.x*blockDim.x+threadIdx.x;
-	if(rid>=bench->reaches_counter||bench->reaches[rid].updated){
-		return;
-	}
-	uint pid1 = bench->reaches[rid].pid1;
-	uint pid2 = bench->reaches[rid].pid2;
-	uint bid = (pid1+pid2)%bench->config->num_meeting_buckets;
-	meeting_unit *bucket = bench->meeting_buckets+bid*bench->meeting_bucket_capacity;
-
-	uint loc = atomicAdd(bench->meeting_buckets_counter+bid,1);
-	assert(loc<bench->meeting_bucket_capacity);
-	bucket[loc].pid1 = pid1;
-	bucket[loc].pid2 = pid2;
-	bucket[loc].start = bench->cur_time;
-	bucket[loc].end = bench->cur_time;
-}
-
-__global__
-void cuda_compact_meetings(workbench *bench){
 	int bid = blockIdx.x*blockDim.x+threadIdx.x;
 	if(bid>=bench->config->num_meeting_buckets){
 		return;
 	}
-	meeting_unit *bucket = bench->meeting_buckets+bid*bench->meeting_bucket_capacity;
-	int front_idx = 0;
-	int back_idx = bench->meeting_buckets_counter[bid]-1;
-	uint meeting_idx = 0;
-	int active_count = 0;
-	for(;front_idx<=back_idx;front_idx++){
-		// this meeting is over
-		if(bucket[front_idx].end<bench->cur_time){
-			// dump to valid list and copy one from the back end
-			if(bucket[front_idx].end-bucket[front_idx].start>=bench->config->min_meet_time){
-				meeting_idx = atomicAdd(&bench->meeting_counter,1);
-				bench->meetings[meeting_idx] = bucket[front_idx];
+
+	meeting_unit *bucket_new = bench->meeting_buckets[bench->current_bucket]+bid*bench->meeting_bucket_capacity;
+	meeting_unit *bucket_old = bench->meeting_buckets[!bench->current_bucket]+bid*bench->meeting_bucket_capacity;
+
+	uint size_new = bench->meeting_buckets_counter[bench->current_bucket][bid];
+	uint size_old = bench->meeting_buckets_counter[!bench->current_bucket][bid];
+
+	for(uint i=0;i<size_old&&i<bench->meeting_bucket_capacity;i++){
+		bool updated = false;
+		for(uint j=0;j<size_new&&j<bench->meeting_bucket_capacity;j++){
+			if(bucket_new[i].pid1==bucket_old[j].pid1&&
+			   bucket_new[i].pid2==bucket_old[j].pid2){
+				bucket_new[i].start = bucket_old[i].start;
+				updated = true;
+				break;
 			}
-			for(;back_idx>front_idx;back_idx--){
-				if(bucket[back_idx].end==bench->cur_time){
-					break;
-					// dump to valid list if needed or disregarded
-				}else if(bucket[back_idx].end-bucket[back_idx].start>=bench->config->min_meet_time){
-					meeting_idx = atomicAdd(&bench->meeting_counter,1);
-					bench->meetings[meeting_idx] = bucket[back_idx];
-				}
-			}
-			if(front_idx<back_idx){
-				bucket[front_idx] = bucket[back_idx];
-				active_count++;
-				back_idx--;
-			}
-		}else{
-			active_count++;
+		}
+		// the old meeting is over
+		if(!updated&&
+			bench->cur_time - bucket_old[i].start>=bench->config->min_meet_time){
+			uint meeting_idx = atomicAdd(&bench->meeting_counter,1);
+			assert(meeting_idx<bench->meeting_capacity);
+			bench->meetings[meeting_idx] = bucket_old[i];
 		}
 	}
-	bench->meeting_buckets_counter[bid] = active_count;
+	// reset the old buckets for next batch of processing
+	bench->meeting_buckets_counter[!bench->current_bucket][bid] = 0;
 }
 
 __global__
@@ -542,10 +495,11 @@ workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	// space for processing stack
 	h_bench.global_stack[0] = (uint *)gpu->allocate(bench->global_stack_capacity*2*sizeof(uint));
 	h_bench.global_stack[1] = (uint *)gpu->allocate(bench->global_stack_capacity*2*sizeof(uint));
-	h_bench.reaches = (reach_unit *)gpu->allocate(bench->reaches_capacity*sizeof(reach_unit));
 
-	h_bench.meeting_buckets = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit));
-	h_bench.meeting_buckets_counter = (uint *)gpu->allocate(bench->config->num_meeting_buckets*sizeof(uint));
+	h_bench.meeting_buckets[0] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit));
+	h_bench.meeting_buckets[1] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit));
+	h_bench.meeting_buckets_counter[0] = (uint *)gpu->allocate(bench->config->num_meeting_buckets*sizeof(uint));
+	h_bench.meeting_buckets_counter[1] = (uint *)gpu->allocate(bench->config->num_meeting_buckets*sizeof(uint));
 	h_bench.meetings = (meeting_unit *)gpu->allocate(bench->meeting_capacity*sizeof(meeting_unit));
 
 	h_bench.config = (configuration *)gpu->allocate(sizeof(configuration));
@@ -587,6 +541,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	workbench h_bench(bench);
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	h_bench.cur_time = bench->cur_time;
+	h_bench.current_bucket = bench->current_bucket;
 	CUDA_SAFE_CALL(cudaMemcpy(d_bench, &h_bench, sizeof(workbench), cudaMemcpyHostToDevice));
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench.points, bench->points, bench->config->num_objects*sizeof(Point), cudaMemcpyHostToDevice));
 	logt("copy in data", start);
@@ -621,7 +576,6 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		logt("%d pid-grid pairs need be checked", start,h_bench.grid_check_counter);
 	}
 
-
 	// do the pack
 	cuda_pack_lookup_units<<<h_bench.grid_check_counter/1024+1,1024>>>(d_bench,h_bench.grid_check_counter);
 	check_execution();
@@ -637,27 +591,15 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-	logt("%d reaches are found", start,h_bench.reaches_counter);
+	logt("reaches computation", start);
 
 	// update the meeting hash table
-	do{
-		struct timeval mstart = get_cur_time();
-		uint origin_num_meeting = h_bench.meeting_counter;
-		cuda_update_meetings<<<h_bench.reaches_counter/1024+1,1024>>>(d_bench);
-		check_execution();
-		cudaDeviceSynchronize();
-		logt("\trefresh", mstart);
-		cuda_compact_meetings<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
-		check_execution();
-		cudaDeviceSynchronize();
-		logt("\tcompact", mstart);
-		cuda_append_meetings<<<h_bench.reaches_counter/1024+1,1024>>>(d_bench);
-		check_execution();
-		cudaDeviceSynchronize();
-		logt("\tappend", mstart, h_bench.meeting_counter-origin_num_meeting);
-		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-		logt("meeting buckets update", start, h_bench.meeting_counter-origin_num_meeting);
-	}while(false);
+	uint origin_num_meeting = h_bench.meeting_counter;
+	cuda_update_meetings<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
+	check_execution();
+	cudaDeviceSynchronize();
+	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+	logt("meeting buckets update %d new meetings found", start, h_bench.meeting_counter-origin_num_meeting);
 
 	// todo do the data analyzes, for test only, should not copy out so much stuff
 	do{
@@ -672,16 +614,10 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 			bench->grids_stack_index = h_bench.grids_stack_index;
 			logt("copy out grid and schema data", start);
 		}
-		if(bench->config->analyze_reach){
-			CUDA_SAFE_CALL(cudaMemcpy(bench->reaches, h_bench.reaches,
-					h_bench.reaches_counter*sizeof(reach_unit), cudaMemcpyDeviceToHost));
-			bench->reaches_counter = h_bench.reaches_counter;
-			logt("copy out %d reaching data", start,bench->reaches_counter);
-		}
-		if(bench->config->analyze_meeting){
-			CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets, h_bench.meeting_buckets,
+		if(bench->config->analyze_meeting||bench->config->analyze_reach){
+			CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets[bench->current_bucket], h_bench.meeting_buckets[bench->current_bucket],
 					bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
-			CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets_counter, h_bench.meeting_buckets_counter,
+			CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets_counter[bench->current_bucket], h_bench.meeting_buckets_counter[bench->current_bucket],
 					bench->config->num_meeting_buckets*sizeof(uint), cudaMemcpyDeviceToHost));
 			if(h_bench.meeting_counter>0){
 				bench->meeting_counter = h_bench.meeting_counter;
