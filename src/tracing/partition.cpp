@@ -59,7 +59,7 @@ workbench *partitioner::build_schema(Point *points, size_t num_objects){
 	// create and initialize the workbench
 	workbench *bench = new workbench(config);
 	bench->claim_space();
-	logt("claim memory space",start);
+	logt("claim %.3f MB memory space",start,bench->space_claimed()/1024.0/1024.0);
 
 
 	// pop the top grids and schema nodes
@@ -71,7 +71,7 @@ workbench *partitioner::build_schema(Point *points, size_t num_objects){
 	uint offset = 0;
 	qtree->create_schema(bench->schema, offset);
 	delete qtree;
-	logt("partitioning schema is with %d grids",start,bench->grids_stack_index);
+	logt("partitioning schema is with %d grids %d nodes",start,bench->grids_stack_index,bench->schema_stack_index);
 	return bench;
 }
 

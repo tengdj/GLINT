@@ -125,6 +125,7 @@ void workbench::analyze_meetings(){
 	uint total = 0;
 	uint overflow = 0;
 	uint overflow_count = 0;
+
 	for(uint i=0;i<config->num_meeting_buckets;i++){
 		total += meeting_buckets_counter[current_bucket][i];
 		if(meeting_buckets_counter[current_bucket][min_bucket]>meeting_buckets_counter[current_bucket][i]){
@@ -133,7 +134,7 @@ void workbench::analyze_meetings(){
 		if(meeting_buckets_counter[current_bucket][max_bucket]<meeting_buckets_counter[current_bucket][i]){
 			max_bucket = i;
 		}
-		if(meeting_buckets_counter[current_bucket][i]<this->meeting_capacity){
+		if(meeting_buckets_counter[current_bucket][i]<meeting_bucket_capacity){
 			bucket_count[meeting_buckets_counter[current_bucket][i]]++;
 		}else{
 			overflow++;
@@ -154,7 +155,7 @@ void workbench::analyze_meetings(){
 	}
 	if(overflow>0){
 		cum_portion += 1.0*overflow_count/total;
-		log("overflow\t%d\t%.3f",overflow,cum_portion);
+		log("of\t%d\t%.3f\t%d",overflow,cum_portion,overflow_count-overflow*meeting_bucket_capacity);
 	}
 
 	delete []bucket_count;

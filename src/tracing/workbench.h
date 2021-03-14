@@ -108,6 +108,13 @@ public:
 	void reachability();
 
 	void claim_space();
+	size_t space_claimed(){
+		size_t total = 0;
+		for(int i=0;i<100;i++){
+			total += data_size[i];
+		}
+		return total;
+	}
 	void reset(){
 		// reset the number of objects in each grid
 		for(int i=0;i<grids_stack_capacity;i++){

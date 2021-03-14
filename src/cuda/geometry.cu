@@ -75,6 +75,7 @@ void cuda_cleargrids(workbench *bench){
 __global__
 void cuda_reset_bench(workbench *bench){
 	bench->grid_check_counter = 0;
+	bench->meeting_counter = 0;
 	bench->global_stack_index[0] = 0;
 	bench->global_stack_index[1] = 0;
 }
@@ -292,6 +293,7 @@ void cuda_reachability(workbench *bench){
 		}
 	}
 }
+
 
 /*
  * update the first meet
@@ -567,9 +569,11 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 
 		uint stack_id = 0;
 		while(h_bench.global_stack_index[stack_id]>0){
+			//struct timeval ct = get_cur_time();
 			cuda_lookup<<<h_bench.global_stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id,h_bench.global_stack_index[stack_id]);
 			check_execution();
 			cudaDeviceSynchronize();
+			//logt("%d",ct,h_bench.global_stack_index[stack_id]);
 			CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 			stack_id = !stack_id;
 		}
@@ -619,11 +623,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 					bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
 			CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets_counter[bench->current_bucket], h_bench.meeting_buckets_counter[bench->current_bucket],
 					bench->config->num_meeting_buckets*sizeof(uint), cudaMemcpyDeviceToHost));
-			if(h_bench.meeting_counter>0){
-				bench->meeting_counter = h_bench.meeting_counter;
-				CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench.meetings, h_bench.meeting_counter*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
-			}
-			logt("copy out meeting data", start);
+			logt("copy out meeting buckets data", start);
 		}
 	}while(false);
 
@@ -648,6 +648,11 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		logt("schema update %d grids", start, h_bench.grids_stack_index);
 	}
 
+	if(h_bench.meeting_counter>0){
+		bench->meeting_counter = h_bench.meeting_counter;
+		CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench.meetings, h_bench.meeting_counter*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
+		logt("copy out meeting data", start);
+	}
 	// clean the device bench for next round of checking
 	cuda_cleargrids<<<bench->grids_stack_capacity/1024+1,1024>>>(d_bench);
 	cuda_reset_bench<<<1,1>>>(d_bench);

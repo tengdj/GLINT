@@ -19,19 +19,20 @@ workbench::workbench(configuration *conf){
 	config = conf;
 
 	// setup the capacity of each container
-	grid_capacity = 10*config->grid_capacity;
+	grid_capacity = 2*config->grid_capacity;
 	// each grid contains averagely grid_capacity/2 objects, times 4 for enough space
 	grids_stack_capacity = 4*max((uint)1, config->num_objects/config->grid_capacity);
 
 	// the number of all QTree Nodes
-	schema_stack_capacity = 2*grids_stack_capacity;
+	schema_stack_capacity = 1.3*grids_stack_capacity;
+
 	global_stack_capacity = 2*config->num_objects;
 
 	grid_check_capacity = 2*config->num_objects*(config->grid_capacity/config->zone_capacity+1);
 
 	//
-	meeting_bucket_capacity = max((uint)20, 5*config->num_objects/config->num_meeting_buckets);
-	meeting_capacity = 10*config->num_objects;
+	meeting_bucket_capacity = 4*config->num_objects/config->num_meeting_buckets;//max((uint)10, );
+	meeting_capacity = config->num_objects/2;
 
 	insert_lk = new pthread_mutex_t[MAX_LOCK_NUM];
 	for(int i=0;i<MAX_LOCK_NUM;i++){
@@ -67,38 +68,30 @@ void *workbench::allocate(size_t size){
 
 void workbench::claim_space(){
 
-	struct timeval start = get_cur_time();
-
-	double total_size = 0;
 	size_t size = 0;
 
 	size = grid_capacity*grids_stack_capacity*sizeof(uint);
 	grids = (uint *)allocate(size);
 	log("\t%.2f MB\tgrids",size/1024.0/1024.0);
-	total_size += size;
 
 	size = grids_stack_capacity*sizeof(uint);
 	grid_counter = (uint *)allocate(size);
-	log("\t%.2f MB\tgrid counter",size/1024.0/1024.0);
-	total_size += size;
+	//log("\t%.2f MB\tgrid counter",size/1024.0/1024.0);
 
 	size = grids_stack_capacity*sizeof(uint);
 	grids_stack = (uint *)allocate(size);
-	log("\t%.2f MB\tgrids stack",size/1024.0/1024.0);
-	total_size += size;
+	//log("\t%.2f MB\tgrids stack",size/1024.0/1024.0);
 	for(int i=0;i<grids_stack_capacity;i++){
 		grids_stack[i] = i;
 	}
 
-	size = 2*grids_stack_capacity*sizeof(QTSchema);
+	size = schema_stack_capacity*sizeof(QTSchema);
 	schema = (QTSchema*)allocate(size);
 	log("\t%.2f MB\tschema",size/1024.0/1024.0);
-	total_size += size;
 
 	size = schema_stack_capacity*sizeof(uint);
 	schema_stack = (uint *)allocate(size);
-	log("\t%.2f MB\tschema stack",size/1024.0/1024.0);
-	total_size += size;
+	//log("\t%.2f MB\tschema stack",size/1024.0/1024.0);
 	for(int i=0;i<schema_stack_capacity;i++){
 		schema_stack[i] = i;
 		schema[i].type = INVALID;
@@ -107,32 +100,25 @@ void workbench::claim_space(){
 	size = grid_check_capacity*sizeof(checking_unit);
 	grid_check = (checking_unit *)allocate(size);
 	log("\t%.2f MB\tchecking units",size/1024.0/1024.0);
-	total_size += size;
 
 	size = config->num_meeting_buckets*meeting_bucket_capacity*sizeof(meeting_unit);
 	meeting_buckets[0] = (meeting_unit *)allocate(size);
 	meeting_buckets[1] = (meeting_unit *)allocate(size);
 	log("\t%.2f MB\tmeeting bucket space",2*size/1024.0/1024.0);
-	total_size += 2*size;
 
 	size = config->num_meeting_buckets*sizeof(uint);
 	meeting_buckets_counter[0] = (uint *)allocate(size);
 	memset(meeting_buckets_counter[0],0,config->num_meeting_buckets*sizeof(uint));
 	meeting_buckets_counter[1] = (uint *)allocate(size);
 	memset(meeting_buckets_counter[1],0,config->num_meeting_buckets*sizeof(uint));
-	log("\t%.2f MB  \tmeeting bucket counter space",2*size/1024.0/1024.0);
-	total_size += 2*size;
+	//log("\t%.2f MB  \tmeeting bucket counter space",2*size/1024.0/1024.0);
 
 	size = meeting_capacity*sizeof(meeting_unit);
 	meetings = (meeting_unit *)allocate(size);
 	log("\t%.2f MB\tmeeting space",size/1024.0/1024.0);
-	total_size += size;
 
 	size = global_stack_capacity*2*sizeof(uint);
 	global_stack[0] = (uint *)allocate(size);
 	global_stack[1] = (uint *)allocate(size);
 	log("\t%.2f MB\tstack space",2*size/1024.0/1024.0);
-	total_size += 2*size;
-
-	logt("%.2f MB memory space is claimed",start,total_size/1024.0/1024.0);
 }
