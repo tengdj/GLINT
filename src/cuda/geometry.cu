@@ -569,11 +569,11 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 
 		uint stack_id = 0;
 		while(h_bench.global_stack_index[stack_id]>0){
-			//struct timeval ct = get_cur_time();
+			struct timeval ct = get_cur_time();
 			cuda_lookup<<<h_bench.global_stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id,h_bench.global_stack_index[stack_id]);
 			check_execution();
 			cudaDeviceSynchronize();
-			//logt("%d",ct,h_bench.global_stack_index[stack_id]);
+			logt("%d",ct,h_bench.global_stack_index[stack_id]);
 			CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 			stack_id = !stack_id;
 		}
