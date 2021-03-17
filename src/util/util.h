@@ -35,7 +35,7 @@ namespace{
 const double degree_per_meter_latitude = 360.0/(40076.0*1000.0);
 
 inline double degree_per_meter_longitude(double latitude){
-	double absla = abs(latitude);
+	double absla = fabs(latitude);
 	if(absla==90){
 		absla = 89;
 	}
@@ -45,7 +45,7 @@ inline double degree_per_meter_longitude(double latitude){
 
 inline int double_to_int(double val){
 	int vi = (int)val;
-	if(abs(1.0*(vi+1)-val)<0.00000001){
+	if(fabs(1.0*(vi+1)-val)<0.00000001){
 		vi++;
 	}
 	return vi;
