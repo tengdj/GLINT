@@ -158,6 +158,7 @@ bool workbench::batch_check(checking_unit *buffer, uint num){
 	return true;
 }
 
+
 // single thread function for assigning objects into grids following certain schema
 void *partition_unit(void *arg){
 	query_context *qctx = (query_context *)arg;

@@ -8,6 +8,22 @@
 
 #include "workbench.h"
 
+
+
+bool workbench::batch_meet(meeting_unit *buffer, uint num){
+	if(num == 0){
+		return false;
+	}
+	uint cur_counter = 0;
+	lock();
+	assert(meeting_counter+num<meeting_capacity);
+	cur_counter = meeting_counter;
+	meeting_counter += num;
+	unlock();
+	memcpy(meetings+cur_counter,buffer,sizeof(meeting_unit)*num);
+	return true;
+}
+
 /*
  *
  * update the meetings maintained with reachability information collected in this round
@@ -17,6 +33,9 @@
 void *update_meetings_unit(void *arg){
 	query_context *ctx = (query_context *)arg;
 	workbench *bench = (workbench *)ctx->target[0];
+
+	meeting_unit *meetings = new meeting_unit[200];
+	uint meeting_index = 0;
 
 	size_t start = 0;
 	size_t end = 0;
@@ -42,16 +61,17 @@ void *update_meetings_unit(void *arg){
 				// the old meeting is over
 				if(!updated&&
 					bench->cur_time-bucket_old[i].start>=bench->config->min_meet_time){
-					lock();
-					uint meeting_idx = bench->meeting_counter++;
-					unlock();
-					assert(meeting_idx<bench->meeting_capacity);
-					bench->meetings[meeting_idx] = bucket_old[i];
+					meetings[meeting_index++] = bucket_old[i];
+					if(meeting_index==200){
+						bench->batch_meet(meetings, 200);
+						meeting_index = 0;
+					}
 				}
 			}
 			bench->meeting_buckets_counter[!bench->current_bucket][bid] = 0;
 		}
 	}
+	bench->batch_meet(meetings, meeting_index);
 	return NULL;
 }
 
@@ -64,7 +84,7 @@ void workbench::update_meetings(){
 	tctx.num_units = config->num_meeting_buckets;
 	pthread_t threads[tctx.config->num_threads];
 
-	uint old_counter = this->meeting_counter;
+	meeting_counter = 0;
 	for(int i=0;i<tctx.config->num_threads;i++){
 		pthread_create(&threads[i], NULL, update_meetings_unit, (void *)&tctx);
 	}
@@ -76,6 +96,6 @@ void workbench::update_meetings(){
 	for(int i=0;i<config->num_meeting_buckets;i++){
 		mc += meeting_buckets_counter[current_bucket][i];
 	}
-	logt("update meeting: %d meetings active, %d meeting identified",start,mc,meeting_counter - old_counter);
+	logt("update meeting: %d meetings active, %d meeting identified",start,mc,meeting_counter);
 }
 

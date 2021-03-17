@@ -100,6 +100,7 @@ public:
 	// generate pid-gid-offset pairs for processing
 	bool check(uint gid, uint pid);
 	bool batch_check(checking_unit *cu, uint num);
+	bool batch_meet(meeting_unit *m, uint num);
 
 	void merge_node(uint cur_node);
 	void split_node(uint cur_node);
