@@ -150,8 +150,8 @@ public:
 		if(this->contain(p)){
 			return 0;
 		}
-		double dx = max(abs(p.x-(low[0]+high[0])/2) - (high[0]-low[0])/2, 0.0);
-		double dy = max(abs(p.y-(low[1]+high[1])/2) - (high[1]-low[1])/2, 0.0);
+		double dx = max(fabs(p.x-(low[0]+high[0])/2) - (high[0]-low[0])/2, 0.0);
+		double dy = max(fabs(p.y-(low[1]+high[1])/2) - (high[1]-low[1])/2, 0.0);
 		if(geography){
 			dy = dy/degree_per_meter_latitude;
 			dx = dx/degree_per_meter_longitude(p.y);
@@ -346,7 +346,7 @@ inline double distance_point_to_segment(double x, double y,
 		}else if(y<min(y1, y2)){
 			return sqrt((x-x1)*(x-x1)+(min(y1, y2)-y)*(min(y1, y2)-y));
 		}else {
-			return abs(x-x1);
+			return fabs(x-x1);
 		}
 	}
 
@@ -357,7 +357,7 @@ inline double distance_point_to_segment(double x, double y,
 		}else if(x<min(x1, x2)){
 			return sqrt((y-y1)*(y-y1)+(min(x1, x2)-x)*(min(x1, x2)-x));
 		}else {
-			return abs(y-y1);
+			return fabs(y-y1);
 		}
 	}
 

@@ -7,7 +7,7 @@ OBJS := $(patsubst %.cpp,%.o,$(SRCS))
 
 INCLUDES	= -I /usr/include -I ./src -I /usr/local/cuda/targets/x86_64-linux/include/
 LIBS		= -L/usr/lib/x86_64-linux-gnu -lboost_program_options -lpthread
-CPPFLAGS	= -g -std=c++14 -Wno-cpp
+CPPFLAGS	= -g -std=c++11 -Wno-cpp
 
 CUDALIBS	= -L/usr/local/cuda/lib64 -lcudart
 
