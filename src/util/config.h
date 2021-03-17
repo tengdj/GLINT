@@ -34,6 +34,7 @@ public:
 	double x_buffer = 0;
 	double y_buffer = 0;
 	bool gpu = false;
+	uint specific_gpu = 0;
 	bool analyze_reach = false;
 	bool analyze_grid = false;
 	bool analyze_meeting = false;
@@ -53,6 +54,9 @@ public:
 
 		printf("trace path:\t%s\n",trace_path.c_str());
 		printf("use gpu:\t%s\n",gpu?"yes":"no");
+		if(gpu){
+			printf("which gpu:\t%d\n",specific_gpu);
+		}
 		printf("dynamic schema:\t%s\n",dynamic_schema?"yes":"no");
 		printf("schema update gap:\t%d\n",schema_update_delay);
 
@@ -77,6 +81,7 @@ inline configuration get_parameters(int argc, char **argv){
 		("analyze_meeting", "analyze the meeting bucket statistics")
 		("analyze_grid", "analyze the grid statistics")
 		("threads,n", po::value<uint>(&config.num_threads), "number of threads")
+		("specific_gpu", po::value<uint>(&config.specific_gpu), "use which gpu")
 		("grid_capacity", po::value<uint>(&config.grid_capacity), "maximum number of objects per grid ")
 		("zone_capacity", po::value<uint>(&config.zone_capacity), "maximum number of objects per zone buffer")
 		("objects,o", po::value<uint>(&config.num_objects), "number of objects")

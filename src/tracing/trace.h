@@ -43,12 +43,16 @@ public:
 		if(config->gpu){
 			vector<gpu_info *> gpus = get_gpus();
 			if(gpus.size()==0){
-				log("not GPU is found, use CPU mode");
+				log("no GPU is found, use CPU mode");
 				config->gpu = false;
 			}else{
-				gpu = gpus[0];
-				for(int i=1;i<gpus.size();i++){
-					delete gpus[i];
+				assert(config->specific_gpu<gpus.size());
+				gpu = gpus[config->specific_gpu];
+				gpu->print();
+				for(int i=0;i<gpus.size();i++){
+					if(i!=config->specific_gpu){
+						delete gpus[i];
+					}
 				}
 				gpus.clear();
 			}
@@ -66,9 +70,13 @@ public:
 				log("not GPU is found, use CPU mode");
 				config->gpu = false;
 			}else{
-				gpu = gpus[0];
-				for(int i=1;i<gpus.size();i++){
-					delete gpus[i];
+				assert(config->specific_gpu<gpus.size());
+				gpu = gpus[config->specific_gpu];
+				gpu->print();
+				for(int i=0;i<gpus.size();i++){
+					if(i!=config->specific_gpu){
+						delete gpus[i];
+					}
 				}
 				gpus.clear();
 			}
