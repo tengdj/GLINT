@@ -75,6 +75,10 @@ public:
 	uint *meeting_buckets_counter[2] = {NULL,NULL};
 	uint meeting_bucket_capacity = 0;
 
+	meeting_unit *meeting_buckets_overflow[2] = {NULL,NULL};
+	uint *meeting_buckets_overflow_counter[2] = {NULL,NULL};
+	uint meeting_bucket_overflow_capacity = 0;
+
 	// the space for the valid meeting information now
 	meeting_unit *meetings = NULL;
 	uint meeting_capacity = 0;

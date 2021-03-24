@@ -502,6 +502,12 @@ workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	h_bench.meeting_buckets[1] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit));
 	h_bench.meeting_buckets_counter[0] = (uint *)gpu->allocate(bench->config->num_meeting_buckets*sizeof(uint));
 	h_bench.meeting_buckets_counter[1] = (uint *)gpu->allocate(bench->config->num_meeting_buckets*sizeof(uint));
+
+	h_bench.meeting_buckets_overflow[0] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets_overflow*bench->meeting_bucket_overflow_capacity*sizeof(meeting_unit));
+	h_bench.meeting_buckets_overflow[1] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets_overflow*bench->meeting_bucket_overflow_capacity*sizeof(meeting_unit));
+	h_bench.meeting_buckets_overflow_counter[0] = (uint *)gpu->allocate(bench->config->num_meeting_buckets_overflow*sizeof(uint));
+	h_bench.meeting_buckets_overflow_counter[1] = (uint *)gpu->allocate(bench->config->num_meeting_buckets_overflow*sizeof(uint));
+
 	h_bench.meetings = (meeting_unit *)gpu->allocate(bench->meeting_capacity*sizeof(meeting_unit));
 
 	h_bench.config = (configuration *)gpu->allocate(sizeof(configuration));

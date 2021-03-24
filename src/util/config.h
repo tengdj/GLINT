@@ -26,6 +26,7 @@ public:
 	uint grid_capacity = 100;
 	uint zone_capacity = 100;
 	uint num_meeting_buckets = 100000;
+	uint num_meeting_buckets_overflow = 1000;
 	bool dynamic_schema = false;
 	bool recursive_lookup = false;
 	uint schema_update_delay = 1; //

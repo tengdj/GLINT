@@ -22,6 +22,7 @@ public:
 	char name[256];
 	int clock_rate = 0;
 	int bus_width = 0;
+	int num_cores = 0;
 	size_t mem_size;
 	bool busy;
 	pthread_mutex_t lk;

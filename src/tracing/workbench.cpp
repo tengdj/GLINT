@@ -32,6 +32,9 @@ workbench::workbench(configuration *conf){
 
 	//
 	meeting_bucket_capacity = 2*config->num_objects/config->num_meeting_buckets;//max((uint)10, );
+
+	meeting_bucket_overflow_capacity = config->num_objects/config->num_meeting_buckets_overflow;
+
 	meeting_capacity = config->num_objects/2;
 
 	insert_lk = new pthread_mutex_t[MAX_LOCK_NUM];

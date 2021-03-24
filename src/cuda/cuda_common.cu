@@ -10,6 +10,41 @@
 
 using namespace std;
 
+int get_num_cores(cudaDeviceProp devProp)
+{
+    int cores = 0;
+    int mp = devProp.multiProcessorCount;
+    switch (devProp.major){
+     case 2: // Fermi
+      if (devProp.minor == 1) cores = mp * 48;
+      else cores = mp * 32;
+      break;
+     case 3: // Kepler
+      cores = mp * 192;
+      break;
+     case 5: // Maxwell
+      cores = mp * 128;
+      break;
+     case 6: // Pascal
+      if ((devProp.minor == 1) || (devProp.minor == 2)) cores = mp * 128;
+      else if (devProp.minor == 0) cores = mp * 64;
+      else printf("Unknown device type\n");
+      break;
+     case 7: // Volta and Turing
+      if ((devProp.minor == 0) || (devProp.minor == 5)) cores = mp * 64;
+      else printf("Unknown device type\n");
+      break;
+     case 8: // Ampere
+      if (devProp.minor == 0) cores = mp * 64;
+      else if (devProp.minor == 6) cores = mp * 128;
+      else printf("Unknown device type\n");
+      break;
+     default:
+      printf("Unknown device type\n");
+      break;
+      }
+    return cores;
+}
 vector<gpu_info *> get_gpus(){
 	vector<gpu_info *> gpus;
 	int num_gpus = 0;
@@ -26,6 +61,7 @@ vector<gpu_info *> get_gpus(){
 		info->bus_width = prop.memoryBusWidth;
 		info->compute_capability_major = prop.major;
 		info->compute_capability_minor = prop.minor;
+		info->num_cores = get_num_cores(prop);
 
 //		if(info->mem_size>2048){
 //			info->mem_size = 2048;
@@ -52,6 +88,7 @@ void gpu_info::print(){
 	log("  Peak Memory Bandwidth (GB/s): %f", 2.0*clock_rate*(bus_width/8)/1.0e6);
 	log("  Memory size (MB): %ld", mem_size);
 	log("  Compute Capability: %d.%d", this->compute_capability_major, this->compute_capability_minor);
+	log("  Number of cores: %ld", num_cores);
 }
 
 void gpu_info::init(){
