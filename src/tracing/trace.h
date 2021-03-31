@@ -161,7 +161,7 @@ public:
 				points.push_back(trace+i*config->num_objects+oid);
 			}
 		}
-		print_points(points);
+		print_points(points, 10000);
 		points.clear();
 	}
 	Point *get_trace(){
