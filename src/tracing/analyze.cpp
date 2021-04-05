@@ -8,26 +8,55 @@
 
 #include "workbench.h"
 
+#define OVERFLOW_THRESHOLD 0.999
+
 void workbench::analyze_grids(){
 	uint overflow = 0;
 	uint max_one = 0;
+	uint *gridc = new uint[grid_capacity];
+	uint total = 0;
+	for(int i=0;i<grid_capacity;i++){
+		gridc[i] = 0;
+	}
 	for(int i=0;i<schema_stack_capacity;i++){
 		if(schema[i].type==LEAF){
 			uint gid = schema[i].grid_id;
 			uint gsize = grid_counter[gid];
-			// todo increase the actuall capacity
-			if(gsize>2*config->grid_capacity){
+			// todo increase the actual capacity
+			if(gsize>grid_capacity){
 				overflow++;
 			}
+			gridc[gsize>=grid_capacity?(grid_capacity-1):gsize]++;
+			total++;
 			if(max_one<gsize){
 				max_one = gsize;
 			}
+		}
+	}
+
+	if(pro.max_grid_num<total){
+		pro.max_grid_num = total;
+	}
+
+	double cum = 0;
+	for(int i=0;i<grid_capacity;i++){
+		cum += 1.0*gridc[i]/total;
+		if(cum>OVERFLOW_THRESHOLD){
+			if(pro.max_grid_size<i){
+				pro.max_grid_size = i;
+			}
+			break;
 		}
 	}
 	log("%d/%d overflow %d max",overflow,grids_stack_index,max_one);
 }
 
 void workbench::analyze_reaches(){
+
+	if(pro.max_filter_size<grid_check_counter){
+		pro.max_filter_size = grid_check_counter;
+	}
+
 	uint *unit_count = new uint[config->num_objects];
 	memset(unit_count,0,config->num_objects*sizeof(uint));
 	uint min_bucket = 0;
@@ -113,10 +142,6 @@ void workbench::analyze_reaches(){
 
 void workbench::analyze_meeting_buckets(){
 
-}
-
-void workbench::analyze_meetings(){
-
 	uint *bucket_count = new uint[meeting_bucket_capacity];
 	memset(bucket_count,0,meeting_bucket_capacity*sizeof(uint));
 
@@ -147,15 +172,26 @@ void workbench::analyze_meetings(){
 			meeting_buckets_counter[current_bucket][max_bucket],
 			meeting_bucket_capacity);
 	double cum_portion = 0;
+	int vbuck = -1;
 	for(int i=0;i<meeting_bucket_capacity;i++){
 		if(bucket_count[i]>0){
 			cum_portion += 1.0*bucket_count[i]*i/total;
-			log("%d\t%d\t%.3f",i,bucket_count[i],cum_portion);
+			log("%d\t%d\t%.4f",i,bucket_count[i],cum_portion);
 		}
+		if(cum_portion>OVERFLOW_THRESHOLD&&!vbuck==-1){
+			vbuck = i;
+		}
+	}
+	if(vbuck==-1){
+		vbuck = meeting_bucket_capacity;
+	}
+
+	if(pro.max_bucket_size<vbuck){
+		pro.max_bucket_size = vbuck;
 	}
 	if(overflow>0){
 		cum_portion += 1.0*overflow_count/total;
-		log("of\t%d\t%.3f\t%d",overflow,cum_portion,overflow_count-overflow*meeting_bucket_capacity);
+		log("of\t%d\t%.4f\t%d",overflow,cum_portion,overflow_count-overflow*meeting_bucket_capacity);
 	}
 
 	delete []bucket_count;

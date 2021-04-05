@@ -38,9 +38,14 @@ void tracer::process(){
 		bench->cur_time = t;
 		// process the coordinate in this time points
 		if(!config->gpu){
+			struct timeval ct = get_cur_time();
 			bench->partition();
+			log("%f",get_time_elapsed(ct,false));
+			bench->pro.filter_time += get_time_elapsed(ct,true);
 			bench->reachability();
+			bench->pro.refine_time += get_time_elapsed(ct,true);
 			bench->update_meetings();
+			bench->pro.meeting_update_time += get_time_elapsed(ct,true);
 		}else{
 #ifdef USE_GPU
 			process_with_gpu(bench,d_bench,gpu);
@@ -58,12 +63,17 @@ void tracer::process(){
 			bench->analyze_reaches();
 		}
 		if(config->analyze_meeting){
-			bench->analyze_meetings();
+			bench->analyze_meeting_buckets();
 		}
 		if(config->dynamic_schema&&!config->gpu){
+			struct timeval ct = get_cur_time();
 			bench->update_schema();
+			bench->pro.index_update_time += get_time_elapsed(ct,true);
 		}
 		logt("round %d",start,t+config->start_time);
 		bench->current_bucket = !bench->current_bucket;
+		bench->pro.rounds++;
 	}
+
+	bench->print_profile();
 }

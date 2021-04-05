@@ -13,6 +13,20 @@
 #include "../geometry/geometry.h"
 #include "../index/QTree.h"
 
+typedef struct profiler{
+	double copy_time = 0;
+	double filter_time = 0;
+	double refine_time = 0;
+	double meeting_update_time = 0;
+	double index_update_time = 0;
+	uint rounds = 0;
+	uint max_filter_size = 0;
+	uint max_grid_size = 0;
+	uint max_grid_num = 0;
+	uint max_bucket_size = 0;
+	uint max_stak_size = 0;
+}profiler;
+
 typedef struct checking_unit{
 	uint pid;
 	uint gid;
@@ -42,6 +56,7 @@ class workbench{
 	uint data_index = 0;
 	void *allocate(size_t size);
 public:
+	profiler pro;
 	uint test_counter = 0;
 	configuration *config = NULL;
 	uint cur_time = 0;
@@ -74,10 +89,6 @@ public:
 	meeting_unit *meeting_buckets[2] = {NULL,NULL};
 	uint *meeting_buckets_counter[2] = {NULL,NULL};
 	uint meeting_bucket_capacity = 0;
-
-	meeting_unit *meeting_buckets_overflow[2] = {NULL,NULL};
-	uint *meeting_buckets_overflow_counter[2] = {NULL,NULL};
-	uint meeting_bucket_overflow_capacity = 0;
 
 	// the space for the valid meeting information now
 	meeting_unit *meetings = NULL;
@@ -140,11 +151,11 @@ public:
 
 	void sort_meeting();
 	void update_meetings();
+
 	void analyze_grids();
 	void analyze_reaches();
-	void analyze_meetings();
 	void analyze_meeting_buckets();
-
+	void print_profile();
 
 	void lock(uint key = 0){
 		pthread_mutex_lock(&insert_lk[key%MAX_LOCK_NUM]);

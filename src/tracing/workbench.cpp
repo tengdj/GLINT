@@ -28,12 +28,9 @@ workbench::workbench(configuration *conf){
 
 	global_stack_capacity = 2*config->num_objects;
 
-	grid_check_capacity = 2*config->num_objects*(config->grid_capacity/config->zone_capacity);
+	grid_check_capacity = 3*config->num_objects*(config->grid_capacity/config->zone_capacity);
 
-	//
-	meeting_bucket_capacity = 2*config->num_objects/config->num_meeting_buckets;//max((uint)10, );
-
-	meeting_bucket_overflow_capacity = config->num_objects/config->num_meeting_buckets_overflow;
+	meeting_bucket_capacity = max((uint)30, 3*config->num_objects/config->num_meeting_buckets);
 
 	meeting_capacity = config->num_objects/2;
 
@@ -125,3 +122,24 @@ void workbench::claim_space(){
 	global_stack[1] = (uint *)allocate(size);
 	log("\t%.2f MB\tstack space",2*size/1024.0/1024.0);
 }
+
+
+void workbench::print_profile(){
+	printf("memory space:\n");
+	printf("\tgrid buffer:\t%ld MB\n",pro.max_grid_num*pro.max_grid_size*sizeof(uint)/1024/1024);
+	printf("\trefine list:\t%ld MB\n",pro.max_filter_size*sizeof(checking_unit)/1024/1024);
+	printf("\tmeeting table:\t%ld MB\n",2*pro.max_bucket_size*config->num_meeting_buckets*sizeof(meeting_unit)/1024/1024);
+	printf("\tstack size:\t%ld MB\n",2*pro.max_stak_size*2*sizeof(uint)/1024/1024);
+
+	if(pro.rounds>0){
+		printf("time cost:\n");
+		printf("\tcopy data:\t%.2f\n",pro.copy_time/pro.rounds);
+		printf("\tfiltering:\t%.2f\n",pro.filter_time/pro.rounds);
+		printf("\trefinement:\t%.2f\n",pro.refine_time/pro.rounds);
+		printf("\tupdate meets:\t%.2f\n",pro.meeting_update_time/pro.rounds);
+		printf("\tupdate index:\t%.2f\n",pro.index_update_time/pro.rounds);
+		double overall = pro.copy_time+pro.filter_time+pro.refine_time+pro.meeting_update_time+pro.index_update_time;
+		printf("\toverall:\t%.2f\n",overall/pro.rounds);
+	}
+}
+

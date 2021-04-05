@@ -503,11 +503,6 @@ workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	h_bench.meeting_buckets_counter[0] = (uint *)gpu->allocate(bench->config->num_meeting_buckets*sizeof(uint));
 	h_bench.meeting_buckets_counter[1] = (uint *)gpu->allocate(bench->config->num_meeting_buckets*sizeof(uint));
 
-	h_bench.meeting_buckets_overflow[0] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets_overflow*bench->meeting_bucket_overflow_capacity*sizeof(meeting_unit));
-	h_bench.meeting_buckets_overflow[1] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets_overflow*bench->meeting_bucket_overflow_capacity*sizeof(meeting_unit));
-	h_bench.meeting_buckets_overflow_counter[0] = (uint *)gpu->allocate(bench->config->num_meeting_buckets_overflow*sizeof(uint));
-	h_bench.meeting_buckets_overflow_counter[1] = (uint *)gpu->allocate(bench->config->num_meeting_buckets_overflow*sizeof(uint));
-
 	h_bench.meetings = (meeting_unit *)gpu->allocate(bench->meeting_capacity*sizeof(meeting_unit));
 
 	h_bench.config = (configuration *)gpu->allocate(sizeof(configuration));
@@ -552,6 +547,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	h_bench.current_bucket = bench->current_bucket;
 	CUDA_SAFE_CALL(cudaMemcpy(d_bench, &h_bench, sizeof(workbench), cudaMemcpyHostToDevice));
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench.points, bench->points, bench->config->num_objects*sizeof(Point), cudaMemcpyHostToDevice));
+	bench->pro.copy_time += get_time_elapsed(start,false);
 	logt("copy in data", start);
 
 
@@ -564,6 +560,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 			cudaDeviceSynchronize();
 		}
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+		bench->pro.filter_time += get_time_elapsed(start,false);
 		logt("partition data %d checkings", start,h_bench.grid_check_counter);
 	}else{
 		// do the partition
@@ -571,18 +568,23 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		check_execution();
 		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+		bench->pro.filter_time += get_time_elapsed(start,false);
 		logt("partition data %d still need lookup", start,h_bench.global_stack_index[0]);
 
 		uint stack_id = 0;
 		while(h_bench.global_stack_index[stack_id]>0){
-			struct timeval ct = get_cur_time();
+			if(bench->pro.max_stak_size<h_bench.global_stack_index[stack_id]){
+				bench->pro.max_stak_size = h_bench.global_stack_index[stack_id];
+			}
+			//struct timeval ct = get_cur_time();
 			cuda_lookup<<<h_bench.global_stack_index[stack_id]/1024+1,1024>>>(d_bench,stack_id,h_bench.global_stack_index[stack_id]);
 			check_execution();
 			cudaDeviceSynchronize();
-			logt("%d",ct,h_bench.global_stack_index[stack_id]);
+			//logt("%d",ct,h_bench.global_stack_index[stack_id]);
 			CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 			stack_id = !stack_id;
 		}
+		bench->pro.filter_time += get_time_elapsed(start,false);
 		logt("%d pid-grid pairs need be checked", start,h_bench.grid_check_counter);
 	}
 
@@ -591,7 +593,9 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+	bench->pro.refine_time += get_time_elapsed(start,false);
 	logt("%d pid-grid-offset tuples need be checked", start,h_bench.grid_check_counter);
+	bench->grid_check_counter = h_bench.grid_check_counter;
 
 	// compute the reachability of objects in each partitions
 	uint thread_y = bench->config->zone_capacity;
@@ -601,6 +605,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+	bench->pro.refine_time += get_time_elapsed(start,false);
 	logt("reaches computation", start);
 
 	// update the meeting hash table
@@ -609,6 +614,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+	bench->pro.meeting_update_time += get_time_elapsed(start,false);
 	logt("meeting buckets update %d new meetings found", start, h_bench.meeting_counter-origin_num_meeting);
 
 	// todo do the data analyzes, for test only, should not copy out so much stuff
@@ -651,12 +657,14 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 			cudaDeviceSynchronize();
 		}
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+		bench->pro.index_update_time += get_time_elapsed(start,false);
 		logt("schema update %d grids", start, h_bench.grids_stack_index);
 	}
 
 	if(h_bench.meeting_counter>0){
 		bench->meeting_counter = h_bench.meeting_counter;
 		CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench.meetings, h_bench.meeting_counter*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
+		bench->pro.copy_time += get_time_elapsed(start,false);
 		logt("copy out meeting data", start);
 	}
 	// clean the device bench for next round of checking

@@ -77,6 +77,7 @@ inline configuration get_parameters(int argc, char **argv){
 	desc.add_options()
 		("help,h", "produce help message")
 		("gpu,g", "use gpu for processing")
+		("analyze,a", "analyze all rounds")
 		("recursive_lookup", "use a single stack for each lookup")
 		("analyze_reach", "analyze the reaches statistics")
 		("analyze_meeting", "analyze the meeting bucket statistics")
@@ -118,9 +119,15 @@ inline configuration get_parameters(int argc, char **argv){
 	if(vm.count("analyze_grid")){
 		config.analyze_grid = true;
 	}
+	if(vm.count("analyze")){
+		config.analyze_grid = true;
+		config.analyze_reach = true;
+		config.analyze_meeting = true;
+	}
 	if(vm.count("dynamic_schema")){
 		config.dynamic_schema = true;
 	}
+
 	if(!vm.count("zone_capacity")||!vm.count("gpu")){
 		config.zone_capacity = config.grid_capacity;
 	}
