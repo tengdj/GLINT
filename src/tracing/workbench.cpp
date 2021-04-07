@@ -24,11 +24,11 @@ workbench::workbench(configuration *conf){
 	grids_stack_capacity = 4*max((uint)1, config->num_objects/config->grid_capacity);
 
 	// the number of all QTree Nodes
-	schema_stack_capacity = 1.3*grids_stack_capacity;
+	schema_stack_capacity = 2*grids_stack_capacity;
 
-	global_stack_capacity = 2*config->num_objects;
+	global_stack_capacity = 3*config->num_objects;
 
-	grid_check_capacity = 3*config->num_objects*(config->grid_capacity/config->zone_capacity);
+	grid_check_capacity = 3*config->num_objects*(max(config->grid_capacity/config->zone_capacity,(uint)1));
 
 	meeting_bucket_capacity = max((uint)30, 3*config->num_objects/config->num_meeting_buckets);
 

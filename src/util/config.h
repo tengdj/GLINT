@@ -29,6 +29,7 @@ public:
 	uint num_meeting_buckets_overflow = 1000;
 	bool dynamic_schema = false;
 	bool recursive_lookup = false;
+	bool phased_lookup = false;
 	uint schema_update_delay = 1; //
 	uint min_meet_time = 10;
 	double reach_distance = 2;
@@ -78,7 +79,8 @@ inline configuration get_parameters(int argc, char **argv){
 		("help,h", "produce help message")
 		("gpu,g", "use gpu for processing")
 		("analyze,a", "analyze all rounds")
-		("recursive_lookup", "use a single stack for each lookup")
+		("phased_filter", "enable phased filter")
+
 		("analyze_reach", "analyze the reaches statistics")
 		("analyze_meeting", "analyze the meeting bucket statistics")
 		("analyze_grid", "analyze the grid statistics")
@@ -134,10 +136,9 @@ inline configuration get_parameters(int argc, char **argv){
 	if(!vm.count("num_buckets")){
 		config.num_meeting_buckets = config.num_objects;
 	}
-	if(vm.count("recursive_lookup")){
-		config.recursive_lookup = true;
+	if(vm.count("phased_filter")){
+		config.phased_lookup = true;
 	}
-
 	config.print();
 	return config;
 }
