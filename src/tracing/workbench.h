@@ -119,7 +119,7 @@ public:
 
 	void merge_node(uint cur_node);
 	void split_node(uint cur_node);
-	void partition();
+	void filter();
 	void update_schema();
 	void reachability();
 
@@ -165,5 +165,6 @@ public:
 	}
 };
 extern void lookup_rec(QTSchema *schema, Point *p, uint curnode, vector<uint> &gids, double max_dist, bool include_owner = false);
+extern void lookup_stack(QTSchema *schema, Point *p, uint curnode, vector<uint> &gids, double max_dist, bool include_owner = false);
 
 #endif /* SRC_TRACING_WORKBENCH_H_ */

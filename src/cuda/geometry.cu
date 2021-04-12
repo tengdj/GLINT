@@ -134,127 +134,6 @@ void cuda_partition(workbench *bench){
 
 }
 
-__global__
-void cuda_unroll(workbench *bench, uint inistial_size){
-	int glid = blockIdx.x*blockDim.x+threadIdx.x;
-	if(glid>=inistial_size){
-		return;
-	}
-
-	uint grid_size = min(bench->grid_counter[bench->grid_check[glid].gid],bench->grid_capacity);
-	// the first batch already inserted during the partition and lookup steps
-	uint offset = bench->config->zone_capacity;
-	while(offset<grid_size){
-		uint cu_index = atomicAdd(&bench->grid_check_counter, 1);
-//		if(cu_index>=bench->grid_check_capacity){
-//			printf("%d %d %d\n",bench->grid_counter[bench->grid_check[glid].gid],cu_index,bench->grid_check_capacity);
-//		}
-		assert(cu_index<bench->grid_check_capacity);
-		bench->grid_check[cu_index] = bench->grid_check[glid];
-		bench->grid_check[cu_index].offset = offset;
-		offset += bench->config->zone_capacity;
-	}
-}
-//
-//__global__
-//void cuda_lookup(workbench *bench, uint stack_id, uint stack_size){
-//
-//	int sid = blockIdx.x*blockDim.x+threadIdx.x;
-//	if(sid>=stack_size){
-//		return;
-//	}
-//
-//	uint pid = bench->global_stack[stack_id][sid*2];
-//	uint curnode = bench->global_stack[stack_id][sid*2+1];
-//	Point *p = bench->points+pid;
-//
-//	for(int i=0;i<4;i++){
-//		uint child_offset = bench->schema[curnode].children[i];
-//		double dist = distance(&bench->schema[child_offset].mbr, p);
-//		if(dist<=bench->config->reach_distance){
-//			if(bench->schema[child_offset].type==LEAF){
-//				if(p->y<bench->schema[child_offset].mbr.low[1]||
-//				   (p->y<bench->schema[child_offset].mbr.high[1]
-//					&& p->x<bench->schema[child_offset].mbr.low[0])){
-//					uint gid = bench->schema[child_offset].grid_id;
-//					//assert(gid<bench->grids_stack_capacity);
-//					uint gl = atomicAdd(&bench->grid_check_counter,1);
-//					bench->grid_check[gl].pid = pid;
-//					bench->grid_check[gl].gid = gid;
-//					bench->grid_check[gl].offset = 0;
-//					bench->grid_check[gl].inside = false;
-//				}
-//			}else{
-//				uint idx = atomicAdd(&bench->global_stack_index[!stack_id],1);
-//				//assert(idx<bench->global_stack_capacity);
-//				bench->global_stack[!stack_id][idx*2] = pid;
-//				bench->global_stack[!stack_id][idx*2+1] = child_offset;
-//			}
-//		}
-//	}
-//
-//	// reset stack size for this round of checking
-//	if(sid==0){
-//		bench->global_stack_index[stack_id] = 0;
-//	}
-//}
-//
-//__global__
-//void cuda_lookup_full(workbench *bench, uint stack_id, uint stack_size){
-//
-//	int sid = blockIdx.x*blockDim.x+threadIdx.x;
-//	if(sid>=stack_size){
-//		return;
-//	}
-//
-//	uint pid = bench->global_stack[stack_id][sid*2];
-//	uint curnode = bench->global_stack[stack_id][sid*2+1];
-//	Point *p = bench->points+pid;
-//
-//	for(int i=0;i<4;i++){
-//		uint child_offset = bench->schema[curnode].children[i];
-//		double dist = distance(&bench->schema[child_offset].mbr, p);
-//		if(dist<=bench->config->reach_distance){
-//			if(bench->schema[child_offset].type==LEAF){
-//				if(p->y<bench->schema[child_offset].mbr.low[1]||
-//				   (p->y<bench->schema[child_offset].mbr.high[1]
-//					&& p->x<bench->schema[child_offset].mbr.low[0])){
-//					uint gid = bench->schema[child_offset].grid_id;
-//					//assert(gid<bench->grids_stack_capacity);
-//					uint gl = atomicAdd(&bench->grid_check_counter,1);
-//					bench->grid_check[gl].pid = pid;
-//					bench->grid_check[gl].gid = gid;
-//					bench->grid_check[gl].offset = 0;
-//					bench->grid_check[gl].inside = false;
-//				}else if(contain(&bench->schema[child_offset].mbr,p)){
-//					uint gid = bench->schema[child_offset].grid_id;
-//					assert(gid<bench->grids_stack_capacity);
-//					uint *cur_grid = bench->grids+bench->grid_capacity*gid;
-//					uint cur_loc = atomicAdd(bench->grid_counter+gid,1);
-//					if(cur_loc<bench->grid_capacity){
-//						*(cur_grid+cur_loc) = pid;
-//					}
-//					uint glid = atomicAdd(&bench->grid_check_counter,1);
-//					assert(glid<bench->grid_check_capacity);
-//					bench->grid_check[glid].pid = pid;
-//					bench->grid_check[glid].gid = gid;
-//					bench->grid_check[glid].offset = 0;
-//					bench->grid_check[glid].inside = true;
-//				}
-//			}else{
-//				uint idx = atomicAdd(&bench->global_stack_index[!stack_id],1);
-//				//assert(idx<bench->global_stack_capacity);
-//				bench->global_stack[!stack_id][idx*2] = pid;
-//				bench->global_stack[!stack_id][idx*2+1] = child_offset;
-//			}
-//		}
-//	}
-//
-//	// reset stack size for this round of checking
-//	if(sid==0){
-//		bench->global_stack_index[stack_id] = 0;
-//	}
-//}
 
 #define PER_STACK_SIZE 10
 
@@ -386,6 +265,29 @@ void cuda_lookup_block(workbench *bench, int start_idx, int batch_size, bool inc
 }
 
 
+
+__global__
+void cuda_unroll(workbench *bench, uint inistial_size){
+	int glid = blockIdx.x*blockDim.x+threadIdx.x;
+	if(glid>=inistial_size){
+		return;
+	}
+
+	uint grid_size = min(bench->grid_counter[bench->grid_check[glid].gid],bench->grid_capacity);
+	// the first batch already inserted during the partition and lookup steps
+	uint offset = bench->config->zone_capacity;
+	while(offset<grid_size){
+		uint cu_index = atomicAdd(&bench->grid_check_counter, 1);
+//		if(cu_index>=bench->grid_check_capacity){
+//			printf("%d %d %d\n",bench->grid_counter[bench->grid_check[glid].gid],cu_index,bench->grid_check_capacity);
+//		}
+		assert(cu_index<bench->grid_check_capacity);
+		bench->grid_check[cu_index] = bench->grid_check[glid];
+		bench->grid_check[cu_index].offset = offset;
+		offset += bench->config->zone_capacity;
+	}
+}
+
 __global__
 void cuda_reachability(workbench *bench){
 
@@ -398,8 +300,9 @@ void cuda_reachability(workbench *bench){
 
 	uint gid = bench->grid_check[pairid].gid;
 	uint offset = bench->grid_check[pairid].offset;
+
 	uint size = min(bench->grid_counter[gid],bench->grid_capacity)-offset;
-	if(size>bench->config->zone_capacity){
+	if(bench->config->unroll && size>bench->config->zone_capacity){
 		size = bench->config->zone_capacity;
 	}
 	if(loc>=size){
@@ -709,17 +612,20 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	bench->pro.filter_time += get_time_elapsed(start,false);
 	logt("filtering with %d checkings", start,h_bench.grid_check_counter);
 
-	// do the pack
-	cuda_unroll<<<h_bench.grid_check_counter/1024+1,1024>>>(d_bench,h_bench.grid_check_counter);
-	check_execution();
-	cudaDeviceSynchronize();
-	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-	bench->pro.refine_time += get_time_elapsed(start,false);
-	logt("%d pid-grid-offset tuples need be checked", start,h_bench.grid_check_counter);
-	bench->grid_check_counter = h_bench.grid_check_counter;
+	// do the unrollment
+	if(bench->config->unroll){
+		cuda_unroll<<<h_bench.grid_check_counter/1024+1,1024>>>(d_bench,h_bench.grid_check_counter);
+		check_execution();
+		cudaDeviceSynchronize();
+		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+		bench->pro.refine_time += get_time_elapsed(start,false);
+		logt("%d pid-grid-offset tuples need be checked", start,h_bench.grid_check_counter);
+		bench->grid_check_counter = h_bench.grid_check_counter;
+	}
+
 
 	// compute the reachability of objects in each partitions
-	uint thread_y = bench->config->zone_capacity;
+	uint thread_y = bench->config->unroll?bench->config->zone_capacity:bench->grid_capacity;
 	uint thread_x = 1024/thread_y;
 	dim3 block(thread_x, thread_y);
 	cuda_reachability<<<h_bench.grid_check_counter/thread_x+1,block>>>(d_bench);

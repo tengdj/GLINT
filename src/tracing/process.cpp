@@ -36,11 +36,10 @@ void tracer::process(){
 		bench->reset();
 		bench->points = trace+t*config->num_objects;
 		bench->cur_time = t;
-		// process the coordinate in this time points
+		// process the coordinate in this time point
 		if(!config->gpu){
 			struct timeval ct = get_cur_time();
-			bench->partition();
-			log("%f",get_time_elapsed(ct,false));
+			bench->filter();
 			bench->pro.filter_time += get_time_elapsed(ct,true);
 			bench->reachability();
 			bench->pro.refine_time += get_time_elapsed(ct,true);

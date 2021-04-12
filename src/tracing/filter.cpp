@@ -119,15 +119,45 @@ void lookup_rec(QTSchema *schema, Point *p, uint curnode, vector<uint> &nodes, d
 		if(dist<=max_dist){
 			if(schema[child_offset].type==LEAF){
 				// the node is on the top or right
-				if(query_all||
-				   p->y<schema[child_offset].mbr.low[1]||
+				if(p->y<schema[child_offset].mbr.low[1]||
 				   (p->y<schema[child_offset].mbr.high[1]
 				    && p->x<schema[child_offset].mbr.low[0])){
 					//schema[child_offset].mbr.print();
 					nodes.push_back(child_offset);
+				}else if(query_all&&schema[child_offset].mbr.contain(*p)){
+					nodes.push_back(child_offset);
 				}
 			}else{
 				lookup_rec(schema, p, child_offset, nodes, max_dist, query_all);
+			}
+		}
+	}
+}
+
+void lookup_stack(QTSchema *schema, Point *p, uint curnode, vector<uint> &nodes, double max_dist, bool query_all){
+	uint stk[20];
+	uint stk_idx = 0;
+	stk[stk_idx++] = curnode;
+	while(stk_idx>0){
+		curnode = stk[--stk_idx];
+		// could be possibly in multiple children with buffers enabled
+		for(int i=0;i<4;i++){
+			uint child_offset = schema[curnode].children[i];
+			double dist = schema[child_offset].mbr.distance(*p, true);
+			if(dist<=max_dist){
+				if(schema[child_offset].type==LEAF){
+					// the node is on the top or right
+					if(p->y<schema[child_offset].mbr.low[1]||
+					   (p->y<schema[child_offset].mbr.high[1]
+						&& p->x<schema[child_offset].mbr.low[0])){
+						//schema[child_offset].mbr.print();
+						nodes.push_back(child_offset);
+					}else if(query_all&&schema[child_offset].mbr.contain(*p)){
+						nodes.push_back(child_offset);
+					}
+				}else{
+					stk[stk_idx++] = child_offset;
+				}
 			}
 		}
 	}
@@ -159,54 +189,73 @@ bool workbench::batch_check(checking_unit *buffer, uint num){
 }
 
 
-// single thread function for assigning objects into grids following certain schema
-void *partition_unit(void *arg){
+// single thread function for filtering
+void *filter_unit(void *arg){
 	query_context *qctx = (query_context *)arg;
 	workbench *bench = (workbench *)qctx->target[0];
 
 	// pick one batch of point-grid pair for processing
 	size_t start = 0;
 	size_t end = 0;
-	uint *tmp_stack = new uint[2*200];
-	uint tmp_stack_index = 0;
+
 	vector<uint> nodes;
 	checking_unit *cubuffer = new checking_unit[2000];
 	uint buffer_index = 0;
+	uint stk[30];
 	while(qctx->next_batch(start,end)){
 		for(uint pid=start;pid<end;pid++){
-			uint curnode = 0;
 			Point *p = bench->points+pid;
+			uint curnode = 0;
 			uint last_valid = 0;
 
-			while(true){
-				// assign to a child 0-3
-				int child = (p->y>bench->schema[curnode].mid_y)*2+(p->x>bench->schema[curnode].mid_x);
-				curnode = bench->schema[curnode].children[child];
-				assert(bench->schema[curnode].type!=INVALID);
-				// not near the right and top border
-				if(p->x+bench->config->x_buffer<bench->schema[curnode].mbr.high[0]&&
-				   p->y+bench->config->y_buffer<bench->schema[curnode].mbr.high[1]){
-					last_valid = curnode;
+			if(bench->config->phased_lookup){
+				while(true){
+					// assign to a child 0-3
+					int child = (p->y>bench->schema[curnode].mid_y)*2+(p->x>bench->schema[curnode].mid_x);
+					curnode = bench->schema[curnode].children[child];
+					assert(bench->schema[curnode].type!=INVALID);
+					// not near the right and top border
+					if(p->x+bench->config->x_buffer<bench->schema[curnode].mbr.high[0]&&
+					   p->y+bench->config->y_buffer<bench->schema[curnode].mbr.high[1]){
+						last_valid = curnode;
+					}
+					// is leaf
+					if(bench->schema[curnode].type==LEAF){
+						break;
+					}
 				}
-				// is leaf
-				if(bench->schema[curnode].type==LEAF){
-					break;
-				}
-			}
-			// pid belongs to such node
-			bench->insert(curnode, pid);
+				// pid belongs to such node
+				bench->insert(curnode, pid);
 
-			// is this point too close to the border?
-			if(last_valid!=curnode){
-				lookup_rec(bench->schema, p, last_valid, nodes, bench->config->reach_distance);
+				// is this point too close to the border?
+				if(last_valid!=curnode){
+					lookup_rec(bench->schema, p, last_valid, nodes, bench->config->reach_distance);
+					for(uint n:nodes){
+						uint gid = bench->schema[n].grid_id;
+						cubuffer[buffer_index].pid = pid;
+						cubuffer[buffer_index].gid = gid;
+						cubuffer[buffer_index].inside = false;
+						if(++buffer_index==2000){
+							bench->batch_check(cubuffer, buffer_index);
+							buffer_index = 0;
+						}
+					}
+					nodes.clear();
+				}
+			}else{
+				lookup_rec(bench->schema, p, last_valid, nodes, bench->config->reach_distance,true);
 				for(uint n:nodes){
-					uint gid = bench->schema[n].grid_id;
-					cubuffer[buffer_index].pid = pid;
-					cubuffer[buffer_index].gid = gid;
-					cubuffer[buffer_index].inside = false;
-					if(++buffer_index==2000){
-						bench->batch_check(cubuffer, buffer_index);
-						buffer_index = 0;
+					if(bench->schema[n].mbr.contain(*p)){
+						bench->insert(n, pid);
+					}else{
+						uint gid = bench->schema[n].grid_id;
+						cubuffer[buffer_index].pid = pid;
+						cubuffer[buffer_index].gid = gid;
+						cubuffer[buffer_index].inside = false;
+						if(++buffer_index==2000){
+							bench->batch_check(cubuffer, buffer_index);
+							buffer_index = 0;
+						}
 					}
 				}
 				nodes.clear();
@@ -218,11 +267,10 @@ void *partition_unit(void *arg){
 		bench->batch_check(cubuffer, buffer_index);
 		buffer_index = 0;
 	}
-	delete []tmp_stack;
 	return NULL;
 }
 
-void workbench::partition(){
+void workbench::filter(){
 	// the schema has to be built
 	struct timeval start = get_cur_time();
 
@@ -234,16 +282,17 @@ void workbench::partition(){
 	qctx.target[0] = (void *)this;
 	qctx.num_batchs = 10000;
 
+	// each point should be check with the grid it belongs to
 	grid_check_counter = config->num_objects;
 	for(int i=0;i<config->num_threads;i++){
-		pthread_create(&threads[i], NULL, partition_unit, (void *)&qctx);
+		pthread_create(&threads[i], NULL, filter_unit, (void *)&qctx);
 	}
 	for(int i = 0; i < config->num_threads; i++ ){
 		void *status;
 		pthread_join(threads[i], &status);
 	}
 	// each point added one point-grid pair with offset 0
-	logt("partition data: %d boundary points", start,global_stack_index[0]);
+	logt("filtering data: %d point-grid checking", start,grid_check_counter);
 }
 
 

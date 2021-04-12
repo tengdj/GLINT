@@ -28,8 +28,8 @@ public:
 	uint num_meeting_buckets = 100000;
 	uint num_meeting_buckets_overflow = 1000;
 	bool dynamic_schema = false;
-	bool recursive_lookup = false;
 	bool phased_lookup = false;
+	bool unroll = false;
 	uint schema_update_delay = 1; //
 	uint min_meet_time = 10;
 	double reach_distance = 2;
@@ -80,6 +80,7 @@ inline configuration get_parameters(int argc, char **argv){
 		("gpu,g", "use gpu for processing")
 		("analyze,a", "analyze all rounds")
 		("phased_filter", "enable phased filter")
+		("unroll", "unroll the refinement")
 
 		("analyze_reach", "analyze the reaches statistics")
 		("analyze_meeting", "analyze the meeting bucket statistics")
@@ -138,6 +139,9 @@ inline configuration get_parameters(int argc, char **argv){
 	}
 	if(vm.count("phased_filter")){
 		config.phased_lookup = true;
+	}
+	if(vm.count("unroll")){
+		config.unroll = true;
 	}
 	config.print();
 	return config;
