@@ -34,136 +34,14 @@ class tracer{
 #endif
 public:
 	box mbr;
-	tracer(configuration *conf, box &b, Point *t){
-		trace = t;
-		mbr = b;
-		config = conf;
-		part = new partitioner(mbr,config);
-#ifdef USE_GPU
-		if(config->gpu){
-			vector<gpu_info *> gpus = get_gpus();
-			if(gpus.size()==0){
-				log("no GPU is found, use CPU mode");
-				config->gpu = false;
-			}else{
-				assert(config->specific_gpu<gpus.size());
-				gpu = gpus[config->specific_gpu];
-				gpu->print();
-				for(int i=0;i<gpus.size();i++){
-					if(i!=config->specific_gpu){
-						delete gpus[i];
-					}
-				}
-				gpus.clear();
-			}
-		}
-#endif
-	}
-	tracer(configuration *conf){
-		config = conf;
-		loadFrom(config->trace_path.c_str());
-		part = new partitioner(mbr,config);
-#ifdef USE_GPU
-		if(config->gpu){
-			vector<gpu_info *> gpus = get_gpus();
-			if(gpus.size()==0){
-				log("not GPU is found, use CPU mode");
-				config->gpu = false;
-			}else{
-				assert(config->specific_gpu<gpus.size());
-				gpu = gpus[config->specific_gpu];
-				gpu->print();
-				for(int i=0;i<gpus.size();i++){
-					if(i!=config->specific_gpu){
-						delete gpus[i];
-					}
-				}
-				gpus.clear();
-			}
-		}
-#endif
-	};
-	~tracer(){
-		if(owned_trace){
-			free(trace);
-		}
-		if(part){
-			delete part;
-		}
-		if(bench){
-			delete bench;
-		}
-#ifdef USE_GPU
-		if(gpu){
-			delete gpu;
-		}
-#endif
-	}
-	void dumpTo(const char *path) {
-		struct timeval start_time = get_cur_time();
-		ofstream wf(path, ios::out|ios::binary|ios::trunc);
-		wf.write((char *)&config->num_objects, sizeof(config->num_objects));
-		wf.write((char *)&config->duration, sizeof(config->duration));
-		wf.write((char *)&mbr, sizeof(mbr));
-		size_t num_points = config->duration*config->num_objects;
-		wf.write((char *)trace, sizeof(Point)*num_points);
-		wf.close();
-		logt("dumped to %s",start_time,path);
-	}
-
-	void loadFrom(const char *path) {
-
-		int total_num_objects;
-		int total_duration;
-		struct timeval start_time = get_cur_time();
-		ifstream in(path, ios::in | ios::binary);
-		if(!in.is_open()){
-			log("%s cannot be opened",path);
-			exit(0);
-		}
-		in.read((char *)&total_num_objects, sizeof(total_num_objects));
-		in.read((char *)&total_duration, sizeof(total_duration));
-		log("%d objects last for %d seconds in file",total_num_objects,total_duration);
-		in.read((char *)&mbr, sizeof(mbr));
-		mbr.to_squre(true);
-		assert(config->num_objects*(config->start_time+config->duration)<=total_num_objects*total_duration);
-		//assert(config->num_objects<=total_num_objects);
-		//assert(config->start_time+config->duration<=total_duration);
-
-		in.seekg(config->start_time*total_num_objects*sizeof(Point), ios_base::cur);
-		trace = (Point *)malloc(config->duration*config->num_objects*sizeof(Point));
-		for(int i=0;i<config->duration;i++){
-			in.read((char *)(trace+i*config->num_objects), config->num_objects*sizeof(Point));
-			if(total_num_objects>config->num_objects){
-				in.seekg((total_num_objects-config->num_objects)*sizeof(Point), ios_base::cur);
-			}
-		}
-		in.close();
-		logt("loaded %d objects last for %d seconds from %s",start_time, config->num_objects, config->duration, path);
-		owned_trace = true;
-	}
-
-	void print(){
-		print_points(trace,config->num_objects,min(config->num_objects,(uint)10000));
-	}
-	void print_trace(int oid){
-		vector<Point *> points;
-		for(int i=0;i<config->duration;i++){
-			points.push_back(trace+i*config->num_objects+oid);
-		}
-		print_points(points);
-		points.clear();
-	}
-	void print_traces(){
-		vector<Point *> points;
-		for(int oid=0;oid<config->num_objects;oid++){
-			for(int i=0;i<config->duration;i++){
-				points.push_back(trace+i*config->num_objects+oid);
-			}
-		}
-		print_points(points, 10000);
-		points.clear();
-	}
+	tracer(configuration *conf, box &b, Point *t);
+	tracer(configuration *conf);
+	~tracer();
+	void dumpTo(const char *path);
+	void loadFrom(const char *path);
+	void print();
+	void print_trace(int oid);
+	void print_traces();
 	Point *get_trace(){
 		return trace;
 	}

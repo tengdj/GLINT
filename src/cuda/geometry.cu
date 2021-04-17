@@ -669,17 +669,17 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	// do the schema update
 	if(bench->config->dynamic_schema){
 		// update the schema for future processing
-		cuda_update_schema_collect<<<bench->schema_stack_capacity,1024>>>(d_bench);
+		cuda_update_schema_collect<<<bench->schema_stack_capacity/1024+1,1024>>>(d_bench);
 		check_execution();
 		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 		if(h_bench.global_stack_index[0]>0){
-			cuda_update_schema_split<<<h_bench.global_stack_index[0],1024>>>(d_bench, h_bench.global_stack_index[0]);
+			cuda_update_schema_split<<<h_bench.global_stack_index[0]/1024+1,1024>>>(d_bench, h_bench.global_stack_index[0]);
 			check_execution();
 			cudaDeviceSynchronize();
 		}
 		if(h_bench.global_stack_index[1]>0){
-			cuda_update_schema_merge<<<h_bench.global_stack_index[1],1024>>>(d_bench, h_bench.global_stack_index[1]);
+			cuda_update_schema_merge<<<h_bench.global_stack_index[1]/1024+1,1024>>>(d_bench, h_bench.global_stack_index[1]);
 			check_execution();
 			cudaDeviceSynchronize();
 		}
