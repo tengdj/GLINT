@@ -26,13 +26,14 @@ workbench::workbench(configuration *conf){
 	// the number of all QTree Nodes
 	schema_stack_capacity = 2*grids_stack_capacity;
 
-	global_stack_capacity = 3*config->num_objects;
+	global_stack_capacity = 2*config->num_objects;
 
-	grid_check_capacity = 3*config->num_objects*(max(config->grid_capacity/config->zone_capacity,(uint)1));
+	grid_check_capacity = 2*config->num_objects*(max(config->grid_capacity/config->zone_capacity,(uint)1));
 
-	meeting_bucket_capacity = max((uint)30, 3*config->num_objects/config->num_meeting_buckets);
+	meeting_bucket_capacity = max((uint)20, 2*config->num_objects/config->num_meeting_buckets);
 
-	meeting_capacity = config->num_objects/2;
+	//	meeting_capacity = config->num_objects/2;
+	meeting_capacity = 100;
 
 	insert_lk = new pthread_mutex_t[MAX_LOCK_NUM];
 	for(int i=0;i<MAX_LOCK_NUM;i++){

@@ -53,10 +53,6 @@ void workbench::analyze_grids(){
 
 void workbench::analyze_reaches(){
 
-	if(pro.max_filter_size<grid_check_counter){
-		pro.max_filter_size = grid_check_counter;
-	}
-
 	uint *unit_count = new uint[config->num_objects];
 	memset(unit_count,0,config->num_objects*sizeof(uint));
 	uint min_bucket = 0;

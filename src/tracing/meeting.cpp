@@ -16,11 +16,12 @@ bool workbench::batch_meet(meeting_unit *buffer, uint num){
 	}
 	uint cur_counter = 0;
 	lock();
-	assert(meeting_counter+num<meeting_capacity);
 	cur_counter = meeting_counter;
 	meeting_counter += num;
 	unlock();
-	memcpy(meetings+cur_counter,buffer,sizeof(meeting_unit)*num);
+	if(meeting_counter<meeting_capacity){
+		memcpy(meetings+cur_counter,buffer,sizeof(meeting_unit)*num);
+	}
 	return true;
 }
 

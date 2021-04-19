@@ -192,7 +192,7 @@ void tracer::process(){
 #endif
 		}
 		if(bench->meeting_counter>0&&t==config->duration-1){
-			int luck = get_rand_number(bench->meeting_counter);
+			int luck = get_rand_number(min(bench->meeting_counter, bench->meeting_capacity));
 			print_trace(bench->meetings[luck].pid1);
 			print_trace(bench->meetings[luck].pid2);
 		}
@@ -213,6 +213,9 @@ void tracer::process(){
 		logt("round %d",start,t+config->start_time);
 		bench->current_bucket = !bench->current_bucket;
 		bench->pro.rounds++;
+		if(bench->pro.max_filter_size<bench->grid_check_counter){
+			bench->pro.max_filter_size = bench->grid_check_counter;
+		}
 	}
 
 	bench->print_profile();

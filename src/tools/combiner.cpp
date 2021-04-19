@@ -8,8 +8,25 @@
 #include "../util/util.h"
 #include "../geometry/geometry.h"
 #include <fstream>
+#include <omp.h>
 
 int main(int argc, char **argv){
+
+	bool adjust = false;
+	box mbr_adj;
+	if(argc>2){
+		adjust = true;
+		ifstream in(argv[2], ios::in | ios::binary);
+		if(!in.is_open()){
+			log("%s cannot be opened",argv[2]);
+			exit(0);
+		}
+		int fk = 0;
+		in.read((char *)&fk, sizeof(fk));
+		in.read((char *)&fk, sizeof(fk));
+		in.read((char *)&mbr_adj, sizeof(mbr_adj));
+		in.close();
+	}
 
 	int total_num_objects = 0;
 	int total_duration = 0;
@@ -44,11 +61,8 @@ int main(int argc, char **argv){
 	cout<<total_num_objects<<" "<<total_duration<<endl;
 	global_mbr.print();
 	char path[256];
-	if(argc<3){
-		sprintf(path,"combined.tr");
-	}else{
-		sprintf(path,"%s",argv[2]);
-	}
+	sprintf(path,"combined.tr");
+
 	ofstream out(path);
 	if(!out.is_open()){
 		log("%s cannot be opened", path);
@@ -57,10 +71,22 @@ int main(int argc, char **argv){
 	Point *points = new Point[max_objects];
 	out.write((char *)&total_num_objects, sizeof(total_num_objects));
 	out.write((char *)&total_duration, sizeof(total_duration));
-	out.write((char *)&global_mbr, sizeof(global_mbr));
+	if(adjust){
+		out.write((char *)&mbr_adj, sizeof(mbr_adj));
+	}else{
+		out.write((char *)&global_mbr, sizeof(global_mbr));
+	}
 	for(int i=0;i<total_duration;i++){
 		for(int j=0;j<files.size();j++){
 			ins[j]->read((char *)points,sizeof(Point)*num_objects[j]);
+			if(adjust){
+#pragma omp parallel for
+				for(int k=0;k<num_objects[j];k++){
+					Point *p = points+k;
+					p->x = ((p->x-global_mbr.low[0])/(global_mbr.high[0]-global_mbr.low[0]))*(mbr_adj.high[0]-mbr_adj.low[0])+mbr_adj.low[0];
+					p->y = ((p->y-global_mbr.low[1])/(global_mbr.high[1]-global_mbr.low[1]))*(mbr_adj.high[1]-mbr_adj.low[1])+mbr_adj.low[1];
+				}
+			}
 			out.write((char *)points,sizeof(Point)*num_objects[j]);
 		}
 	}
