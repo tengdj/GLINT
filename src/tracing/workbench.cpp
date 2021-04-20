@@ -31,7 +31,7 @@ workbench::workbench(configuration *conf){
 
 	grid_check_capacity = 5*config->num_objects*(max(config->grid_capacity/config->zone_capacity,(uint)1));
 
-	meeting_bucket_capacity = max((uint)20, 25*config->num_objects/config->num_meeting_buckets);
+	meeting_bucket_capacity = max((uint)20, 10*config->num_objects/config->num_meeting_buckets);
 
 	meeting_capacity = config->num_objects;
 	//meeting_capacity = 100;
@@ -133,7 +133,7 @@ void workbench::print_profile(){
 	printf("\tmeeting table:\t%ld MB\n",2*pro.max_bucket_size*config->num_meeting_buckets*sizeof(meeting_unit)/1024/1024);
 	if(pro.rounds>0){
 		printf("\tnum pairs:\t%.2f \n",2.0*(pro.num_pairs/pro.rounds)/config->num_objects);
-		printf("\tnum meetings:\t%.2f \n",2.0*(pro.num_meetings/pro.rounds));
+		printf("\tnum meetings:\t%.2f \n",pro.num_meetings/pro.rounds);
 		printf("\tusage rate:\t%.2f %%\n",100.0*(pro.num_pairs/pro.rounds)/(pro.max_bucket_size*config->num_meeting_buckets));
 	}
 
