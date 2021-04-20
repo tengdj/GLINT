@@ -304,6 +304,7 @@ void *gentrace_unit(void *arg){
 
 
 Point *trace_generator::generate_trace(){
+	srand (time(NULL));
 	struct timeval start = get_cur_time();
 	Point *ret = (Point *)malloc(config->duration*config->num_objects*sizeof(Point));
 	pthread_t threads[config->num_threads];

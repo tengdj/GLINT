@@ -61,7 +61,7 @@ void workbench::analyze_reaches(){
 	uint max_bucket = 0;
 	uint total = 0;
 	for(int i=0;i<config->num_meeting_buckets;i++){
-		meeting_unit *bucket = meeting_buckets[current_bucket] + i*this->meeting_bucket_capacity;
+		meeting_unit *bucket = meeting_buckets[current_bucket] + i*this->config->bucket_size;
 		for(uint j=0;j<meeting_buckets_counter[current_bucket][i];j++){
 			unit_count[bucket[j].pid1]++;
 			unit_count[bucket[j].pid2]++;
@@ -89,7 +89,7 @@ void workbench::analyze_reaches(){
 
 	vector<Point *> max_reaches;
 	for(int i=0;i<config->num_meeting_buckets;i++){
-		meeting_unit *bucket = meeting_buckets[current_bucket] + i*this->meeting_bucket_capacity;
+		meeting_unit *bucket = meeting_buckets[current_bucket] + i*this->config->bucket_size;
 		for(uint j=0;j<meeting_buckets_counter[current_bucket][i];j++){
 			if(bucket[j].pid2==max_one){
 				max_reaches.push_back(points+bucket[j].pid1);
@@ -140,14 +140,14 @@ void workbench::analyze_reaches(){
 
 void workbench::analyze_meeting_buckets(){
 
-	uint *bucket_count = new uint[meeting_bucket_capacity];
-	memset(bucket_count,0,meeting_bucket_capacity*sizeof(uint));
+	uint *bucket_count = new uint[config->bucket_size];
+	memset(bucket_count,0,config->bucket_size*sizeof(uint));
 
 	uint min_bucket = 0;
 	uint max_bucket = 0;
-	uint total = 0;
-	uint overflow = 0;
-	uint overflow_count = 0;
+	size_t total = 0;
+	size_t overflow = 0;
+	size_t overflow_count = 0;
 
 	for(uint i=0;i<config->num_meeting_buckets;i++){
 		total += meeting_buckets_counter[current_bucket][i];
@@ -157,7 +157,7 @@ void workbench::analyze_meeting_buckets(){
 		if(meeting_buckets_counter[current_bucket][max_bucket]<meeting_buckets_counter[current_bucket][i]){
 			max_bucket = i;
 		}
-		if(meeting_buckets_counter[current_bucket][i]<meeting_bucket_capacity){
+		if(meeting_buckets_counter[current_bucket][i]<config->bucket_size){
 			bucket_count[meeting_buckets_counter[current_bucket][i]]++;
 		}else{
 			overflow++;
@@ -168,10 +168,10 @@ void workbench::analyze_meeting_buckets(){
 			total,total/config->num_meeting_buckets,
 			meeting_buckets_counter[current_bucket][min_bucket],
 			meeting_buckets_counter[current_bucket][max_bucket],
-			meeting_bucket_capacity);
+			config->bucket_size);
 	double cum_portion = 0;
 	int vbuck = -1;
-	for(int i=0;i<meeting_bucket_capacity;i++){
+	for(int i=0;i<config->bucket_size;i++){
 		if(bucket_count[i]>0&&config->analyze_meeting){
 			cum_portion += 1.0*bucket_count[i]*i/total;
 			log("%d\t%d\t%.4f",i,bucket_count[i],cum_portion);
@@ -181,15 +181,14 @@ void workbench::analyze_meeting_buckets(){
 		}
 	}
 	if(vbuck==-1){
-		vbuck = meeting_bucket_capacity;
+		vbuck = config->bucket_size;
 	}
 
 	if(pro.max_bucket_size<vbuck){
 		pro.max_bucket_size = vbuck;
 	}
 	if(overflow>0){
-		cum_portion += 1.0*overflow_count/total;
-		log("of\t%d\t%.4f\t%d",overflow,cum_portion,overflow_count-overflow*meeting_bucket_capacity);
+		log("of\t%d\t%d\t%.4f",overflow,1.0*(overflow_count-overflow*config->bucket_size)/total);
 	}
 	pro.num_pairs += total;
 	pro.num_meetings += this->meeting_counter;

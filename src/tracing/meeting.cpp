@@ -43,15 +43,15 @@ void *update_meetings_unit(void *arg){
 	while(ctx->next_batch(start,end)){
 		for(uint bid=start;bid<end;bid++){
 
-			meeting_unit *bucket_new = bench->meeting_buckets[bench->current_bucket]+bid*bench->meeting_bucket_capacity;
-			meeting_unit *bucket_old = bench->meeting_buckets[!bench->current_bucket]+bid*bench->meeting_bucket_capacity;
+			meeting_unit *bucket_new = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
+			meeting_unit *bucket_old = bench->meeting_buckets[!bench->current_bucket]+bid*bench->config->bucket_size;
 
 			uint size_new = bench->meeting_buckets_counter[bench->current_bucket][bid];
 			uint size_old = bench->meeting_buckets_counter[!bench->current_bucket][bid];
 
-			for(uint i=0;i<size_old&&i<bench->meeting_bucket_capacity;i++){
+			for(uint i=0;i<size_old&&i<bench->config->bucket_size;i++){
 				bool updated = false;
-				for(uint j=0;j<size_new&&j<bench->meeting_bucket_capacity;j++){
+				for(uint j=0;j<size_new&&j<bench->config->bucket_size;j++){
 					if(bucket_new[i].pid1==bucket_old[j].pid1&&
 					   bucket_new[i].pid2==bucket_old[j].pid2){
 						bucket_new[i].start = bucket_old[i].start;

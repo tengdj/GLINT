@@ -32,13 +32,13 @@ void *reachability_unit(void *arg){
 					//p2->print();
 					if(p1->distance(p2, true)<=ctx->config->reach_distance){
 						uint bid = (pid+cur_pids[i])%bench->config->num_meeting_buckets;
-						meeting_unit *bucket = bench->meeting_buckets[bench->current_bucket]+bid*bench->meeting_bucket_capacity;
+						meeting_unit *bucket = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
 						bench->lock(bid);
 						int loc = bench->meeting_buckets_counter[bench->current_bucket][bid]++;
 						bench->unlock(bid);
 
 						// todo handling overflow
-						if(loc<bench->meeting_bucket_capacity){
+						if(loc<bench->config->bucket_size){
 							bucket[loc].pid1 = min(pid,cur_pids[i]);
 							bucket[loc].pid2 = max(cur_pids[i],pid);
 							bucket[loc].start = bench->cur_time;

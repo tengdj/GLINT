@@ -25,15 +25,13 @@ workbench::workbench(configuration *conf){
 	grids_stack_capacity = 4*max((uint)1, config->num_objects/config->grid_capacity);
 
 	// the number of all QTree Nodes
-	schema_stack_capacity = 2*grids_stack_capacity;
+	schema_stack_capacity = 1.6*grids_stack_capacity;
 
-	global_stack_capacity = 2*config->num_objects;
+	global_stack_capacity = config->num_objects;
 
-	grid_check_capacity = 5*config->num_objects*(max(config->grid_capacity/config->zone_capacity,(uint)1));
+	grid_check_capacity = config->refine_size*config->num_objects;
 
-	meeting_bucket_capacity = max((uint)20, 10*config->num_objects/config->num_meeting_buckets);
-
-	meeting_capacity = config->num_objects;
+	meeting_capacity = config->num_objects/4;
 	//meeting_capacity = 100;
 
 	insert_lk = new pthread_mutex_t[MAX_LOCK_NUM];
@@ -103,7 +101,7 @@ void workbench::claim_space(){
 	grid_check = (checking_unit *)allocate(size);
 	log("\t%.2f MB\tchecking units",size/1024.0/1024.0);
 
-	size = config->num_meeting_buckets*meeting_bucket_capacity*sizeof(meeting_unit);
+	size = config->num_meeting_buckets*config->bucket_size*sizeof(meeting_unit);
 	meeting_buckets[0] = (meeting_unit *)allocate(size);
 	meeting_buckets[1] = (meeting_unit *)allocate(size);
 	log("\t%.2f MB\tmeeting bucket space",2*size/1024.0/1024.0);
@@ -133,7 +131,7 @@ void workbench::print_profile(){
 	printf("\tmeeting table:\t%ld MB\n",2*pro.max_bucket_size*config->num_meeting_buckets*sizeof(meeting_unit)/1024/1024);
 	if(pro.rounds>0){
 		printf("\tnum pairs:\t%.2f \n",2.0*(pro.num_pairs/pro.rounds)/config->num_objects);
-		printf("\tnum meetings:\t%.2f \n",pro.num_meetings/pro.rounds);
+		printf("\tnum meetings:\t%ld \n",pro.num_meetings/pro.rounds);
 		printf("\tusage rate:\t%.2f %%\n",100.0*(pro.num_pairs/pro.rounds)/(pro.max_bucket_size*config->num_meeting_buckets));
 	}
 

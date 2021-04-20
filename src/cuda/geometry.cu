@@ -135,7 +135,7 @@ void cuda_partition(workbench *bench){
 }
 
 
-#define PER_STACK_SIZE 10
+#define PER_STACK_SIZE 5
 
 __global__
 void cuda_pack_lookup(workbench *bench){
@@ -318,8 +318,8 @@ void cuda_reachability(workbench *bench){
 			uint loc = atomicAdd(bench->meeting_buckets_counter[bench->current_bucket]+bid,1);
 
 			// todo handling overflow
-			if(loc<bench->meeting_bucket_capacity){
-				meeting_unit *bucket = bench->meeting_buckets[bench->current_bucket]+bid*bench->meeting_bucket_capacity;
+			if(loc<bench->config->bucket_size){
+				meeting_unit *bucket = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
 				bucket[loc].pid1 = min(pid,target_pid);
 				bucket[loc].pid2 = max(target_pid,pid);
 				bucket[loc].start = bench->cur_time;
@@ -340,15 +340,15 @@ void cuda_update_meetings(workbench *bench){
 		return;
 	}
 
-	meeting_unit *bucket_new = bench->meeting_buckets[bench->current_bucket]+bid*bench->meeting_bucket_capacity;
-	meeting_unit *bucket_old = bench->meeting_buckets[!bench->current_bucket]+bid*bench->meeting_bucket_capacity;
+	meeting_unit *bucket_new = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
+	meeting_unit *bucket_old = bench->meeting_buckets[!bench->current_bucket]+bid*bench->config->bucket_size;
 
 	uint size_new = bench->meeting_buckets_counter[bench->current_bucket][bid];
 	uint size_old = bench->meeting_buckets_counter[!bench->current_bucket][bid];
 
-	for(uint i=0;i<size_old&&i<bench->meeting_bucket_capacity;i++){
+	for(uint i=0;i<size_old&&i<bench->config->bucket_size;i++){
 		bool updated = false;
-		for(uint j=0;j<size_new&&j<bench->meeting_bucket_capacity;j++){
+		for(uint j=0;j<size_new&&j<bench->config->bucket_size;j++){
 			if(bucket_new[i].pid1==bucket_old[j].pid1&&
 			   bucket_new[i].pid2==bucket_old[j].pid2){
 				bucket_new[i].start = bucket_old[i].start;
@@ -544,11 +544,11 @@ workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	size = 2*bench->global_stack_capacity*2*sizeof(uint);
 	log("\t%.2f MB\tstack",1.0*size/1024/1024);
 
-	h_bench.meeting_buckets[0] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit));
-	h_bench.meeting_buckets[1] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit));
+	h_bench.meeting_buckets[0] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets*bench->config->bucket_size*sizeof(meeting_unit));
+	h_bench.meeting_buckets[1] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets*bench->config->bucket_size*sizeof(meeting_unit));
 	h_bench.meeting_buckets_counter[0] = (uint *)gpu->allocate(bench->config->num_meeting_buckets*sizeof(uint));
 	h_bench.meeting_buckets_counter[1] = (uint *)gpu->allocate(bench->config->num_meeting_buckets*sizeof(uint));
-	size = 2*(bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit)+bench->config->num_meeting_buckets*sizeof(uint));
+	size = 2*(bench->config->num_meeting_buckets*bench->config->bucket_size*sizeof(meeting_unit)+bench->config->num_meeting_buckets*sizeof(uint));
 	log("\t%.2f MB\thash table",1.0*size/1024/1024);
 
 	h_bench.meetings = (meeting_unit *)gpu->allocate(bench->meeting_capacity*sizeof(meeting_unit));
@@ -674,7 +674,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 			CUDA_SAFE_CALL(cudaMemcpy(bench->schema, h_bench.schema,
 					bench->schema_stack_capacity*sizeof(QTSchema), cudaMemcpyDeviceToHost));
 			CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets[bench->current_bucket], h_bench.meeting_buckets[bench->current_bucket],
-								bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
+								bench->config->num_meeting_buckets*bench->config->bucket_size*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
 			bench->schema_stack_index = h_bench.schema_stack_index;
 			bench->grids_stack_index = h_bench.grids_stack_index;
 			logt("copy out grid, schema, meeting buckets data", start);

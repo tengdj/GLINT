@@ -210,7 +210,7 @@ void tracer::process(){
 			bench->update_schema();
 			bench->pro.index_update_time += get_time_elapsed(ct,true);
 		}
-		logt("round %d",start,t+config->start_time);
+		logt("round %d",start,t+config->start_time+1);
 		bench->current_bucket = !bench->current_bucket;
 		bench->pro.rounds++;
 		if(bench->pro.max_filter_size<bench->grid_check_counter){

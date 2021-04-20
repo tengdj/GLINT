@@ -24,9 +24,9 @@ int main(int argc, char **argv){
 //
 	tracer *t = new tracer(&config,*m->getMBR(),traces);
 	t->dumpTo(config.trace_path.c_str());
-	t->print();
-	print_points(traces+(config.duration-1)*config.num_objects, config.num_objects);
-	t->print_trace(0);
+//	t->print();
+//	print_points(traces+(config.duration-1)*config.num_objects, config.num_objects);
+//	t->print_trace(0);
 	delete t;
 //
 	free(traces);

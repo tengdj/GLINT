@@ -26,7 +26,9 @@ public:
 	uint grid_capacity = 100;
 	uint zone_capacity = 100;
 	uint num_meeting_buckets = 100000;
+	uint bucket_size = 20;
 	uint num_meeting_buckets_overflow = 1000;
+	uint refine_size = 3;
 	bool dynamic_schema = false;
 	bool phased_lookup = false;
 	bool unroll = false;
@@ -52,7 +54,7 @@ public:
 		printf("duration:\t%d\n",duration);
 		printf("reach distance:\t%.0f m\n",reach_distance);
 		printf("minimum meeting time:\t%d\n",min_meet_time);
-
+		printf("bucket size:\t%d\n",bucket_size);
 		printf("num buckets:\t%d\n",num_meeting_buckets);
 
 		printf("trace path:\t%s\n",trace_path.c_str());
@@ -90,8 +92,10 @@ inline configuration get_parameters(int argc, char **argv){
 		("specific_gpu", po::value<uint>(&config.specific_gpu), "use which gpu")
 		("grid_capacity", po::value<uint>(&config.grid_capacity), "maximum number of objects per grid ")
 		("zone_capacity", po::value<uint>(&config.zone_capacity), "maximum number of objects per zone buffer")
+		("refine_size", po::value<uint>(&config.refine_size), "number of refine list entries per object")
 		("objects,o", po::value<uint>(&config.num_objects), "number of objects")
 		("num_buckets,b", po::value<uint>(&config.num_meeting_buckets), "number of meeting buckets")
+		("bucket_size", po::value<uint>(&config.bucket_size), "the size of each bucket")
 
 		("duration,d", po::value<uint>(&config.duration), "duration of the trace")
 		("min_meet_time,m", po::value<uint>(&config.min_meet_time), "minimum meeting time")
@@ -141,7 +145,14 @@ inline configuration get_parameters(int argc, char **argv){
 	}
 	if(vm.count("unroll")){
 		config.unroll = true;
+	}else{
+		config.zone_capacity = config.grid_capacity;
 	}
+
+	if(!vm.count("bucket_size")){
+		config.bucket_size = 5.0*config.num_objects/config.num_meeting_buckets;
+	}
+
 	config.print();
 	return config;
 }
