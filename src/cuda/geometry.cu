@@ -637,8 +637,8 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 		bench->pro.refine_time += get_time_elapsed(start,false);
 		logt("%d pid-grid-offset tuples need be checked", start,h_bench.grid_check_counter);
-		bench->grid_check_counter = h_bench.grid_check_counter;
 	}
+	bench->grid_check_counter = h_bench.grid_check_counter;
 
 
 	// compute the reachability of objects in each partitions
@@ -663,23 +663,26 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 
 	// todo do the data analyzes, for test only, should not copy out so much stuff
 	do{
-		if(bench->config->analyze_grid||bench->config->analyze_reach){
-			CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench.grids,
-					bench->grids_stack_capacity*bench->grid_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
+		if(bench->config->analyze_grid||bench->config->analyze_reach||bench->config->profile){
 			CUDA_SAFE_CALL(cudaMemcpy(bench->grid_counter, h_bench.grid_counter,
 					bench->grids_stack_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
+			logt("copy out grid counting data", start);
+		}
+		if(bench->config->analyze_reach){
+			CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench.grids,
+								bench->grids_stack_capacity*bench->grid_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
 			CUDA_SAFE_CALL(cudaMemcpy(bench->schema, h_bench.schema,
 					bench->schema_stack_capacity*sizeof(QTSchema), cudaMemcpyDeviceToHost));
+			CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets[bench->current_bucket], h_bench.meeting_buckets[bench->current_bucket],
+								bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
 			bench->schema_stack_index = h_bench.schema_stack_index;
 			bench->grids_stack_index = h_bench.grids_stack_index;
-			logt("copy out grid and schema data", start);
+			logt("copy out grid, schema, meeting buckets data", start);
 		}
-		if(bench->config->analyze_meeting||bench->config->analyze_reach){
-			CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets[bench->current_bucket], h_bench.meeting_buckets[bench->current_bucket],
-					bench->config->num_meeting_buckets*bench->meeting_bucket_capacity*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
+		if(bench->config->analyze_meeting||bench->config->analyze_reach||bench->config->profile){
 			CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets_counter[bench->current_bucket], h_bench.meeting_buckets_counter[bench->current_bucket],
 					bench->config->num_meeting_buckets*sizeof(uint), cudaMemcpyDeviceToHost));
-			logt("copy out meeting buckets data", start);
+			logt("copy out meeting buckets counting data", start);
 		}
 	}while(false);
 

@@ -40,6 +40,7 @@ public:
 	bool analyze_reach = false;
 	bool analyze_grid = false;
 	bool analyze_meeting = false;
+	bool profile = false;
 
 	void print(){
 		printf("configuration:\n");
@@ -78,9 +79,9 @@ inline configuration get_parameters(int argc, char **argv){
 	desc.add_options()
 		("help,h", "produce help message")
 		("gpu,g", "use gpu for processing")
-		("analyze,a", "analyze all rounds")
+		("profile,p", "profile the memory usage")
 		("phased_filter", "enable phased filter")
-		("unroll", "unroll the refinement")
+		("unroll,u", "unroll the refinement")
 
 		("analyze_reach", "analyze the reaches statistics")
 		("analyze_meeting", "analyze the meeting bucket statistics")
@@ -93,12 +94,12 @@ inline configuration get_parameters(int argc, char **argv){
 		("num_buckets,b", po::value<uint>(&config.num_meeting_buckets), "number of meeting buckets")
 
 		("duration,d", po::value<uint>(&config.duration), "duration of the trace")
-		("min_meet_time,t", po::value<uint>(&config.min_meet_time), "minimum meeting time")
+		("min_meet_time,m", po::value<uint>(&config.min_meet_time), "minimum meeting time")
 
 		("start_time,s", po::value<uint>(&config.start_time), "the start time of the duration")
 
 		("reachable_distance,r", po::value<double>(&config.reach_distance), "reachable distance (in meters)")
-		("trace_path", po::value<string>(&config.trace_path), "path to the trace file")
+		("trace_path,t", po::value<string>(&config.trace_path), "path to the trace file")
 		("dynamic_schema", "the schema is dynamically updated")
 
 		;
@@ -122,10 +123,8 @@ inline configuration get_parameters(int argc, char **argv){
 	if(vm.count("analyze_grid")){
 		config.analyze_grid = true;
 	}
-	if(vm.count("analyze")){
-		config.analyze_grid = true;
-		config.analyze_reach = true;
-		config.analyze_meeting = true;
+	if(vm.count("profile")){
+		config.profile = true;
 	}
 	if(vm.count("dynamic_schema")){
 		config.dynamic_schema = true;

@@ -196,13 +196,13 @@ void tracer::process(){
 			print_trace(bench->meetings[luck].pid1);
 			print_trace(bench->meetings[luck].pid2);
 		}
-		if(config->analyze_grid){
+		if(config->analyze_grid||config->profile){
 			bench->analyze_grids();
 		}
 		if(config->analyze_reach){
 			bench->analyze_reaches();
 		}
-		if(config->analyze_meeting){
+		if(config->analyze_meeting||config->profile){
 			bench->analyze_meeting_buckets();
 		}
 		if(config->dynamic_schema&&!config->gpu){

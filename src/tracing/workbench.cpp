@@ -16,6 +16,7 @@ workbench::workbench(workbench *bench):workbench(bench->config){
 }
 
 workbench::workbench(configuration *conf){
+
 	config = conf;
 
 	// setup the capacity of each container
@@ -28,12 +29,12 @@ workbench::workbench(configuration *conf){
 
 	global_stack_capacity = 2*config->num_objects;
 
-	grid_check_capacity = 2*config->num_objects*(max(config->grid_capacity/config->zone_capacity,(uint)1));
+	grid_check_capacity = 5*config->num_objects*(max(config->grid_capacity/config->zone_capacity,(uint)1));
 
-	meeting_bucket_capacity = max((uint)20, 2*config->num_objects/config->num_meeting_buckets);
+	meeting_bucket_capacity = max((uint)20, 25*config->num_objects/config->num_meeting_buckets);
 
-	//	meeting_capacity = config->num_objects/2;
-	meeting_capacity = 100;
+	meeting_capacity = config->num_objects;
+	//meeting_capacity = 100;
 
 	insert_lk = new pthread_mutex_t[MAX_LOCK_NUM];
 	for(int i=0;i<MAX_LOCK_NUM;i++){
@@ -130,6 +131,12 @@ void workbench::print_profile(){
 	printf("\tgrid buffer:\t%ld MB\n",pro.max_grid_num*pro.max_grid_size*sizeof(uint)/1024/1024);
 	printf("\trefine list:\t%ld MB\n",pro.max_filter_size*sizeof(checking_unit)/1024/1024);
 	printf("\tmeeting table:\t%ld MB\n",2*pro.max_bucket_size*config->num_meeting_buckets*sizeof(meeting_unit)/1024/1024);
+	if(pro.rounds>0){
+		printf("\tnum pairs:\t%.2f \n",2.0*(pro.num_pairs/pro.rounds)/config->num_objects);
+		printf("\tnum meetings:\t%.2f \n",2.0*(pro.num_meetings/pro.rounds));
+		printf("\tusage rate:\t%.2f %%\n",100.0*(pro.num_pairs/pro.rounds)/(pro.max_bucket_size*config->num_meeting_buckets));
+	}
+
 	printf("\tstack size:\t%ld MB\n",2*pro.max_stak_size*2*sizeof(uint)/1024/1024);
 
 	if(pro.rounds>0){
@@ -141,6 +148,9 @@ void workbench::print_profile(){
 		printf("\tupdate index:\t%.2f\n",pro.index_update_time/pro.rounds);
 		double overall = pro.copy_time+pro.filter_time+pro.refine_time+pro.meeting_update_time+pro.index_update_time;
 		printf("\toverall:\t%.2f\n",overall/pro.rounds);
+		if(pro.grid_count>0){
+			printf("\toverflow:\t%.4f\n",100.0*pro.grid_overflow/pro.grid_count);
+		}
 	}
 }
 

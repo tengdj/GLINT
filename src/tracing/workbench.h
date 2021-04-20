@@ -25,6 +25,10 @@ typedef struct profiler{
 	uint max_grid_num = 0;
 	uint max_bucket_size = 0;
 	uint max_stak_size = 0;
+	uint grid_overflow = 0;
+	uint grid_count = 0;
+	size_t num_pairs = 0;
+	size_t num_meetings = 0;
 }profiler;
 
 typedef struct checking_unit{

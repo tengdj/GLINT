@@ -48,6 +48,8 @@ void workbench::analyze_grids(){
 			break;
 		}
 	}
+	pro.grid_count += grids_stack_index;
+	pro.grid_overflow += overflow;
 	log("%d/%d overflow %d max",overflow,grids_stack_index,max_one);
 }
 
@@ -170,7 +172,7 @@ void workbench::analyze_meeting_buckets(){
 	double cum_portion = 0;
 	int vbuck = -1;
 	for(int i=0;i<meeting_bucket_capacity;i++){
-		if(bucket_count[i]>0){
+		if(bucket_count[i]>0&&config->analyze_meeting){
 			cum_portion += 1.0*bucket_count[i]*i/total;
 			log("%d\t%d\t%.4f",i,bucket_count[i],cum_portion);
 		}
@@ -189,6 +191,8 @@ void workbench::analyze_meeting_buckets(){
 		cum_portion += 1.0*overflow_count/total;
 		log("of\t%d\t%.4f\t%d",overflow,cum_portion,overflow_count-overflow*meeting_bucket_capacity);
 	}
+	pro.num_pairs += total;
+	pro.num_meetings += this->meeting_counter;
 
 	delete []bucket_count;
 }
