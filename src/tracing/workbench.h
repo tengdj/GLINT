@@ -29,6 +29,7 @@ typedef struct profiler{
 	uint grid_count = 0;
 	size_t num_pairs = 0;
 	size_t num_meetings = 0;
+	double meet_coefficient = 0.0;
 }profiler;
 
 typedef struct checking_unit{

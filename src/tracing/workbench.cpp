@@ -27,7 +27,7 @@ workbench::workbench(configuration *conf){
 	// the number of all QTree Nodes
 	schema_stack_capacity = 1.6*grids_stack_capacity;
 
-	global_stack_capacity = config->num_objects;
+	global_stack_capacity = 4*config->num_objects;
 
 	grid_check_capacity = config->refine_size*config->num_objects;
 
@@ -133,10 +133,11 @@ void workbench::print_profile(){
 		printf("\tnum pairs:\t%.2f \n",2.0*(pro.num_pairs/pro.rounds)/config->num_objects);
 		printf("\tnum meetings:\t%ld \n",pro.num_meetings/pro.rounds);
 		printf("\tusage rate:\t%.2f %%\n",100.0*(pro.num_pairs/pro.rounds)/(pro.max_bucket_size*config->num_meeting_buckets));
+		printf("\tcoefficient:\t%.4f\n",pro.meet_coefficient/pro.rounds);
 	}
 
 	printf("\tstack size:\t%ld MB\n",2*pro.max_stak_size*2*sizeof(uint)/1024/1024);
-
+	double overall = pro.copy_time+pro.filter_time+pro.refine_time+pro.meeting_update_time+pro.index_update_time;
 	if(pro.rounds>0){
 		printf("time cost:\n");
 		printf("\tcopy data:\t%.2f\n",pro.copy_time/pro.rounds);
@@ -144,11 +145,25 @@ void workbench::print_profile(){
 		printf("\trefinement:\t%.2f\n",pro.refine_time/pro.rounds);
 		printf("\tupdate meets:\t%.2f\n",pro.meeting_update_time/pro.rounds);
 		printf("\tupdate index:\t%.2f\n",pro.index_update_time/pro.rounds);
-		double overall = pro.copy_time+pro.filter_time+pro.refine_time+pro.meeting_update_time+pro.index_update_time;
 		printf("\toverall:\t%.2f\n",overall/pro.rounds);
 		if(pro.grid_count>0){
 			printf("\toverflow:\t%.4f\n",100.0*pro.grid_overflow/pro.grid_count);
 		}
 	}
+
+	// bucket number
+	//printf("%ld\t%.2f\t%.4f\n",2*pro.max_bucket_size*config->num_meeting_buckets*sizeof(meeting_unit)/1024/1024,pro.meeting_update_time/pro.rounds,pro.meet_coefficient/pro.rounds);
+
+	// grid size
+	//printf("%.2f\t%.2f\t%.2f\t%ld\t%.4f\n",pro.filter_time/pro.rounds,pro.refine_time/pro.rounds,pro.index_update_time/pro.rounds,pro.
+	//		max_filter_size*sizeof(checking_unit)/1024/1024,100.0*pro.grid_overflow/pro.grid_count);
+
+	// minimum distance
+//	printf("%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\n",pro.filter_time/pro.rounds,pro.refine_time/pro.rounds,pro.index_update_time/pro.rounds,
+//			pro.meeting_update_time/pro.rounds,overall/pro.rounds,2.0*(pro.num_pairs/pro.rounds)/config->num_objects);
+
+	// minimum duration
+	printf("%.2f\t%.2f\t%ld\n",pro.copy_time/pro.rounds,pro.meeting_update_time/pro.rounds,pro.num_meetings/pro.rounds);
+
 }
 

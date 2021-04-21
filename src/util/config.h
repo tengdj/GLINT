@@ -43,6 +43,7 @@ public:
 	bool analyze_grid = false;
 	bool analyze_meeting = false;
 	bool profile = false;
+	bool brute_meeting = false;
 
 	void print(){
 		printf("configuration:\n");
@@ -62,6 +63,7 @@ public:
 		if(gpu){
 			printf("which gpu:\t%d\n",specific_gpu);
 		}
+		printf("unroll:\t%s\n",unroll?"yes":"no");
 		printf("dynamic schema:\t%s\n",dynamic_schema?"yes":"no");
 		printf("schema update gap:\t%d\n",schema_update_delay);
 
@@ -84,6 +86,7 @@ inline configuration get_parameters(int argc, char **argv){
 		("profile,p", "profile the memory usage")
 		("phased_filter", "enable phased filter")
 		("unroll,u", "unroll the refinement")
+		("brute_meeting","update meeting brute-forcely")
 
 		("analyze_reach", "analyze the reaches statistics")
 		("analyze_meeting", "analyze the meeting bucket statistics")
@@ -147,6 +150,9 @@ inline configuration get_parameters(int argc, char **argv){
 		config.unroll = true;
 	}else{
 		config.zone_capacity = config.grid_capacity;
+	}
+	if(vm.count("brute_meeting")){
+		config.brute_meeting = true;
 	}
 
 	if(!vm.count("bucket_size")){

@@ -44,7 +44,7 @@ tracer::tracer(configuration *conf, box &b, Point *t){
 }
 tracer::tracer(configuration *conf){
 	config = conf;
-	loadFrom(config->trace_path.c_str());
+	loadMeta(config->trace_path.c_str());
 	part = new partitioner(mbr,config);
 #ifdef USE_GPU
 	if(config->gpu){
@@ -94,11 +94,10 @@ void tracer::dumpTo(const char *path) {
 	logt("dumped to %s",start_time,path);
 }
 
-void tracer::loadFrom(const char *path) {
+void tracer::loadMeta(const char *path) {
 
 	uint true_num_objects;
 	uint true_duration;
-	struct timeval start_time = get_cur_time();
 	ifstream in(path, ios::in | ios::binary);
 	if(!in.is_open()){
 		log("%s cannot be opened",path);
@@ -110,17 +109,42 @@ void tracer::loadFrom(const char *path) {
 	in.read((char *)&mbr, sizeof(mbr));
 	mbr.to_squre(true);
 	mbr.print();
-	assert(config->num_objects*(config->start_time+config->duration)<=true_num_objects*true_duration);
+	assert((size_t)config->num_objects*(config->start_time+config->duration)<=(size_t)true_num_objects*true_duration);
 	//assert(config->num_objects<=true_num_objects);
 	assert(config->start_time+config->duration<=true_duration);
+	in.close();
+}
 
-	in.seekg(config->start_time*true_num_objects*sizeof(Point), ios_base::cur);
-	trace = (Point *)malloc(config->duration*config->num_objects*sizeof(Point));
+void tracer::loadData(const char *path, int st, int duration) {
+
+	log("loading locations from %d to %d",st,st+duration);
+	assert(duration<=100);
+	uint true_num_objects;
+	uint true_duration;
+	box mbr;
+	struct timeval start_time = get_cur_time();
+	ifstream in(path, ios::in | ios::binary);
+	if(!in.is_open()){
+		log("%s cannot be opened",path);
+		exit(0);
+	}
+	in.read((char *)&true_num_objects, sizeof(true_num_objects));
+	in.read((char *)&true_duration, sizeof(true_duration));
+	in.read((char *)&mbr, sizeof(mbr));
+
+	assert((size_t)config->num_objects*(st+duration)<=(size_t)true_num_objects*true_duration);
+	//assert(config->num_objects<=true_num_objects);
+	assert(st+duration<=true_duration);
+
+	in.seekg(st*true_num_objects*sizeof(Point), ios_base::cur);
+	if(!trace){
+		trace = (Point *)malloc(min((uint)100,config->duration)*config->num_objects*sizeof(Point));
+	}
 
 	uint loaded = 0;
 	while(loaded<config->num_objects){
 		uint cur_num_objects = min(true_num_objects,config->num_objects-loaded);
-		for(int i=0;i<config->duration;i++){
+		for(int i=0;i<duration;i++){
 			in.read((char *)(trace+i*config->num_objects+loaded), cur_num_objects*sizeof(Point));
 			if(true_num_objects>cur_num_objects){
 				in.seekg((true_num_objects-cur_num_objects)*sizeof(Point), ios_base::cur);
@@ -130,7 +154,7 @@ void tracer::loadFrom(const char *path) {
 	}
 
 	in.close();
-	logt("loaded %d objects last for %d seconds from %s",start_time, config->num_objects, config->duration, path);
+	logt("loaded %d objects last for %d seconds start from %d time from %s",start_time, config->num_objects, duration, st, path);
 	owned_trace = true;
 }
 
@@ -162,61 +186,68 @@ void process_with_gpu(workbench *bench,workbench *d_bench, gpu_info *gpu);
 #endif
 
 void tracer::process(){
-
-	bench = part->build_schema(trace, config->num_objects);
-
-#ifdef USE_GPU
-	if(config->gpu){
-		d_bench = create_device_bench(bench, gpu);
-	}
-#endif
 	struct timeval start = get_cur_time();
 
-	for(int t=0;t<config->duration;t++){
-		log("");
-		bench->reset();
-		bench->points = trace+t*config->num_objects;
-		bench->cur_time = t;
-		// process the coordinate in this time point
-		if(!config->gpu){
-			struct timeval ct = get_cur_time();
-			bench->filter();
-			bench->pro.filter_time += get_time_elapsed(ct,true);
-			bench->reachability();
-			bench->pro.refine_time += get_time_elapsed(ct,true);
-			bench->update_meetings();
-			bench->pro.meeting_update_time += get_time_elapsed(ct,true);
-		}else{
+	for(int st=config->start_time;st<config->start_time+config->duration;st+=100){
+		int cur_duration = ((config->start_time+config->duration-st),(uint)100);
+		this->loadData(config->trace_path.c_str(),st,cur_duration);
+		if(!bench){
+			bench = part->build_schema(trace, config->num_objects);
 #ifdef USE_GPU
-			process_with_gpu(bench,d_bench,gpu);
+			if(config->gpu){
+				d_bench = create_device_bench(bench, gpu);
+			}
 #endif
 		}
-		if(bench->meeting_counter>0&&t==config->duration-1){
-			int luck = get_rand_number(min(bench->meeting_counter, bench->meeting_capacity));
-			print_trace(bench->meetings[luck].pid1);
-			print_trace(bench->meetings[luck].pid2);
+		for(int t=0;t<cur_duration;t++){
+			log("");
+			bench->reset();
+			bench->points = trace+t*config->num_objects;
+			bench->cur_time = t;
+			// process the coordinate in this time point
+			if(!config->gpu){
+				struct timeval ct = get_cur_time();
+				bench->filter();
+				bench->pro.filter_time += get_time_elapsed(ct,true);
+				bench->reachability();
+				bench->pro.refine_time += get_time_elapsed(ct,true);
+				bench->update_meetings();
+				bench->pro.meeting_update_time += get_time_elapsed(ct,true);
+			}else{
+	#ifdef USE_GPU
+				process_with_gpu(bench,d_bench,gpu);
+	#endif
+			}
+			if(bench->meeting_counter>0&&t==config->duration-1){
+				int luck = get_rand_number(min(bench->meeting_counter, bench->meeting_capacity));
+				print_trace(bench->meetings[luck].pid1);
+				print_trace(bench->meetings[luck].pid2);
+			}
+			if(config->analyze_grid||config->profile){
+				bench->analyze_grids();
+			}
+			if(config->analyze_reach){
+				bench->analyze_reaches();
+			}
+			if(config->analyze_meeting||config->profile){
+				bench->analyze_meeting_buckets();
+			}
+			if(config->dynamic_schema&&!config->gpu){
+				struct timeval ct = get_cur_time();
+				bench->update_schema();
+				bench->pro.index_update_time += get_time_elapsed(ct,true);
+			}
+			logt("round %d",start,st+t+1);
+			bench->current_bucket = !bench->current_bucket;
+			bench->pro.rounds++;
+			if(bench->pro.max_filter_size<bench->grid_check_counter){
+				bench->pro.max_filter_size = bench->grid_check_counter;
+			}
 		}
-		if(config->analyze_grid||config->profile){
-			bench->analyze_grids();
-		}
-		if(config->analyze_reach){
-			bench->analyze_reaches();
-		}
-		if(config->analyze_meeting||config->profile){
-			bench->analyze_meeting_buckets();
-		}
-		if(config->dynamic_schema&&!config->gpu){
-			struct timeval ct = get_cur_time();
-			bench->update_schema();
-			bench->pro.index_update_time += get_time_elapsed(ct,true);
-		}
-		logt("round %d",start,t+config->start_time+1);
-		bench->current_bucket = !bench->current_bucket;
-		bench->pro.rounds++;
-		if(bench->pro.max_filter_size<bench->grid_check_counter){
-			bench->pro.max_filter_size = bench->grid_check_counter;
-		}
+
 	}
+
+
 
 	bench->print_profile();
 }

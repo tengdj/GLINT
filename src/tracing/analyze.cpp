@@ -8,7 +8,7 @@
 
 #include "workbench.h"
 
-#define OVERFLOW_THRESHOLD 0.999
+#define OVERFLOW_THRESHOLD 0.997
 
 void workbench::analyze_grids(){
 	uint overflow = 0;
@@ -51,6 +51,8 @@ void workbench::analyze_grids(){
 	pro.grid_count += grids_stack_index;
 	pro.grid_overflow += overflow;
 	log("%d/%d overflow %d max",overflow,grids_stack_index,max_one);
+	printf("%f\n",100.0*overflow/grids_stack_index);
+
 }
 
 void workbench::analyze_reaches(){
@@ -170,18 +172,15 @@ void workbench::analyze_meeting_buckets(){
 			meeting_buckets_counter[current_bucket][max_bucket],
 			config->bucket_size);
 	double cum_portion = 0;
-	int vbuck = -1;
+	uint vbuck = 0;
 	for(int i=0;i<config->bucket_size;i++){
-		if(bucket_count[i]>0&&config->analyze_meeting){
-			cum_portion += 1.0*bucket_count[i]*i/total;
-			log("%d\t%d\t%.4f",i,bucket_count[i],cum_portion);
+		cum_portion += 1.0*bucket_count[i]*i/total;
+		if(config->analyze_meeting){
+			printf("%d\t%d\t%.4f\n",i,bucket_count[i],cum_portion);
 		}
-		if(cum_portion>OVERFLOW_THRESHOLD&&!vbuck==-1){
+		if(cum_portion>OVERFLOW_THRESHOLD&&vbuck==0){
 			vbuck = i;
 		}
-	}
-	if(vbuck==-1){
-		vbuck = config->bucket_size;
 	}
 
 	if(pro.max_bucket_size<vbuck){
@@ -190,6 +189,14 @@ void workbench::analyze_meeting_buckets(){
 	if(overflow>0){
 		log("of\t%d\t%d\t%.4f",overflow,1.0*(overflow_count-overflow*config->bucket_size)/total);
 	}
+	double deviation = 0.0;
+	double average = 1.0*total/config->num_meeting_buckets;
+	for(uint i=0;i<config->num_meeting_buckets;i++){
+		deviation += (meeting_buckets_counter[current_bucket][i]-average)*(meeting_buckets_counter[current_bucket][i]-average);
+	}
+	deviation = sqrt(deviation/config->num_meeting_buckets);
+	//printf("%f %f %f\n",average, deviation, deviation/average);
+	pro.meet_coefficient += deviation/average;
 	pro.num_pairs += total;
 	pro.num_meetings += this->meeting_counter;
 

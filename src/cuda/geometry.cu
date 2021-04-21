@@ -63,6 +63,41 @@ inline void print_point(Point *p){
 	printf("Point(%f %f)\n",p->x,p->y);
 }
 
+
+/* This function takes last element as pivot, places
+   the pivot element at its correct position in sorted
+    array, and places all smaller (smaller than pivot)
+   to left of pivot and all greater elements to right
+   of pivot */
+__device__
+inline int partition(meeting_unit *arr, int low, int high){
+    int pivot = arr[high].pid1;    // pivot
+    int i = (low - 1);  // Index of smaller element
+
+    meeting_unit tmp;
+    for (int j = low; j <= high- 1; j++){
+        // If current element is smaller than or
+        // equal to pivot
+        if (arr[j].pid1 <= pivot){
+            i++;    // increment index of smaller element
+            tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+        }
+    }
+    tmp = arr[i + 1];
+    arr[i + 1] = arr[high];
+    arr[high] = tmp;
+    return (i + 1);
+}
+
+
+/*
+ *
+ * kernel functions
+ *
+ * */
+
 __global__
 void cuda_cleargrids(workbench *bench){
 	int gid = blockIdx.x*blockDim.x+threadIdx.x;
@@ -329,6 +364,107 @@ void cuda_reachability(workbench *bench){
 }
 
 
+/* The main function that implements QuickSort
+ arr[] --> Array to be sorted,
+  low  --> Starting index,
+  high  --> Ending index */
+__device__
+inline void quickSort(meeting_unit *arr, int low, int high){
+    if (low < high){
+        /* pi is partitioning index, arr[p] is now
+           at right place */
+        int pi = partition(arr, low, high);
+        // Separately sort elements before
+        // partition and after partition
+        quickSort(arr, low, pi - 1);
+        quickSort(arr, pi + 1, high);
+    }
+}
+
+__device__
+inline bool isvalid(int p,int r, int size){
+	return 0 <= p && p< r &&r < size;
+}
+__global__
+void cuda_sort_meetings(workbench *bench){
+
+	int bid = blockIdx.x*blockDim.x+threadIdx.x;
+	if(bid>=bench->config->num_meeting_buckets){
+		return;
+	}
+	meeting_unit *bucket = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
+	int size = min(bench->meeting_buckets_counter[bench->current_bucket][bid],bench->config->bucket_size);
+	int stack_size = 4*bench->global_stack_capacity/bench->config->num_meeting_buckets;
+	int *cur_stack = (int *)(bench->global_stack[0] + stack_size*bid);
+	int stack_index = 0;
+	if(size>1){
+		cur_stack[stack_index++] = 0;
+		cur_stack[stack_index++] = size - 1;
+		while(stack_index){
+			uint q = cur_stack[--stack_index];
+			uint p = cur_stack[--stack_index];
+			uint r = partition(bucket,p,q);
+			if(isvalid(p,r-1,size)){
+				cur_stack[stack_index++] = p;
+				cur_stack[stack_index++] = r-1;
+			}
+			if(isvalid(r+1,q,size)){
+				cur_stack[stack_index++] = r+1;
+				cur_stack[stack_index++] = q;
+			}
+			assert(stack_index<stack_size);
+		}
+	}
+//	if(bid==0){
+//		for(int i=0;i<size;i++){
+//			printf("%d ",bucket[i].pid1);
+//		}
+//		printf("\n");
+//	}
+}
+
+/*
+ * update the first meet
+ * */
+__global__
+void cuda_update_meetings_sort(workbench *bench){
+
+	int bid = blockIdx.x*blockDim.x+threadIdx.x;
+	if(bid>=bench->config->num_meeting_buckets){
+		return;
+	}
+
+	meeting_unit *bucket_new = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
+	meeting_unit *bucket_old = bench->meeting_buckets[!bench->current_bucket]+bid*bench->config->bucket_size;
+
+	uint size_new = bench->meeting_buckets_counter[bench->current_bucket][bid];
+	uint size_old = bench->meeting_buckets_counter[!bench->current_bucket][bid];
+
+	uint i=0,j=0;
+	for(;i<size_old&&i<bench->config->bucket_size;i++){
+		bool updated = false;
+		for(;j<size_new&&j<bench->config->bucket_size;j++){
+			if(bucket_old[j].pid1==bucket_new[i].pid1){
+				bucket_new[i].start = bucket_old[i].start;
+				updated = true;
+				break;
+			}else if(bucket_old[i].pid1>bucket_new[j].pid1){
+				break;
+			}
+		}
+		// the old meeting is over
+		if(!updated&&
+			bench->cur_time - bucket_old[i].start>=bench->config->min_meet_time){
+			uint meeting_idx = atomicAdd(&bench->meeting_counter,1);
+			if(meeting_idx<bench->meeting_capacity){
+				bench->meetings[meeting_idx] = bucket_old[i];
+			}
+		}
+	}
+	// reset the old buckets for next batch of processing
+	bench->meeting_buckets_counter[!bench->current_bucket][bid] = 0;
+}
+
 /*
  * update the first meet
  * */
@@ -539,8 +675,8 @@ workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	log("\t%.2f MB\trefine list",1.0*size/1024/1024);
 
 	// space for processing stack
-	h_bench.global_stack[0] = (uint *)gpu->allocate(bench->global_stack_capacity*2*sizeof(uint));
-	h_bench.global_stack[1] = (uint *)gpu->allocate(bench->global_stack_capacity*2*sizeof(uint));
+	h_bench.global_stack[0] = (uint *)gpu->allocate(bench->global_stack_capacity*4*sizeof(uint));
+	h_bench.global_stack[1] = h_bench.global_stack[0]+bench->global_stack_capacity*2;
 	size = 2*bench->global_stack_capacity*2*sizeof(uint);
 	log("\t%.2f MB\tstack",1.0*size/1024/1024);
 
@@ -654,12 +790,24 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 
 	// update the meeting hash table
 	uint origin_num_meeting = h_bench.meeting_counter;
-	cuda_update_meetings<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
+
+	if(bench->config->brute_meeting){
+		cuda_update_meetings<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
+	}else{
+		cuda_sort_meetings<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
+		check_execution();
+		cudaDeviceSynchronize();
+		bench->pro.meeting_update_time += get_time_elapsed(start,false);
+		logt("sort buckets", start);
+		cuda_update_meetings_sort<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
+	}
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	bench->pro.meeting_update_time += get_time_elapsed(start,false);
 	logt("meeting buckets update %d new meetings found", start, h_bench.meeting_counter-origin_num_meeting);
+
+
 
 	// todo do the data analyzes, for test only, should not copy out so much stuff
 	do{

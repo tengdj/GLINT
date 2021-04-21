@@ -38,7 +38,8 @@ public:
 	tracer(configuration *conf);
 	~tracer();
 	void dumpTo(const char *path);
-	void loadFrom(const char *path);
+	void loadMeta(const char *path);
+	void loadData(const char *path, int start_time, int duration);
 	void print();
 	void print_trace(int oid);
 	void print_traces();
