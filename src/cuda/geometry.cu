@@ -64,32 +64,6 @@ inline void print_point(Point *p){
 }
 
 
-/* This function takes last element as pivot, places
-   the pivot element at its correct position in sorted
-    array, and places all smaller (smaller than pivot)
-   to left of pivot and all greater elements to right
-   of pivot */
-__device__
-inline int partition(meeting_unit *arr, int low, int high){
-    int pivot = arr[high].pid1;    // pivot
-    int i = (low - 1);  // Index of smaller element
-
-    meeting_unit tmp;
-    for (int j = low; j <= high- 1; j++){
-        // If current element is smaller than or
-        // equal to pivot
-        if (arr[j].pid1 <= pivot){
-            i++;    // increment index of smaller element
-            tmp = arr[i];
-            arr[i] = arr[j];
-            arr[j] = tmp;
-        }
-    }
-    tmp = arr[i + 1];
-    arr[i + 1] = arr[high];
-    arr[high] = tmp;
-    return (i + 1);
-}
 
 
 /*
@@ -361,6 +335,34 @@ void cuda_reachability(workbench *bench){
 			}
 		}
 	}
+}
+
+
+/* This function takes last element as pivot, places
+   the pivot element at its correct position in sorted
+    array, and places all smaller (smaller than pivot)
+   to left of pivot and all greater elements to right
+   of pivot */
+__device__
+inline int partition(meeting_unit *arr, int low, int high){
+    int pivot = arr[high].pid1;    // pivot
+    int i = (low - 1);  // Index of smaller element
+
+    meeting_unit tmp;
+    for (int j = low; j <= high- 1; j++){
+        // If current element is smaller than or
+        // equal to pivot
+        if (arr[j].pid1 <= pivot){
+            i++;    // increment index of smaller element
+            tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+        }
+    }
+    tmp = arr[i + 1];
+    arr[i + 1] = arr[high];
+    arr[high] = tmp;
+    return (i + 1);
 }
 
 
