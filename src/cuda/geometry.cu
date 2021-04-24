@@ -554,7 +554,7 @@ void cuda_identify_meetings_sort(workbench *bench){
 	uint i=0,j=0;
 	for(;i<size_old&&i<bench->config->bucket_size;i++){
 		bool updated = false;
-		for(;j<size_new&&j<bench->config->bucket_size;j++){
+		for(j=0;j<size_new&&j<bench->config->bucket_size;j++){
 			if(bucket_old[j].pid1==bucket_new[i].pid1){
 				bucket_new[i].start = bucket_old[i].start;
 				updated = true;
