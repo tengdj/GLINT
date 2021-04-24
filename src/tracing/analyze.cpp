@@ -15,9 +15,11 @@ void workbench::analyze_grids(){
 	uint max_one = 0;
 	uint *gridc = new uint[grid_capacity];
 	uint total = 0;
+	uint total_schema = 0;
 	for(int i=0;i<grid_capacity;i++){
 		gridc[i] = 0;
 	}
+
 	for(int i=0;i<schema_stack_capacity;i++){
 		if(schema[i].type==LEAF){
 			uint gid = schema[i].grid_id;
@@ -32,11 +34,11 @@ void workbench::analyze_grids(){
 				max_one = gsize;
 			}
 		}
+		total_schema += (schema[i].type!=INVALID);
 	}
 
-	if(pro.max_grid_num<total){
-		pro.max_grid_num = total;
-	}
+	pro.max_schema_num = max(pro.max_schema_num, total_schema);
+	pro.max_grid_num = max(pro.max_grid_num, total);
 
 	double cum = 0;
 	for(int i=0;i<grid_capacity;i++){
@@ -62,11 +64,11 @@ void workbench::analyze_reaches(){
 	uint min_bucket = 0;
 	uint max_bucket = 0;
 	uint total = 0;
-	for(int i=0;i<config->num_meeting_buckets;i++){
-		meeting_unit *bucket = meeting_buckets[current_bucket] + i*this->config->bucket_size;
-		for(uint j=0;j<meeting_buckets_counter[current_bucket][i];j++){
-			unit_count[bucket[j].pid1]++;
-			unit_count[bucket[j].pid2]++;
+	for(size_t i=0;i<config->num_meeting_buckets;i++){
+		if(!meeting_buckets[i].isEmpty()){
+			pair<uint, uint> pids = InverseCantorPairing1(meeting_buckets[i].key);
+			unit_count[pids.first]++;
+			unit_count[pids.second]++;
 		}
 	}
 	uint max_one = 0;
@@ -90,14 +92,14 @@ void workbench::analyze_reaches(){
 	delete counter;
 
 	vector<Point *> max_reaches;
-	for(int i=0;i<config->num_meeting_buckets;i++){
-		meeting_unit *bucket = meeting_buckets[current_bucket] + i*this->config->bucket_size;
-		for(uint j=0;j<meeting_buckets_counter[current_bucket][i];j++){
-			if(bucket[j].pid2==max_one){
-				max_reaches.push_back(points+bucket[j].pid1);
+	for(size_t i=0;i<config->num_meeting_buckets;i++){
+		if(!meeting_buckets[i].isEmpty()){
+			pair<uint, uint> pids = InverseCantorPairing1(meeting_buckets[i].key);
+			if(pids.second==max_one){
+				max_reaches.push_back(points+pids.first);
 			}
-			if(bucket[j].pid1==max_one){
-				max_reaches.push_back(points+bucket[j].pid2);
+			if(pids.first==max_one){
+				max_reaches.push_back(points+pids.second);
 			}
 		}
 	}
@@ -125,7 +127,6 @@ void workbench::analyze_reaches(){
 		}
 	}
 
-
 	p1->print();
 	print_points(max_reaches);
 	print_points(valid_points);
@@ -137,80 +138,5 @@ void workbench::analyze_reaches(){
 	all_points.clear();
 	valid_points.clear();
 	delete []unit_count;
-}
-
-
-void workbench::analyze_meeting_buckets(){
-
-	int maxone = 0;
-	uint maxsize = 0;
-	for(uint i=0;i<config->num_meeting_buckets;i++){
-		if(meeting_buckets_counter[current_bucket][i]>maxsize){
-			maxone = i;
-			maxsize = meeting_buckets_counter[current_bucket][i];
-		}
-//		if(meeting_buckets_counter[current_bucket][i]>0){
-//			printf("%d %d\n",i,meeting_buckets_counter[current_bucket][i]);
-//		}
-	}
-	uint *bucket_count = new uint[maxsize];
-	memset(bucket_count,0,maxsize*sizeof(uint));
-
-	uint min_bucket = 0;
-	uint max_bucket = 0;
-	size_t total = 0;
-	size_t overflow = 0;
-	size_t overflow_count = 0;
-
-	for(uint i=0;i<config->num_meeting_buckets;i++){
-		total += meeting_buckets_counter[current_bucket][i];
-		if(meeting_buckets_counter[current_bucket][min_bucket]>meeting_buckets_counter[current_bucket][i]){
-			min_bucket = i;
-		}
-		if(meeting_buckets_counter[current_bucket][max_bucket]<meeting_buckets_counter[current_bucket][i]){
-			max_bucket = i;
-		}
-		bucket_count[meeting_buckets_counter[current_bucket][i]]++;
-
-		if(meeting_buckets_counter[current_bucket][i]>=config->bucket_size){
-			overflow++;
-			overflow_count += meeting_buckets_counter[current_bucket][i];
-		}
-	}
-	log("total active meetings %d average %d bucket range: [%d, %d, %d]",
-			total,total/config->num_meeting_buckets,
-			meeting_buckets_counter[current_bucket][min_bucket],
-			meeting_buckets_counter[current_bucket][max_bucket],
-			config->bucket_size);
-	double cum_portion = 0;
-	uint vbuck = 0;
-	for(int i=0;i<maxsize;i++){
-		cum_portion += 1.0*bucket_count[i]*i/total;
-		if(config->analyze_meeting&&bucket_count[i]>0){
-			printf("%d\t%d\t%.4f\n",i,bucket_count[i],cum_portion);
-		}
-		if(cum_portion>OVERFLOW_THRESHOLD&&vbuck==0){
-			vbuck = i;
-		}
-	}
-
-	if(pro.max_bucket_size<vbuck){
-		pro.max_bucket_size = vbuck;
-	}
-	if(overflow>0){
-		log("of\t%d\t%d\t%.4f",overflow,1.0*(overflow_count-overflow*config->bucket_size)/total);
-	}
-	double deviation = 0.0;
-	double average = 1.0*total/config->num_meeting_buckets;
-	for(uint i=0;i<config->num_meeting_buckets;i++){
-		deviation += (meeting_buckets_counter[current_bucket][i]-average)*(meeting_buckets_counter[current_bucket][i]-average);
-	}
-	deviation = sqrt(deviation/config->num_meeting_buckets);
-	//printf("%f %f %f\n",average, deviation, deviation/average);
-	pro.meet_coefficient += deviation/average;
-	pro.num_pairs += total;
-	pro.num_meetings += this->meeting_counter;
-
-	delete []bucket_count;
 }
 

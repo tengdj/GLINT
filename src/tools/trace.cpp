@@ -29,7 +29,5 @@ int main(int argc, char **argv){
 //	m->navigate(result, new Point(-87.61353222612192,41.75837880179237), new Point(-88.11615669701743,41.94455236873503), 200);
 //	print_linestring(result);
 //	delete m;
-
-
 	return 0;
 }

@@ -11,7 +11,6 @@
 workbench::workbench(workbench *bench):workbench(bench->config){
 	grids_stack_index = bench->grids_stack_index;
 	schema_stack_index = bench->schema_stack_index;
-	current_bucket = bench->current_bucket;
 	cur_time = bench->cur_time;
 }
 
@@ -20,14 +19,16 @@ workbench::workbench(configuration *conf){
 	config = conf;
 
 	// setup the capacity of each container
-	grid_capacity = 2*config->grid_capacity;
+	grid_capacity = config->grid_amplify*config->grid_capacity;
 	// each grid contains averagely grid_capacity/2 objects, times 4 for enough space
 	grids_stack_capacity = 4*max((uint)1, config->num_objects/config->grid_capacity);
 
 	// the number of all QTree Nodes
 	schema_stack_capacity = 1.6*grids_stack_capacity;
 
-	global_stack_capacity = 4*config->num_objects;
+	tmp_space_capacity = config->num_objects;
+
+	filter_list_capacity = config->num_objects;
 
 	grid_check_capacity = config->refine_size*config->num_objects;
 
@@ -101,63 +102,73 @@ void workbench::claim_space(){
 	grid_check = (checking_unit *)allocate(size);
 	log("\t%.2f MB\tchecking units",size/1024.0/1024.0);
 
-	size = config->num_meeting_buckets*config->bucket_size*sizeof(meeting_unit);
-	meeting_buckets[0] = (meeting_unit *)allocate(size);
-	meeting_buckets[1] = (meeting_unit *)allocate(size);
-	log("\t%.2f MB\tmeeting bucket space",2*size/1024.0/1024.0);
-
-	size = config->num_meeting_buckets*sizeof(uint);
-	meeting_buckets_counter[0] = (uint *)allocate(size);
-	memset(meeting_buckets_counter[0],0,config->num_meeting_buckets*sizeof(uint));
-	meeting_buckets_counter[1] = (uint *)allocate(size);
-	memset(meeting_buckets_counter[1],0,config->num_meeting_buckets*sizeof(uint));
-	//log("\t%.2f MB  \tmeeting bucket counter space",2*size/1024.0/1024.0);
+	size = config->num_meeting_buckets*sizeof(meeting_unit);
+	meeting_buckets = (meeting_unit *)allocate(size);
+	log("\t%.2f MB\tmeeting bucket space",size/1024.0/1024.0);
 
 	size = meeting_capacity*sizeof(meeting_unit);
 	meetings = (meeting_unit *)allocate(size);
 	log("\t%.2f MB\tmeeting space",size/1024.0/1024.0);
 
-	size = global_stack_capacity*2*sizeof(uint);
-	global_stack[0] = (uint *)allocate(size);
-	global_stack[1] = (uint *)allocate(size);
-	log("\t%.2f MB\tstack space",2*size/1024.0/1024.0);
-
-	if(config->use_hash){
 #pragma omp parallel for
-		for(size_t i=0;i<(size_t)config->bucket_size*config->num_meeting_buckets;i++){
-			meeting_buckets[0][i].key = ULL_MAX;
-			meeting_buckets[1][i].key = ULL_MAX;
-		}
+	for(size_t i=0;i<config->num_meeting_buckets;i++){
+		meeting_buckets[i].key = ULL_MAX;
 	}
+
 }
 
 
 void workbench::print_profile(){
-	printf("memory space:\n");
-	printf("\tgrid buffer:\t%ld MB\n",pro.max_grid_num*pro.max_grid_size*sizeof(uint)/1024/1024);
-	printf("\trefine list:\t%ld MB\n",pro.max_filter_size*sizeof(checking_unit)/1024/1024);
-	printf("\tmeeting table:\t%ld MB\n",2*pro.max_bucket_size*config->num_meeting_buckets*sizeof(meeting_unit)/1024/1024);
+	fprintf(stderr,"memory space:\n");
+	fprintf(stderr,"\tgrid buffer:\t%ld MB\n",pro.max_grid_num*pro.max_grid_size*sizeof(uint)/1024/1024);
+	fprintf(stderr,"\tschema list:\t%ld MB\n",pro.max_schema_num*sizeof(QTSchema)/1024/1024);
+
+	fprintf(stderr,"\tfilter list:\t%ld MB\n",pro.max_filter_size*2*sizeof(uint)/1024/1024);
+	fprintf(stderr,"\trefine list:\t%ld MB\n",pro.max_refine_size*sizeof(checking_unit)/1024/1024);
+	fprintf(stderr,"\tmeeting table:\t%ld MB\n",pro.max_bucket_num*sizeof(meeting_unit)/1024/1024);
+	fprintf(stderr,"\tstack size:\t%ld MB\n",tmp_space_capacity*sizeof(meeting_unit)/1024/1024);
+
 	if(pro.rounds>0){
-		printf("\tnum pairs:\t%.2f \n",2.0*(pro.num_pairs/pro.rounds)/config->num_objects);
-		printf("\tnum meetings:\t%ld \n",pro.num_meetings/pro.rounds);
-		printf("\tusage rate:\t%.2f %%\n",100.0*(pro.num_pairs/pro.rounds)/(pro.max_bucket_size*config->num_meeting_buckets));
-		printf("\tcoefficient:\t%.4f\n",pro.meet_coefficient/pro.rounds);
+		fprintf(stderr,"time cost:\n");
+		fprintf(stderr,"\tcopy data:\t%.2f\n",pro.copy_time/pro.rounds);
+		fprintf(stderr,"\tfiltering:\t%.2f\n",pro.filter_time/pro.rounds);
+		fprintf(stderr,"\trefinement:\t%.2f\n",pro.refine_time/pro.rounds);
+		fprintf(stderr,"\tupdate meets:\t%.2f\n",pro.meeting_identify_time/pro.rounds);
+		fprintf(stderr,"\tupdate index:\t%.2f\n",pro.index_update_time/pro.rounds);
+		fprintf(stderr,"\toverall:\t%.2f\n",(pro.copy_time+pro.filter_time+pro.refine_time+pro.meeting_identify_time+pro.index_update_time)/pro.rounds);
+
+
+		fprintf(stderr,"statistics:\n");
+		fprintf(stderr,"\tnum pairs:\t%.2f \n",2.0*(pro.num_pairs/pro.rounds)/config->num_objects);
+		fprintf(stderr,"\tnum meetings:\t%ld \n",pro.num_meetings/pro.rounds);
+		fprintf(stderr,"\tusage rate:\t%.2f%% (%ld/%ld)\n",100.0*(pro.max_bucket_num)/config->num_meeting_buckets,pro.max_bucket_num,config->num_meeting_buckets);
+		fprintf(stderr,"\t80 usage:\t%ld\n",(size_t)(pro.max_bucket_num/0.8));
+		fprintf(stderr,"\toverflow:\t%.4f\n",100.0*pro.grid_overflow/pro.grid_count);
 	}
 
-	printf("\tstack size:\t%ld MB\n",2*pro.max_stak_size*2*sizeof(uint)/1024/1024);
-	double overall = pro.copy_time+pro.filter_time+pro.refine_time+pro.meeting_update_time+pro.index_update_time;
-	if(pro.rounds>0){
-		printf("time cost:\n");
-		printf("\tcopy data:\t%.2f\n",pro.copy_time/pro.rounds);
-		printf("\tfiltering:\t%.2f\n",pro.filter_time/pro.rounds);
-		printf("\trefinement:\t%.2f\n",pro.refine_time/pro.rounds);
-		printf("\tupdate meets:\t%.2f\n",pro.meeting_update_time/pro.rounds);
-		printf("\tupdate index:\t%.2f\n",pro.index_update_time/pro.rounds);
-		printf("\toverall:\t%.2f\n",overall/pro.rounds);
-		if(pro.grid_count>0){
-			printf("\toverflow:\t%.4f\n",100.0*pro.grid_overflow/pro.grid_count);
-		}
-	}
+	printf("grid_buffer\tschema\tfilter_list\trefine_list\tmeeting_table\tstack_size\t");
+	printf("copy\tfiltering\trefinement\tidentify\tupdate_index\t");
+	printf("num pairs\tnum meetings\toverflow\n");
+
+	printf("%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t",pro.max_grid_num*pro.max_grid_size*sizeof(uint)/1024/1024
+													   ,pro.max_schema_num*sizeof(QTSchema)/1024/1024
+													   ,pro.max_filter_size*2*sizeof(uint)/1024/1024
+													   ,pro.max_refine_size*sizeof(checking_unit)/1024/1024
+													   ,pro.max_bucket_num*sizeof(meeting_unit)/1024/1024
+													   ,tmp_space_capacity*sizeof(meeting_unit)/1024/1024);
+
+	printf("%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t",pro.copy_time/pro.rounds
+										   ,pro.filter_time/pro.rounds
+										   ,pro.refine_time/pro.rounds
+										   ,pro.meeting_identify_time/pro.rounds
+										   ,pro.index_update_time/pro.rounds);
+
+	printf("%.2f\t%ld\t%.4f\n",2.0*(pro.num_pairs/pro.rounds)/config->num_objects
+							  ,pro.num_meetings/pro.rounds
+							  ,100.0*pro.grid_overflow/pro.grid_count);
+
+
+
 
 	// bucket number
 	//printf("%ld\t%.2f\t%.4f\n",2*pro.max_bucket_size*config->num_meeting_buckets*sizeof(meeting_unit)/1024/1024,pro.meeting_update_time/pro.rounds,pro.meet_coefficient/pro.rounds);

@@ -25,13 +25,13 @@ public:
 	uint start_time = 0;
 	uint grid_capacity = 100;
 	uint zone_capacity = 100;
-	uint num_meeting_buckets = 100000;
-	uint bucket_size = 20;
-	uint num_meeting_buckets_overflow = 1000;
+	size_t num_meeting_buckets = 100000;
+
+	double grid_amplify = 2;
 	uint refine_size = 3;
-	bool dynamic_schema = false;
-	bool phased_lookup = false;
-	bool unroll = false;
+	bool dynamic_schema = true;
+	bool phased_lookup = true;
+	bool unroll = true;
 	uint schema_update_delay = 1; //
 	uint min_meet_time = 10;
 	double reach_distance = 2;
@@ -41,36 +41,31 @@ public:
 	uint specific_gpu = 0;
 	bool analyze_reach = false;
 	bool analyze_grid = false;
-	bool analyze_meeting = false;
 	bool profile = false;
-	bool brute_meeting = false;
-	bool use_hash = false;
 
 	void print(){
-		printf("configuration:\n");
-		printf("num threads:\t%d\n",num_threads);
-		printf("num objects:\t%d\n",num_objects);
-		printf("grid capacity:\t%d\n",grid_capacity);
-		printf("zone capacity:\t%d\n",zone_capacity);
-		printf("start time:\t%d\n",start_time);
-		printf("duration:\t%d\n",duration);
-		printf("reach distance:\t%.0f m\n",reach_distance);
-		printf("minimum meeting time:\t%d\n",min_meet_time);
-		printf("bucket size:\t%d\n",bucket_size);
-		printf("num buckets:\t%d\n",num_meeting_buckets);
+		fprintf(stderr,"configuration:\n");
+		fprintf(stderr,"num threads:\t%d\n",num_threads);
+		fprintf(stderr,"num objects:\t%d\n",num_objects);
+		fprintf(stderr,"grid capacity:\t%d\n",grid_capacity);
+		fprintf(stderr,"zone capacity:\t%d\n",zone_capacity);
+		fprintf(stderr,"start time:\t%d\n",start_time);
+		fprintf(stderr,"duration:\t%d\n",duration);
+		fprintf(stderr,"reach distance:\t%.0f m\n",reach_distance);
+		fprintf(stderr,"minimum meeting time:\t%d\n",min_meet_time);
+		fprintf(stderr,"num buckets:\t%ld\n",num_meeting_buckets);
 
-		printf("trace path:\t%s\n",trace_path.c_str());
-		printf("use gpu:\t%s\n",gpu?"yes":"no");
+		fprintf(stderr,"trace path:\t%s\n",trace_path.c_str());
+		fprintf(stderr,"use gpu:\t%s\n",gpu?"yes":"no");
 		if(gpu){
-			printf("which gpu:\t%d\n",specific_gpu);
+			fprintf(stderr,"which gpu:\t%d\n",specific_gpu);
 		}
-		printf("unroll:\t%s\n",unroll?"yes":"no");
-		printf("dynamic schema:\t%s\n",dynamic_schema?"yes":"no");
-		printf("schema update gap:\t%d\n",schema_update_delay);
+		fprintf(stderr,"unroll:\t%s\n",unroll?"yes":"no");
+		fprintf(stderr,"dynamic schema:\t%s\n",dynamic_schema?"yes":"no");
+		fprintf(stderr,"schema update gap:\t%d\n",schema_update_delay);
 
-		printf("analyze reach:\t%s\n",analyze_reach?"yes":"no");
-		printf("analyze grid:\t%s\n",analyze_grid?"yes":"no");
-		printf("analyze meeting:\t%s\n",analyze_meeting?"yes":"no");
+		fprintf(stderr,"analyze reach:\t%s\n",analyze_reach?"yes":"no");
+		fprintf(stderr,"analyze grid:\t%s\n",analyze_grid?"yes":"no");
 
 	}
 };
@@ -85,22 +80,20 @@ inline configuration get_parameters(int argc, char **argv){
 		("help,h", "produce help message")
 		("gpu,g", "use gpu for processing")
 		("profile,p", "profile the memory usage")
-		("phased_filter", "enable phased filter")
-		("unroll,u", "unroll the refinement")
-		("brute_meeting","update meeting brute-forcely")
-		("use_hash","update meeting with hash table")
+		("disable_phased_filter", "disable phased filter")
+		("disable_unroll,u", "disable unroll the refinement")
+		("disable_dynamic_schema", "the schema is not dynamically updated")
 
 		("analyze_reach", "analyze the reaches statistics")
-		("analyze_meeting", "analyze the meeting bucket statistics")
 		("analyze_grid", "analyze the grid statistics")
 		("threads,n", po::value<uint>(&config.num_threads), "number of threads")
 		("specific_gpu", po::value<uint>(&config.specific_gpu), "use which gpu")
 		("grid_capacity", po::value<uint>(&config.grid_capacity), "maximum number of objects per grid ")
+		("grid_amplify", po::value<double>(&config.grid_amplify), "amplify the grid size to avoid overflow")
 		("zone_capacity", po::value<uint>(&config.zone_capacity), "maximum number of objects per zone buffer")
 		("refine_size", po::value<uint>(&config.refine_size), "number of refine list entries per object")
 		("objects,o", po::value<uint>(&config.num_objects), "number of objects")
-		("num_buckets,b", po::value<uint>(&config.num_meeting_buckets), "number of meeting buckets")
-		("bucket_size", po::value<uint>(&config.bucket_size), "the size of each bucket")
+		("num_buckets,b", po::value<size_t>(&config.num_meeting_buckets), "number of meeting buckets")
 
 		("duration,d", po::value<uint>(&config.duration), "duration of the trace")
 		("min_meet_time,m", po::value<uint>(&config.min_meet_time), "minimum meeting time")
@@ -109,7 +102,6 @@ inline configuration get_parameters(int argc, char **argv){
 
 		("reachable_distance,r", po::value<double>(&config.reach_distance), "reachable distance (in meters)")
 		("trace_path,t", po::value<string>(&config.trace_path), "path to the trace file")
-		("dynamic_schema", "the schema is dynamically updated")
 
 		;
 	po::variables_map vm;
@@ -126,43 +118,31 @@ inline configuration get_parameters(int argc, char **argv){
 	if(vm.count("analyze_reach")){
 		config.analyze_reach = true;
 	}
-	if(vm.count("analyze_meeting")){
-		config.analyze_meeting = true;
-	}
 	if(vm.count("analyze_grid")){
 		config.analyze_grid = true;
 	}
 	if(vm.count("profile")){
 		config.profile = true;
 	}
-	if(vm.count("dynamic_schema")){
-		config.dynamic_schema = true;
-	}
 
 	if(!vm.count("zone_capacity")||!vm.count("gpu")){
 		config.zone_capacity = config.grid_capacity;
 	}
 	if(!vm.count("num_buckets")){
-		config.num_meeting_buckets = config.num_objects;
+		config.num_meeting_buckets = 2*config.num_objects;
 	}
-	if(vm.count("phased_filter")){
-		config.phased_lookup = true;
+	if(vm.count("disable_phased_filter")){
+		config.phased_lookup = false;
 	}
-	if(vm.count("unroll")){
-		config.unroll = true;
-	}else{
+	if(vm.count("disable_unroll")){
+		config.unroll = false;
 		config.zone_capacity = config.grid_capacity;
 	}
-	if(vm.count("brute_meeting")){
-		config.brute_meeting = true;
+
+	if(vm.count("disable_dynamic_schema")){
+		config.dynamic_schema = false;
 	}
 
-	if(!vm.count("bucket_size")){
-		config.bucket_size = 5.0*config.num_objects/config.num_meeting_buckets;
-	}
-	if(vm.count("use_hash")){
-		config.use_hash = true;
-	}
 
 	config.print();
 	return config;
@@ -182,18 +162,18 @@ public:
 	string meta_path = "/gisdata/chicago/tweet.dat";
 
 	void print(){
-		printf("generator configuration:\n");
-		printf("num threads:\t%d\n",num_threads);
-		printf("num objects:\t%d\n",num_objects);
-		printf("duration:\t%d\n",duration);
-		printf("walk rate:\t%.2f\n",walk_rate);
-		printf("walk speed:\t%.2f\n",walk_speed);
-		printf("drive rate:\t%.2f\n",drive_rate);
-		printf("drive speed:\t%.2f\n",drive_speed);
+		fprintf(stderr, "generator configuration:\n");
+		fprintf(stderr,"num threads:\t%d\n",num_threads);
+		fprintf(stderr,"num objects:\t%d\n",num_objects);
+		fprintf(stderr,"duration:\t%d\n",duration);
+		fprintf(stderr,"walk rate:\t%.2f\n",walk_rate);
+		fprintf(stderr,"walk speed:\t%.2f\n",walk_speed);
+		fprintf(stderr,"drive rate:\t%.2f\n",drive_rate);
+		fprintf(stderr,"drive speed:\t%.2f\n",drive_speed);
 
-		printf("map path:\t%s\n",map_path.c_str());
-		printf("metadata path:\t%s\n",meta_path.c_str());
-		printf("trace path:\t%s\n",trace_path.c_str());
+		fprintf(stderr,"map path:\t%s\n",map_path.c_str());
+		fprintf(stderr,"metadata path:\t%s\n",meta_path.c_str());
+		fprintf(stderr,"trace path:\t%s\n",trace_path.c_str());
 	}
 };
 

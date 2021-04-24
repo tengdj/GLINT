@@ -181,7 +181,7 @@ void tracer::print_traces(){
 }
 
 #ifdef USE_GPU
-workbench *create_device_bench(workbench *bench, gpu_info *gpu);
+workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu);
 void process_with_gpu(workbench *bench,workbench *d_bench, gpu_info *gpu);
 #endif
 
@@ -190,12 +190,13 @@ void tracer::process(){
 
 	for(int st=config->start_time;st<config->start_time+config->duration;st+=100){
 		int cur_duration = min((config->start_time+config->duration-st),(uint)100);
-		this->loadData(config->trace_path.c_str(),st,cur_duration);
+		loadData(config->trace_path.c_str(),st,cur_duration);
+		start = get_cur_time();
 		if(!bench){
 			bench = part->build_schema(trace, config->num_objects);
 #ifdef USE_GPU
 			if(config->gpu){
-				d_bench = create_device_bench(bench, gpu);
+				d_bench = cuda_create_device_bench(bench, gpu);
 			}
 #endif
 		}
@@ -203,7 +204,7 @@ void tracer::process(){
 			log("");
 			bench->reset();
 			bench->points = trace+t*config->num_objects;
-			bench->cur_time = t;
+			bench->cur_time = st+t;
 			// process the coordinate in this time point
 			if(!config->gpu){
 				struct timeval ct = get_cur_time();
@@ -212,25 +213,18 @@ void tracer::process(){
 				bench->reachability();
 				bench->pro.refine_time += get_time_elapsed(ct,true);
 				bench->update_meetings();
-				bench->pro.meeting_update_time += get_time_elapsed(ct,true);
+				bench->pro.meeting_identify_time += get_time_elapsed(ct,true);
 			}else{
 	#ifdef USE_GPU
 				process_with_gpu(bench,d_bench,gpu);
 	#endif
 			}
-			if(bench->config->analyze_meeting&&bench->meeting_counter>0&&t==config->duration-1){
-				int luck = get_rand_number(min(bench->meeting_counter, bench->meeting_capacity));
-				print_trace(bench->meetings[luck].pid1);
-				print_trace(bench->meetings[luck].pid2);
-			}
+
 			if(config->analyze_grid||config->profile){
 				bench->analyze_grids();
 			}
 			if(config->analyze_reach){
 				bench->analyze_reaches();
-			}
-			if(config->analyze_meeting||config->profile){
-				bench->analyze_meeting_buckets();
 			}
 			if(config->dynamic_schema&&!config->gpu){
 				struct timeval ct = get_cur_time();
@@ -238,10 +232,18 @@ void tracer::process(){
 				bench->pro.index_update_time += get_time_elapsed(ct,true);
 			}
 			logt("round %d",start,st+t+1);
-			bench->current_bucket = !bench->current_bucket;
 			bench->pro.rounds++;
-			if(bench->pro.max_filter_size<bench->grid_check_counter){
-				bench->pro.max_filter_size = bench->grid_check_counter;
+			bench->pro.max_refine_size = max(bench->pro.max_refine_size, bench->grid_check_counter);
+			bench->pro.max_filter_size = max(bench->pro.max_filter_size, bench->filter_list_index);
+			bench->pro.max_bucket_num = max(bench->pro.max_bucket_num, bench->num_taken_buckets);
+			bench->pro.num_pairs += bench->num_active_meetings;
+			bench->pro.num_meetings += bench->meeting_counter;
+
+			if(bench->meeting_counter>0&&t==config->duration-1){
+				int luck = get_rand_number(min(bench->meeting_counter, bench->meeting_capacity));
+				fprintf(stderr,"points: %ld %d %d\n",bench->meetings[luck].key, bench->meetings[luck].get_pid1(),bench->meetings[luck].get_pid2());
+				print_trace(bench->meetings[luck].get_pid1());
+				print_trace(bench->meetings[luck].get_pid2());
 			}
 		}
 

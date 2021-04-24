@@ -17,19 +17,21 @@ typedef struct profiler{
 	double copy_time = 0;
 	double filter_time = 0;
 	double refine_time = 0;
-	double meeting_update_time = 0;
+	double meeting_identify_time = 0;
 	double index_update_time = 0;
 	uint rounds = 0;
+
+	uint max_refine_size = 0;
 	uint max_filter_size = 0;
 	uint max_grid_size = 0;
 	uint max_grid_num = 0;
-	uint max_bucket_size = 0;
-	uint max_stak_size = 0;
+	uint max_schema_num = 0;
+	size_t max_bucket_num = 0;
+
 	uint grid_overflow = 0;
 	uint grid_count = 0;
 	size_t num_pairs = 0;
 	size_t num_meetings = 0;
-	double meet_coefficient = 0.0;
 }profiler;
 
 typedef struct checking_unit{
@@ -41,9 +43,20 @@ typedef struct checking_unit{
 
 typedef struct meeting_unit{
 	size_t key;
-	uint pid1;
-	uint pid2;
 	unsigned short start;
+	unsigned short end;
+	bool isEmpty(){
+		return key == ULL_MAX;
+	}
+	void reset(){
+		key = ULL_MAX;
+	}
+	uint get_pid1(){
+		return ::InverseCantorPairing1(key).first;
+	}
+	uint get_pid2(){
+		return ::InverseCantorPairing1(key).second;
+	}
 }meeting_unit;
 
 typedef struct reach_unit{
@@ -90,21 +103,34 @@ public:
 	uint grid_check_capacity = 0;
 	uint grid_check_counter = 0;
 
+
+	// the space to store the point-node pairs for filtering
+	uint *filter_list = NULL;
+	uint filter_list_index = 0;
+	uint filter_list_capacity = 0;
+
 	// the space for the overall meeting information maintaining now
-	uint current_bucket = 0;
-	meeting_unit *meeting_buckets[2] = {NULL,NULL};
-	uint *meeting_buckets_counter[2] = {NULL,NULL};
-	uint meeting_bucket_capacity = 0;
+	meeting_unit *meeting_buckets = NULL;
+
+	size_t num_taken_buckets = 0;
+	size_t num_active_meetings = 0;
 
 	// the space for the valid meeting information now
 	meeting_unit *meetings = NULL;
 	uint meeting_capacity = 0;
 	uint meeting_counter = 0;
 
-	// the processing stack for looking up
-	uint *global_stack[2] = {NULL, NULL};
-	uint global_stack_index[2] = {0,0};
-	uint global_stack_capacity = 0;
+
+
+	// the temporary space
+	uint *tmp_space = NULL;
+	uint tmp_space_capacity = 0;
+
+
+	uint *merge_list = NULL;
+	uint merge_list_index = 0;
+	uint *split_list = NULL;
+	uint split_list_index = 0;
 
 	// external source
 	Point *points = NULL;
@@ -143,8 +169,6 @@ public:
 			grid_counter[i] = 0;
 		}
 		grid_check_counter = 0;
-		global_stack_index[0] = 0;
-		global_stack_index[1] = 0;
 	}
 	inline uint get_grid_size(uint gid){
 		assert(gid<grids_stack_capacity);
@@ -160,7 +184,6 @@ public:
 
 	void analyze_grids();
 	void analyze_reaches();
-	void analyze_meeting_buckets();
 	void print_profile();
 
 	void lock(uint key = 0){

@@ -49,7 +49,7 @@ public:
 		return p.x==x&&p.y==y;
 	}
 	void print(){
-		printf("POINT (%f %f)\n",x,y);
+		fprintf(stderr,"POINT (%f %f)\n",x,y);
 	}
 
 };
@@ -182,7 +182,7 @@ public:
 	}
 
 	void print_vertices(){
-		printf("%f %f, %f %f, %f %f, %f %f, %f %f",
+		fprintf(stderr,"%f %f, %f %f, %f %f, %f %f, %f %f",
 					low[0],low[1],
 					high[0],low[1],
 					high[0],high[1],
@@ -191,9 +191,9 @@ public:
 	}
 
 	void print(){
-		printf("POLYGON((");
+		fprintf(stderr,"POLYGON((");
 		print_vertices();
-		printf("))\n");
+		fprintf(stderr,"))\n");
 	}
 
 	void to_squre(bool geography=false){
@@ -311,19 +311,19 @@ public:
 	}
 
 	void print(){
-		printf("MULTIPOLYGON(");
+		fprintf(stderr,"MULTIPOLYGON(");
 		for(int i=0;i<dimx;i++){
 			for(int j=0;j<dimy;j++){
 				if(i>0||j>0){
-					printf(",");
+					fprintf(stderr,",");
 				}
-				printf("((");
+				fprintf(stderr,"((");
 				box mbr(space.low[0]+i*step_x,space.low[1]+j*step_y,space.low[0]+(i+1)*step_x,space.low[1]+(j+1)*step_y);
 				mbr.print_vertices();
-				printf("))");
+				fprintf(stderr,"))");
 			}
 		}
-		printf(")\n");
+		fprintf(stderr,")\n");
 
 
 	}
@@ -381,21 +381,21 @@ inline double distance_point_to_segment(double x, double y,
 
 inline void print_linestring(vector<Point *> trajectory, double sample_rate=1.0){
 	assert(sample_rate<=1&&sample_rate>0);
-	printf("LINESTRING (");
+	fprintf(stderr,"LINESTRING (");
 	bool first = true;
 	for(int i=0;i<trajectory.size();i++){
 
 		if(tryluck(sample_rate)){
 			if(!first){
-				printf(",");
+				fprintf(stderr,",");
 			}else{
 				first = false;
 			}
-			printf("%f %f",trajectory[i]->x,trajectory[i]->y);
+			fprintf(stderr,"%f %f",trajectory[i]->x,trajectory[i]->y);
 		}
 	}
 
-	printf(")\n");
+	fprintf(stderr,")\n");
 }
 
 inline void print_points(vector<Point *> trajectory, uint max_num = INT_MAX){
@@ -405,21 +405,21 @@ inline void print_points(vector<Point *> trajectory, uint max_num = INT_MAX){
 		sample_rate = 1.0;
 	}
 
-	printf("MULTIPOINT (");
+	fprintf(stderr,"MULTIPOINT (");
 	bool first = true;
 	for(int i=0;i<trajectory.size();i++){
 
 		if(tryluck(sample_rate)){
 			if(!first){
-				printf(",");
+				fprintf(stderr,",");
 			}else{
 				first = false;
 			}
-			printf("%f %f",trajectory[i]->x,trajectory[i]->y);
+			fprintf(stderr,"%f %f",trajectory[i]->x,trajectory[i]->y);
 		}
 	}
 
-	printf(")\n");
+	fprintf(stderr,")\n");
 }
 
 inline void print_points(Point *trajectory, size_t num_objects, uint max_num = INT_MAX){
@@ -427,20 +427,20 @@ inline void print_points(Point *trajectory, size_t num_objects, uint max_num = I
 	if(sample_rate>1){
 		sample_rate = 1.0;
 	}
-	printf("MULTIPOINT (");
+	fprintf(stderr,"MULTIPOINT (");
 	bool first = true;
 	for(int i=0;i<num_objects;i++){
 		if(tryluck(sample_rate)){
 			if(!first){
-				printf(",");
+				fprintf(stderr,",");
 			}else{
 				first = false;
 			}
-			printf("%f %f",trajectory[i].x,trajectory[i].y);
+			fprintf(stderr,"%f %f",trajectory[i].x,trajectory[i].y);
 		}
 	}
 
-	printf(")\n");
+	fprintf(stderr,")\n");
 }
 
 

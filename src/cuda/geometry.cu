@@ -85,9 +85,25 @@ __global__
 void cuda_reset_bench(workbench *bench){
 	bench->grid_check_counter = 0;
 	bench->meeting_counter = 0;
-	bench->global_stack_index[0] = 0;
-	bench->global_stack_index[1] = 0;
+	bench->num_active_meetings = 0;
+	bench->num_taken_buckets = 0;
+	bench->filter_list_index = 0;
+	bench->split_list_index = 0;
+	bench->merge_list_index = 0;
 }
+
+
+
+
+__global__
+void cuda_clean_buckets(workbench *bench){
+	size_t bid = blockIdx.x*blockDim.x+threadIdx.x;
+	if(bid>=bench->config->num_meeting_buckets){
+		return;
+	}
+	bench->meeting_buckets[bid].key = ULL_MAX;
+}
+
 
 
 //  partition with cuda
@@ -135,14 +151,20 @@ void cuda_partition(workbench *bench){
 	bench->grid_check[glid].inside = true;
 
 	if(last_valid!=curnode){
-		uint stack_index = atomicAdd(&bench->global_stack_index[0],1);
-		assert(stack_index<bench->global_stack_capacity);
-		bench->global_stack[0][stack_index*2] = pid;
-		bench->global_stack[0][stack_index*2+1] = last_valid;
+		uint stack_index = atomicAdd(&bench->filter_list_index,1);
+		assert(stack_index<bench->filter_list_capacity);
+		bench->filter_list[stack_index*2] = pid;
+		bench->filter_list[stack_index*2+1] = last_valid;
 	}
 
 }
 
+
+/*
+ *
+ * functions for filtering
+ *
+ * */
 
 #define PER_STACK_SIZE 5
 
@@ -153,43 +175,33 @@ void cuda_pack_lookup(workbench *bench){
 		return;
 	}
 
-	uint idx = atomicAdd(&bench->global_stack_index[0],1);
-	assert(idx<bench->global_stack_capacity);
-	bench->global_stack[0][idx*2] = pid;
-	bench->global_stack[0][idx*2+1] = 0;
+	uint idx = atomicAdd(&bench->filter_list_index,1);
+	assert(idx<bench->filter_list_capacity);
+	bench->filter_list[idx*2] = pid;
+	bench->filter_list[idx*2+1] = 0;
 }
 
 __global__
-void cuda_reset_stack(workbench *bench, uint batch_size){
-	int cur_idx = blockIdx.x*blockDim.x+threadIdx.x;
-	if(cur_idx>=batch_size){
-		return;
-	}
-	int block_stack_size = 2*1024*PER_STACK_SIZE;
-	int *cur_stack_idx = (int *)bench->global_stack[1]+blockIdx.x*block_stack_size;
-	*cur_stack_idx = 0;
-}
-
-__global__
-void cuda_lookup_block(workbench *bench, int start_idx, int batch_size, bool include_contain){
+void cuda_filtering(workbench *bench, int start_idx, int batch_size, bool include_contain){
 
 	int cur_idx = blockIdx.x*blockDim.x+threadIdx.x;
 	int idx = cur_idx + start_idx;
 	if(cur_idx>=batch_size){
 		return;
 	}
-	int pid = bench->global_stack[0][idx*2];
-	int nodeid = bench->global_stack[0][idx*2+1];
+	int pid = bench->filter_list[idx*2];
+	int nodeid = bench->filter_list[idx*2+1];
 
-	int block_stack_size = 2*1024*PER_STACK_SIZE;
+	// get the block shared stack
+	int block_stack_size = 1024*2*PER_STACK_SIZE;
+	int stack_offset = blockIdx.x*block_stack_size;
 
-	//printf("%d %d %d %d %d\n",threadIdx.x,warp_id,batch_size,warp_id*warp_stack_size, bench->global_stack_capacity);
-	assert(blockIdx.x*block_stack_size<bench->global_stack_capacity);
+	assert(stack_offset+block_stack_size<bench->tmp_space_capacity);
 
-	int *cur_stack_idx = (int *)bench->global_stack[1]+blockIdx.x*block_stack_size;
-	int *cur_worker_idx = (int *)bench->global_stack[1]+blockIdx.x*block_stack_size+1;
+	int *cur_stack_idx = (int *)bench->tmp_space+stack_offset;
+	int *cur_worker_idx = (int *)bench->tmp_space+stack_offset+1;
+	uint *cur_stack = bench->tmp_space+stack_offset+2;
 
-	uint *cur_stack = bench->global_stack[1]+blockIdx.x*block_stack_size+2;
 	*cur_stack_idx = 0;
 	*cur_worker_idx = 0;
 	__syncthreads();
@@ -268,12 +280,14 @@ void cuda_lookup_block(workbench *bench, int start_idx, int batch_size, bool inc
 		}
 		__syncthreads();
 	}
-	if(idx == 0){
-		bench->global_stack_index[0] = 0;
-	}
 }
 
 
+/*
+ *
+ * kernel functions for the refinement step
+ *
+ * */
 
 __global__
 void cuda_unroll(workbench *bench, uint inistial_size){
@@ -297,41 +311,6 @@ void cuda_unroll(workbench *bench, uint inistial_size){
 	}
 }
 
-__device__
-inline size_t mhash64( size_t k ){
-  k ^= k >> 33;
-  k *= 0xff51afd7ed558ccdULL;
-  k ^= k >> 33;
-  k *= 0xc4ceb9fe1a85ec53ULL;
-  k ^= k >> 33;
-  return k;
-}
-
-__device__
-uint mhash32(uint k)
-{
-    k ^= k >> 16;
-    k *= 0x85ebca6b;
-    k ^= k >> 13;
-    k *= 0xc2b2ae35;
-    k ^= k >> 16;
-    return k;
-}
-
-__global__
-void cuda_clean_buckets(workbench *bench){
-	int bid = blockIdx.x*blockDim.x+threadIdx.x;
-	if(bid>=bench->config->num_meeting_buckets){
-		return;
-	}
-	meeting_unit *new_bucket = bench->meeting_buckets[0]+bid*bench->config->bucket_size;
-	meeting_unit *old_bucket = bench->meeting_buckets[1]+bid*bench->config->bucket_size;
-
-	for(int i=0;i<bench->config->bucket_size;i++){
-		new_bucket[i].key = ULL_MAX;
-		old_bucket[i].key = ULL_MAX;
-	}
-}
 
 __global__
 void cuda_refinement(workbench *bench){
@@ -360,259 +339,92 @@ void cuda_refinement(workbench *bench){
 		if(dist<=bench->config->reach_distance){
 			uint pid1 = min(pid,target_pid);
 			uint pid2 = max(target_pid,pid);
-			//size_t key = (((size_t)pid1)<<32)+pid2;
-			size_t key = (pid1+pid2)*(pid1+pid2+1)/2+pid2;
-
-			meeting_unit *mtable = bench->meeting_buckets[bench->current_bucket];
-
-			if(bench->config->use_hash){
-				size_t kHashTableCapacity = ((size_t)bench->config->bucket_size*bench->config->num_meeting_buckets);
-				size_t slot = key%kHashTableCapacity;
-				int ited = 0;
-				//printf("%ld %ld %ld\n",slot,key,kHashTableCapacity);
-				while (true){
-					unsigned long long prev = atomicCAS((unsigned long long *)&mtable[slot].key, ULL_MAX, (unsigned long long)key);
-					//printf("%ld\n",prev,ULL_MAX,bench->meeting_buckets[bench->current_bucket][slot].key);
-					if (prev == ULL_MAX){
-						mtable[slot].key = key;
-						mtable[slot].pid1 = pid1;
-						mtable[slot].pid2 = pid2;
-						mtable[slot].start = bench->cur_time;
-						break;
-					}
-					slot = (slot + 1)%kHashTableCapacity;
-					ited++;
-//					if(ited>5){
-//						printf("%ld %ld %d\n",slot,key,ited);
-//						break;
-//					}
+			size_t key = ((size_t)pid1+pid2)*(pid1+pid2+1)/2+pid2;
+			size_t slot = key%bench->config->num_meeting_buckets;
+			int ite = 0;
+			while (ite++<5){
+				unsigned long long prev = atomicCAS((unsigned long long *)&bench->meeting_buckets[slot].key, ULL_MAX, (unsigned long long)key);
+				//printf("%ld\n",prev,ULL_MAX,bench->meeting_buckets[bench->current_bucket][slot].key);
+				if(prev == key){
+					bench->meeting_buckets[slot].end = bench->cur_time;
+					break;
+				}else if (prev == ULL_MAX){
+					bench->meeting_buckets[slot].key = key;
+					bench->meeting_buckets[slot].start = bench->cur_time;
+					bench->meeting_buckets[slot].end = bench->cur_time;
+					break;
 				}
-				if(ited>0){
-					//atomicAdd(&bench->meeting_counter,1);
-				}
-			}else{
-				//uint bid = key%bench->config->num_meeting_buckets;
-				//printf("%d\n",bid);
-				uint bid = (pid+target_pid)%bench->config->num_meeting_buckets;
-				uint loc = atomicAdd(bench->meeting_buckets_counter[bench->current_bucket]+bid,1);
-				// todo handling overflow
-				if(loc<bench->config->bucket_size){
-					meeting_unit *bucket = mtable+bid*bench->config->bucket_size;
-					bucket[loc].pid1 = pid1;
-					bucket[loc].pid2 = pid2;
-					bucket[loc].start = bench->cur_time;
-				}
+				slot = (slot + 1)%bench->config->num_meeting_buckets;
 			}
-		}
-	}
-}
-
-__global__
-void cuda_identify_meetings_hash(workbench *bench){
-
-	int bid = blockIdx.x*blockDim.x+threadIdx.x;
-	size_t kHashTableCapacity = bench->config->num_meeting_buckets*bench->config->bucket_size;
-	if(bid>=kHashTableCapacity){
-		return;
-	}
-	meeting_unit *meet = bench->meeting_buckets[!bench->current_bucket]+bid;
-	meeting_unit *new_tab = bench->meeting_buckets[bench->current_bucket];
-	if(meet->key==ULL_MAX){
-		return;
-	}
-	size_t slot = meet->key%kHashTableCapacity;
-
-	int ite = 0;
-	while (ite++<6){
-		if (new_tab[slot].key == meet->key){
-			new_tab[slot].start = meet->start;
-			atomicAdd(&bench->meeting_counter,1);
-			return;
-		}
-		if (new_tab[slot].key == ULL_MAX){
-			break;
-		}
-		slot = (slot + 1)%kHashTableCapacity;
-	}
-	if(bench->cur_time - meet->start>=bench->config->min_meet_time){
-//		uint meeting_idx = atomicAdd(&bench->meeting_counter,1);
-//		if(meeting_idx<bench->meeting_capacity){
-//			bench->meetings[meeting_idx] = *meet;
-//		}
-	}
-}
-
-
-
-/* This function takes last element as pivot, places
-   the pivot element at its correct position in sorted
-    array, and places all smaller (smaller than pivot)
-   to left of pivot and all greater elements to right
-   of pivot */
-__device__
-inline int partition(meeting_unit *arr, int low, int high){
-    int pivot = arr[high].pid1;    // pivot
-    int i = (low - 1);  // Index of smaller element
-
-    meeting_unit tmp;
-    for (int j = low; j <= high- 1; j++){
-        // If current element is smaller than or
-        // equal to pivot
-        if (arr[j].pid1 <= pivot){
-            i++;    // increment index of smaller element
-            tmp = arr[i];
-            arr[i] = arr[j];
-            arr[j] = tmp;
-        }
-    }
-    tmp = arr[i + 1];
-    arr[i + 1] = arr[high];
-    arr[high] = tmp;
-    return (i + 1);
-}
-
-
-/* The main function that implements QuickSort
- arr[] --> Array to be sorted,
-  low  --> Starting index,
-  high  --> Ending index */
-__device__
-inline void quickSort(meeting_unit *arr, int low, int high){
-    if (low < high){
-        /* pi is partitioning index, arr[p] is now
-           at right place */
-        int pi = partition(arr, low, high);
-        // Separately sort elements before
-        // partition and after partition
-        quickSort(arr, low, pi - 1);
-        quickSort(arr, pi + 1, high);
-    }
-}
-
-__device__
-inline bool isvalid(int p,int r, int size){
-	return 0 <= p && p< r &&r < size;
-}
-__global__
-void cuda_sort_meetings(workbench *bench){
-
-	int bid = blockIdx.x*blockDim.x+threadIdx.x;
-	if(bid>=bench->config->num_meeting_buckets){
-		return;
-	}
-	meeting_unit *bucket = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
-	int size = min(bench->meeting_buckets_counter[bench->current_bucket][bid],bench->config->bucket_size);
-	int stack_size = 4*bench->global_stack_capacity/bench->config->num_meeting_buckets;
-	int *cur_stack = (int *)(bench->global_stack[0] + stack_size*bid);
-	int stack_index = 0;
-	if(size>1){
-		cur_stack[stack_index++] = 0;
-		cur_stack[stack_index++] = size - 1;
-		while(stack_index){
-			uint q = cur_stack[--stack_index];
-			uint p = cur_stack[--stack_index];
-			uint r = partition(bucket,p,q);
-			if(isvalid(p,r-1,size)){
-				cur_stack[stack_index++] = p;
-				cur_stack[stack_index++] = r-1;
-			}
-			if(isvalid(r+1,q,size)){
-				cur_stack[stack_index++] = r+1;
-				cur_stack[stack_index++] = q;
-			}
-			assert(stack_index<stack_size);
 		}
 	}
 }
 
 /*
- * update the first meet
+ * kernel function for identify completed meetings
+ *
  * */
-__global__
-void cuda_identify_meetings_sort(workbench *bench){
 
-	int bid = blockIdx.x*blockDim.x+threadIdx.x;
+__global__
+void cuda_profile_meetings(workbench *bench){
+
+	size_t bid = blockIdx.x*blockDim.x+threadIdx.x;
 	if(bid>=bench->config->num_meeting_buckets){
 		return;
 	}
-
-	meeting_unit *bucket_new = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
-	meeting_unit *bucket_old = bench->meeting_buckets[!bench->current_bucket]+bid*bench->config->bucket_size;
-
-	uint size_new = min(bench->config->bucket_size, bench->meeting_buckets_counter[bench->current_bucket][bid]);
-	uint size_old = min(bench->config->bucket_size, bench->meeting_buckets_counter[!bench->current_bucket][bid]);
-
-	uint i=0,j=0;
-	for(;i<size_old;i++){
-		bool updated = false;
-		for(;j<size_new;j++){
-			if(bucket_old[i].pid1==bucket_new[j].pid1){
-				bucket_new[j].start = bucket_old[i].start;
-				updated = true;
-				break;
-			}else if(bucket_old[i].pid1<bucket_new[j].pid1){
-				break;
-			}
-		}
-		// the old meeting is over
-		if(!updated&&
-			bench->cur_time - bucket_old[i].start>=bench->config->min_meet_time){
-			uint meeting_idx = atomicAdd(&bench->meeting_counter,1);
-			if(meeting_idx<bench->meeting_capacity){
-				bench->meetings[meeting_idx] = bucket_old[i];
-			}
-		}
+	// empty
+	if(bench->meeting_buckets[bid].key==ULL_MAX){
+		return;
 	}
-	// reset the old buckets for next batch of processing
-	bench->meeting_buckets_counter[!bench->current_bucket][bid] = 0;
+	if(bench->config->profile){
+		atomicAdd((unsigned long long *)&bench->num_taken_buckets, (unsigned long long)1);
+	}
+	// is still active
+	if(bench->meeting_buckets[bid].end==bench->cur_time){
+		if(bench->config->profile){
+			atomicAdd((unsigned long long *)&bench->num_active_meetings, (unsigned long long)1);
+		}
+		return;
+	}
 }
 
-/*
- * update the first meet
- * */
+
 __global__
 void cuda_identify_meetings(workbench *bench){
 
-	int bid = blockIdx.x*blockDim.x+threadIdx.x;
+	size_t bid = blockIdx.x*blockDim.x+threadIdx.x;
 	if(bid>=bench->config->num_meeting_buckets){
 		return;
 	}
-
-	meeting_unit *bucket_new = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
-	meeting_unit *bucket_old = bench->meeting_buckets[!bench->current_bucket]+bid*bench->config->bucket_size;
-
-	uint size_new = min(bench->config->bucket_size, bench->meeting_buckets_counter[bench->current_bucket][bid]);
-	uint size_old = min(bench->config->bucket_size, bench->meeting_buckets_counter[!bench->current_bucket][bid]);
-
-	for(uint i=0;i<size_old;i++){
-		bool updated = false;
-		for(uint j=0;j<size_new;j++){
-			if(bucket_old[i].pid1==bucket_new[j].pid1){
-				bucket_new[j].start = bucket_old[i].start;
-				updated = true;
-				break;
-			}
-		}
-		// the old meeting is over
-		if(!updated&&
-			bench->cur_time - bucket_old[i].start>=bench->config->min_meet_time){
-			uint meeting_idx = atomicAdd(&bench->meeting_counter,1);
-			if(meeting_idx<bench->meeting_capacity){
-				bench->meetings[meeting_idx] = bucket_old[i];
-			}
+	// empty
+	if(bench->meeting_buckets[bid].key==ULL_MAX){
+		return;
+	}
+	// is still active
+	if(bench->meeting_buckets[bid].end==bench->cur_time){
+		return;
+	}
+	if(bench->cur_time-bench->meeting_buckets[bid].start>=bench->config->min_meet_time){
+		uint meeting_idx = atomicAdd(&bench->meeting_counter,1);
+		if(meeting_idx<bench->meeting_capacity){
+			bench->meetings[meeting_idx] = bench->meeting_buckets[bid];
 		}
 	}
-	// reset the old buckets for next batch of processing
-	bench->meeting_buckets_counter[!bench->current_bucket][bid] = 0;
+	// reset the bucket
+	bench->meeting_buckets[bid].key = ULL_MAX;
 }
 
+/*
+ * kernel functions for index update
+ *
+ * */
 __global__
 void cuda_update_schema_split(workbench *bench, uint size){
 	uint sidx = blockIdx.x*blockDim.x+threadIdx.x;
 	if(sidx>=size){
 		return;
 	}
-	uint curnode = bench->global_stack[0][sidx];
+	uint curnode = bench->split_list[sidx];
 	//printf("split: %d\n",curnode);
 	//schema[curnode].mbr.print();
 	bench->schema[curnode].type = BRANCH;
@@ -658,7 +470,7 @@ void cuda_update_schema_merge(workbench *bench, uint size){
 	if(sidx>=size){
 		return;
 	}
-	uint curnode = bench->global_stack[1][sidx];
+	uint curnode = bench->merge_list[sidx];
 	//reclaim the children
 	uint gid = 0;
 	for(int i=0;i<4;i++){
@@ -696,8 +508,8 @@ void cuda_update_schema_collect(workbench *bench){
 				bench->grid_counter[bench->schema[curnode].grid_id]>bench->config->grid_capacity){
 			// this node is overflowed a continuous number of times, split it
 			if(++bench->schema[curnode].overflow_count>=bench->config->schema_update_delay){
-				uint sidx = atomicAdd(&bench->global_stack_index[0],1);
-				bench->global_stack[0][sidx] = curnode;
+				uint sidx = atomicAdd(&bench->split_list_index,1);
+				bench->split_list[sidx] = curnode;
 				bench->schema[curnode].overflow_count = 0;
 			}
 		}else{
@@ -718,8 +530,8 @@ void cuda_update_schema_collect(workbench *bench){
 			// this node need be merged
 			if(++bench->schema[curnode].underflow_count>=bench->config->schema_update_delay){
 				//printf("%d\n",curnode);
-				uint sidx = atomicAdd(&bench->global_stack_index[1],1);
-				bench->global_stack[1][sidx] = curnode;
+				uint sidx = atomicAdd(&bench->merge_list_index,1);
+				bench->merge_list[sidx] = curnode;
 				bench->schema[curnode].underflow_count = 0;
 			}
 		}else{
@@ -746,7 +558,7 @@ void cuda_init_grids_stack(workbench *bench){
 	bench->grids_stack[curnode] = curnode;
 }
 
-workbench *create_device_bench(workbench *bench, gpu_info *gpu){
+workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
 	log("GPU memory:");
 	struct timeval start = get_cur_time();
 	gpu->clear();
@@ -775,17 +587,21 @@ workbench *create_device_bench(workbench *bench, gpu_info *gpu){
 	size = bench->grid_check_capacity*sizeof(checking_unit);
 	log("\t%.2f MB\trefine list",1.0*size/1024/1024);
 
-	// space for processing stack
-	h_bench.global_stack[0] = (uint *)gpu->allocate(bench->global_stack_capacity*4*sizeof(uint));
-	h_bench.global_stack[1] = h_bench.global_stack[0]+bench->global_stack_capacity*2;
-	size = 2*bench->global_stack_capacity*2*sizeof(uint);
-	log("\t%.2f MB\tstack",1.0*size/1024/1024);
 
-	h_bench.meeting_buckets[0] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets*bench->config->bucket_size*sizeof(meeting_unit));
-	h_bench.meeting_buckets[1] = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets*bench->config->bucket_size*sizeof(meeting_unit));
-	h_bench.meeting_buckets_counter[0] = (uint *)gpu->allocate(bench->config->num_meeting_buckets*sizeof(uint));
-	h_bench.meeting_buckets_counter[1] = (uint *)gpu->allocate(bench->config->num_meeting_buckets*sizeof(uint));
-	size = 2*(bench->config->num_meeting_buckets*bench->config->bucket_size*sizeof(meeting_unit)+bench->config->num_meeting_buckets*sizeof(uint));
+	size = 2*bench->filter_list_capacity*sizeof(uint);
+	h_bench.filter_list = (uint *)gpu->allocate(size);
+	log("\t%.2f MB\tfiltering list",1.0*size/1024/1024);
+
+
+	// space for processing stack
+	h_bench.tmp_space = (uint *)gpu->allocate(bench->tmp_space_capacity*sizeof(uint));
+	size = bench->tmp_space_capacity*sizeof(uint);
+	h_bench.merge_list = h_bench.tmp_space;
+	h_bench.split_list = h_bench.tmp_space+bench->tmp_space_capacity/2;
+	log("\t%.2f MB\ttemporary space",1.0*size/1024/1024);
+
+	h_bench.meeting_buckets = (meeting_unit *)gpu->allocate(bench->config->num_meeting_buckets*sizeof(meeting_unit));
+	size = bench->config->num_meeting_buckets*sizeof(meeting_unit);
 	log("\t%.2f MB\thash table",1.0*size/1024/1024);
 
 	h_bench.meetings = (meeting_unit *)gpu->allocate(bench->meeting_capacity*sizeof(meeting_unit));
@@ -827,16 +643,17 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	assert(gpu);
 	cudaSetDevice(gpu->device_id);
 
+	/* 1. copy data */
 	// setup the current time and points for this round
 	workbench h_bench(bench);
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	h_bench.cur_time = bench->cur_time;
-	h_bench.current_bucket = bench->current_bucket;
 	CUDA_SAFE_CALL(cudaMemcpy(d_bench, &h_bench, sizeof(workbench), cudaMemcpyHostToDevice));
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench.points, bench->points, bench->config->num_objects*sizeof(Point), cudaMemcpyHostToDevice));
 	bench->pro.copy_time += get_time_elapsed(start,false);
 	logt("copy in data", start);
 
+	/* 2. filtering */
 	if(bench->config->phased_lookup){
 		// do the partition
 		cuda_partition<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
@@ -844,7 +661,8 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 		bench->pro.filter_time += get_time_elapsed(start,false);
-		logt("partition data %d still need lookup", start,h_bench.global_stack_index[0]);
+		logt("partition data %d still need lookup", start,h_bench.filter_list_index);
+		bench->filter_list_index = h_bench.filter_list_index;
 	}else{
 		cuda_pack_lookup<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
 		check_execution();
@@ -852,12 +670,10 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	}
 
-	// do the tree lookup
-	uint batch_size = bench->global_stack_capacity/PER_STACK_SIZE/2;
-	for(int i=0;i<h_bench.global_stack_index[0];i+=batch_size){
-		int bs = min(batch_size,h_bench.global_stack_index[0]-i);
-		cuda_reset_stack<<<bs/1024+1,1024>>>(d_bench, bs);
-		cuda_lookup_block<<<bs/1024+1,1024>>>(d_bench, i, bs, !bench->config->phased_lookup);
+	uint batch_size = bench->tmp_space_capacity/(PER_STACK_SIZE*2+1);
+	for(int i=0;i<h_bench.filter_list_index;i+=batch_size){
+		int bs = min(batch_size,h_bench.filter_list_index-i);
+		cuda_filtering<<<bs/1024+1,1024>>>(d_bench, i, bs, !bench->config->phased_lookup);
 		check_execution();
 		cudaDeviceSynchronize();
 	}
@@ -865,7 +681,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	bench->pro.filter_time += get_time_elapsed(start,false);
 	logt("filtering with %d checkings", start,h_bench.grid_check_counter);
 
-	// do the unrollment
+	/* 3. refinement step */
 	if(bench->config->unroll){
 		cuda_unroll<<<h_bench.grid_check_counter/1024+1,1024>>>(d_bench,h_bench.grid_check_counter);
 		check_execution();
@@ -875,10 +691,6 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		logt("%d pid-grid-offset tuples need be checked", start,h_bench.grid_check_counter);
 	}
 	bench->grid_check_counter = h_bench.grid_check_counter;
-
-
-	// compute the reachability of objects in each partitions
-
 	uint thread_y = bench->config->unroll?bench->config->zone_capacity:bench->grid_capacity;
 	uint thread_x = 1024/thread_y;
 	dim3 block(thread_x, thread_y);
@@ -887,71 +699,57 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 	bench->pro.refine_time += get_time_elapsed(start,false);
-	logt("reaches computation %d", start,h_bench.meeting_counter);
+	logt("refinement step", start);
 
-	// update the meeting hash table
-	uint origin_num_meeting = h_bench.meeting_counter;
-
-	if(bench->config->use_hash){
-		size_t kHashTableCapacity = bench->config->num_meeting_buckets*bench->config->bucket_size;
-		cuda_identify_meetings_hash<<<kHashTableCapacity/1024+1,1024>>>(d_bench);
-	}else if(bench->config->brute_meeting){
-		cuda_identify_meetings<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
-	}else{
-		cuda_sort_meetings<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
+	/* 4. identify the completed meetings */
+	if(bench->config->profile){
+		cuda_profile_meetings<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
 		check_execution();
 		cudaDeviceSynchronize();
-		bench->pro.meeting_update_time += get_time_elapsed(start,false);
-		logt("sort buckets", start);
-		cuda_identify_meetings_sort<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
+		logt("profile meetings",start);
 	}
+	cuda_identify_meetings<<<bench->config->num_meeting_buckets/1024+1,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-	bench->pro.meeting_update_time += get_time_elapsed(start,false);
-	logt("meeting buckets update %d new meetings found", start, h_bench.meeting_counter-origin_num_meeting);
+	bench->pro.meeting_identify_time += get_time_elapsed(start,false);
+	bench->num_active_meetings = h_bench.num_active_meetings;
+	bench->num_taken_buckets = h_bench.num_taken_buckets;
 
-
+	logt("meeting identify: %d taken %d active %d new meetings found", start, h_bench.num_taken_buckets, h_bench.num_active_meetings, h_bench.meeting_counter);
 
 	// todo do the data analyzes, for test only, should not copy out so much stuff
-	do{
-		if(bench->config->analyze_grid||bench->config->analyze_reach||bench->config->profile){
-			CUDA_SAFE_CALL(cudaMemcpy(bench->grid_counter, h_bench.grid_counter,
-					bench->grids_stack_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
-			logt("copy out grid counting data", start);
-		}
-		if(bench->config->analyze_reach){
-			CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench.grids,
-								bench->grids_stack_capacity*bench->grid_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
-			CUDA_SAFE_CALL(cudaMemcpy(bench->schema, h_bench.schema,
-					bench->schema_stack_capacity*sizeof(QTSchema), cudaMemcpyDeviceToHost));
-			CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets[bench->current_bucket], h_bench.meeting_buckets[bench->current_bucket],
-								bench->config->num_meeting_buckets*bench->config->bucket_size*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
-			bench->schema_stack_index = h_bench.schema_stack_index;
-			bench->grids_stack_index = h_bench.grids_stack_index;
-			logt("copy out grid, schema, meeting buckets data", start);
-		}
-		if(bench->config->analyze_meeting||bench->config->analyze_reach||bench->config->profile){
-			CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets_counter[bench->current_bucket], h_bench.meeting_buckets_counter[bench->current_bucket],
-					bench->config->num_meeting_buckets*sizeof(uint), cudaMemcpyDeviceToHost));
-			logt("copy out meeting buckets counting data", start);
-		}
-	}while(false);
+	if(bench->config->analyze_grid||bench->config->analyze_reach||bench->config->profile){
+		CUDA_SAFE_CALL(cudaMemcpy(bench->grid_counter, h_bench.grid_counter,
+				bench->grids_stack_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
+		logt("copy out grid counting data", start);
+	}
+	if(bench->config->analyze_reach){
+		CUDA_SAFE_CALL(cudaMemcpy(bench->grids, h_bench.grids,
+							bench->grids_stack_capacity*bench->grid_capacity*sizeof(uint), cudaMemcpyDeviceToHost));
+		CUDA_SAFE_CALL(cudaMemcpy(bench->schema, h_bench.schema,
+							bench->schema_stack_capacity*sizeof(QTSchema), cudaMemcpyDeviceToHost));
+		CUDA_SAFE_CALL(cudaMemcpy(bench->meeting_buckets, h_bench.meeting_buckets,
+							bench->config->num_meeting_buckets*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
+		bench->schema_stack_index = h_bench.schema_stack_index;
+		bench->grids_stack_index = h_bench.grids_stack_index;
+		logt("copy out grid, schema, meeting buckets data", start);
+	}
 
-	// do the schema update
+	/* 5. update the index */
 	if(bench->config->dynamic_schema){
 		// update the schema for future processing
 		cuda_update_schema_collect<<<bench->schema_stack_capacity/1024+1,1024>>>(d_bench);
 		check_execution();
 		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-		if(h_bench.global_stack_index[0]>0){
-			cuda_update_schema_split<<<h_bench.global_stack_index[0]/1024+1,1024>>>(d_bench, h_bench.global_stack_index[0]);
+		if(h_bench.split_list_index>0){
+			cuda_update_schema_split<<<h_bench.split_list_index/1024+1,1024>>>(d_bench, h_bench.split_list_index);
 			check_execution();
 			cudaDeviceSynchronize();
 		}
-		if(h_bench.global_stack_index[1]>0){
-			cuda_update_schema_merge<<<h_bench.global_stack_index[1]/1024+1,1024>>>(d_bench, h_bench.global_stack_index[1]);
+		if(h_bench.merge_list_index>0){
+			cuda_update_schema_merge<<<h_bench.merge_list_index/1024+1,1024>>>(d_bench, h_bench.merge_list_index);
 			check_execution();
 			cudaDeviceSynchronize();
 		}
@@ -960,9 +758,10 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		logt("schema update %d grids", start, h_bench.grids_stack_index);
 	}
 
+
+	/* 6. post-process, copy out data*/
 	if(h_bench.meeting_counter>0){
 		bench->meeting_counter = h_bench.meeting_counter;
-
 		CUDA_SAFE_CALL(cudaMemcpy(bench->meetings, h_bench.meetings, min(bench->meeting_capacity, h_bench.meeting_counter)*sizeof(meeting_unit), cudaMemcpyDeviceToHost));
 		bench->pro.copy_time += get_time_elapsed(start,false);
 		logt("copy out %d meeting data", start,h_bench.meeting_counter);

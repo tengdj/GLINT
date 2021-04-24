@@ -43,6 +43,20 @@ inline double degree_per_meter_longitude(double latitude){
 	return 360.0/(sin((90-absla)*PI/180)*40076.0*1000.0);
 }
 
+
+inline size_t cantorPairing(uint pid1, uint pid2){
+	return (size_t)(pid1+pid2)*(pid1+pid2+1)/2+pid2;
+}
+
+inline pair<uint, uint> InverseCantorPairing1(size_t z){
+	size_t w = floor((sqrt(8.0 * z + 1) - 1)/2);
+	size_t t = (w*w + w) / 2;
+	uint y = (uint)(z - t);
+	uint x = (uint)(w - y);
+	return pair<uint,uint>(x,y);
+}
+
+
 inline int double_to_int(double val){
 	int vi = (int)val;
 	if(fabs(1.0*(vi+1)-val)<0.00000001){

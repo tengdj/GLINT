@@ -33,43 +33,27 @@ void *reachability_unit(void *arg){
 					if(p1->distance(p2, true)<=ctx->config->reach_distance){
 						uint pid1 = min(pid,cur_pids[i]);
 						uint pid2 = max(cur_pids[i],pid);
-						size_t key = (pid1+pid2)*(pid1+pid2+1)/2+pid2;
-						meeting_unit *mtable = bench->meeting_buckets[bench->current_bucket];
-
-						if(bench->config->use_hash){
-							size_t kHashTableCapacity = ((size_t)bench->config->bucket_size*bench->config->num_meeting_buckets);
-							size_t slot = key%kHashTableCapacity;
-							//printf("%ld %ld %ld\n",slot,key,kHashTableCapacity);
-							while (true){
-								if(mtable[slot].key==ULL_MAX){
-									bool inserted = false;
-									bench->lock(slot);
-									inserted = (mtable[slot].key==ULL_MAX);
-									bench->unlock(slot);
-									if(inserted){
-										mtable[slot].key = key;
-										mtable[slot].pid1 = pid1;
-										mtable[slot].pid2 = pid2;
-										mtable[slot].start = bench->cur_time;
-										break;
-									}
+						size_t key = cantorPairing(pid1,pid2);
+						size_t slot = key%bench->config->num_meeting_buckets;
+						//printf("%ld %ld %ld\n",slot,key,kHashTableCapacity);
+						while (true){
+							if(bench->meeting_buckets[slot].key==key){
+								bench->meeting_buckets[slot].end = bench->cur_time;
+								break;
+							}else if(bench->meeting_buckets[slot].key==ULL_MAX){
+								bench->lock(slot);
+								bool inserted = (bench->meeting_buckets[slot].key==ULL_MAX);
+								bench->unlock(slot);
+								if(inserted){
+									bench->meeting_buckets[slot].key = key;
+									bench->meeting_buckets[slot].start = bench->cur_time;
+									bench->meeting_buckets[slot].end = bench->cur_time;
+									break;
 								}
-								slot = (slot + 1)%kHashTableCapacity;
 							}
-						}else{
-							uint bid = (pid+cur_pids[i])%bench->config->num_meeting_buckets;
-							meeting_unit *bucket = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
-							bench->lock(bid);
-							int loc = bench->meeting_buckets_counter[bench->current_bucket][bid]++;
-							bench->unlock(bid);
+							slot = (slot + 1)%bench->config->num_meeting_buckets;
+						}
 
-							// todo handling overflow
-							if(loc<bench->config->bucket_size){
-								bucket[loc].pid1 = min(pid,cur_pids[i]);
-								bucket[loc].pid2 = max(cur_pids[i],pid);
-								bucket[loc].start = bench->cur_time;
-							}
-						}// use hash
 					}//distance
 				}//
 			}// grid size
