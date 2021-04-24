@@ -51,7 +51,7 @@ void workbench::analyze_grids(){
 	pro.grid_count += grids_stack_index;
 	pro.grid_overflow += overflow;
 	log("%d/%d overflow %d max",overflow,grids_stack_index,max_one);
-	printf("%f\n",100.0*overflow/grids_stack_index);
+	//printf("%f\n",100.0*overflow/grids_stack_index);
 
 }
 

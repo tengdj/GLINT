@@ -410,47 +410,6 @@ void cuda_refinement(workbench *bench){
 	}
 }
 
-
-//__global__
-//void cuda_identify_meetings_hash(workbench *bench){
-//
-//	int bid = blockIdx.x*blockDim.x+threadIdx.x;
-//	if(bid>=bench->config->num_meeting_buckets*){
-//		return;
-//	}
-//
-//	meeting_unit *bucket_new = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
-//	meeting_unit *bucket_old = bench->meeting_buckets[!bench->current_bucket]+bid*bench->config->bucket_size;
-//
-//	for(uint i=0;i<bench->config->bucket_size;i++){
-//		// an entry in the bucket
-//		if(bucket_old[i].key != ULL_MAX){
-//			bool exist = false;
-//			for(uint j=0;j<6;j++){
-//				// not exist in new
-//				if(bucket_new[i+j].key == ULL_MAX){
-//					break;
-//				}else if(bucket_old[i+j].pid1==bucket_new[i+j].pid1&&
-//						 bucket_old[i+j].pid2==bucket_new[i+j].pid2){
-//					bucket_new[i].start = bucket_old[i].start;
-//					exist = true;
-//					break;
-//				}
-//			}
-//			// the old meeting is over and long enough
-//			if(!exist && bench->cur_time - bucket_old[i].start>=bench->config->min_meet_time){
-//				uint meeting_idx = atomicAdd(&bench->meeting_counter,1);
-//				if(meeting_idx<bench->meeting_capacity){
-//					bench->meetings[meeting_idx] = bucket_old[i];
-//				}
-//			}
-//			// clear the old table
-//			bucket_old[i].key = ULL_MAX;
-//		}
-//	}
-//}
-
-
 __global__
 void cuda_identify_meetings_hash(workbench *bench){
 
@@ -470,6 +429,7 @@ void cuda_identify_meetings_hash(workbench *bench){
 	while (ite++<6){
 		if (new_tab[slot].key == meet->key){
 			new_tab[slot].start = meet->start;
+			atomicAdd(&bench->meeting_counter,1);
 			return;
 		}
 		if (new_tab[slot].key == ULL_MAX){
@@ -478,10 +438,10 @@ void cuda_identify_meetings_hash(workbench *bench){
 		slot = (slot + 1)%kHashTableCapacity;
 	}
 	if(bench->cur_time - meet->start>=bench->config->min_meet_time){
-		uint meeting_idx = atomicAdd(&bench->meeting_counter,1);
-		if(meeting_idx<bench->meeting_capacity){
-			bench->meetings[meeting_idx] = *meet;
-		}
+//		uint meeting_idx = atomicAdd(&bench->meeting_counter,1);
+//		if(meeting_idx<bench->meeting_capacity){
+//			bench->meetings[meeting_idx] = *meet;
+//		}
 	}
 }
 
