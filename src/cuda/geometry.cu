@@ -559,9 +559,10 @@ void cuda_identify_meetings_sort(workbench *bench){
 				bucket_new[i].start = bucket_old[i].start;
 				updated = true;
 				break;
-			}else if(bucket_old[i].pid1>bucket_new[j].pid1){
-				break;
 			}
+//			else if(bucket_old[i].pid1>bucket_new[j].pid1){
+//				break;
+//			}
 		}
 		// the old meeting is over
 		if(!updated&&
