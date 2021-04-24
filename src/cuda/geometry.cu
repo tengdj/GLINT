@@ -336,8 +336,6 @@ void cuda_clean_buckets(workbench *bench){
 	}
 }
 
-#define use_hash true
-
 __global__
 void cuda_refinement(workbench *bench){
 
@@ -370,7 +368,7 @@ void cuda_refinement(workbench *bench){
 
 			meeting_unit *mtable = bench->meeting_buckets[bench->current_bucket];
 
-			if(use_hash){
+			if(bench->config->use_hash){
 				size_t kHashTableCapacity = ((size_t)bench->config->bucket_size*bench->config->num_meeting_buckets);
 				size_t slot = key%kHashTableCapacity;
 				int ited = 0;
@@ -944,7 +942,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	// update the meeting hash table
 	uint origin_num_meeting = h_bench.meeting_counter;
 
-	if(use_hash){
+	if(bench->config->use_hash){
 		size_t kHashTableCapacity = bench->config->num_meeting_buckets*bench->config->bucket_size;
 		cuda_identify_meetings_hash<<<kHashTableCapacity/1024+1,1024>>>(d_bench);
 	}else if(bench->config->brute_meeting){

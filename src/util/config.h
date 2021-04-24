@@ -44,6 +44,7 @@ public:
 	bool analyze_meeting = false;
 	bool profile = false;
 	bool brute_meeting = false;
+	bool use_hash = false;
 
 	void print(){
 		printf("configuration:\n");
@@ -87,6 +88,7 @@ inline configuration get_parameters(int argc, char **argv){
 		("phased_filter", "enable phased filter")
 		("unroll,u", "unroll the refinement")
 		("brute_meeting","update meeting brute-forcely")
+		("use_hash","update meeting with hash table")
 
 		("analyze_reach", "analyze the reaches statistics")
 		("analyze_meeting", "analyze the meeting bucket statistics")
@@ -157,6 +159,9 @@ inline configuration get_parameters(int argc, char **argv){
 
 	if(!vm.count("bucket_size")){
 		config.bucket_size = 5.0*config.num_objects/config.num_meeting_buckets;
+	}
+	if(vm.count("use_hash")){
+		config.use_hash = true;
 	}
 
 	config.print();
