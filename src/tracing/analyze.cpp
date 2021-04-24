@@ -142,8 +142,19 @@ void workbench::analyze_reaches(){
 
 void workbench::analyze_meeting_buckets(){
 
-	uint *bucket_count = new uint[config->bucket_size];
-	memset(bucket_count,0,config->bucket_size*sizeof(uint));
+	int maxone = 0;
+	uint maxsize = 0;
+	for(uint i=0;i<config->num_meeting_buckets;i++){
+		if(meeting_buckets_counter[current_bucket][i]>maxsize){
+			maxone = i;
+			maxsize = meeting_buckets_counter[current_bucket][i];
+		}
+//		if(meeting_buckets_counter[current_bucket][i]>0){
+//			printf("%d %d\n",i,meeting_buckets_counter[current_bucket][i]);
+//		}
+	}
+	uint *bucket_count = new uint[maxsize];
+	memset(bucket_count,0,maxsize*sizeof(uint));
 
 	uint min_bucket = 0;
 	uint max_bucket = 0;
@@ -159,9 +170,9 @@ void workbench::analyze_meeting_buckets(){
 		if(meeting_buckets_counter[current_bucket][max_bucket]<meeting_buckets_counter[current_bucket][i]){
 			max_bucket = i;
 		}
-		if(meeting_buckets_counter[current_bucket][i]<config->bucket_size){
-			bucket_count[meeting_buckets_counter[current_bucket][i]]++;
-		}else{
+		bucket_count[meeting_buckets_counter[current_bucket][i]]++;
+
+		if(meeting_buckets_counter[current_bucket][i]>=config->bucket_size){
 			overflow++;
 			overflow_count += meeting_buckets_counter[current_bucket][i];
 		}
@@ -173,9 +184,9 @@ void workbench::analyze_meeting_buckets(){
 			config->bucket_size);
 	double cum_portion = 0;
 	uint vbuck = 0;
-	for(int i=0;i<config->bucket_size;i++){
+	for(int i=0;i<maxsize;i++){
 		cum_portion += 1.0*bucket_count[i]*i/total;
-		if(config->analyze_meeting){
+		if(config->analyze_meeting&&bucket_count[i]>0){
 			printf("%d\t%d\t%.4f\n",i,bucket_count[i],cum_portion);
 		}
 		if(cum_portion>OVERFLOW_THRESHOLD&&vbuck==0){

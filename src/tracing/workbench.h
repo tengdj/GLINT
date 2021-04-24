@@ -40,6 +40,7 @@ typedef struct checking_unit{
 }checking_unit;
 
 typedef struct meeting_unit{
+	size_t key;
 	uint pid1;
 	uint pid2;
 	unsigned short start;

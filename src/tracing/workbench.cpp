@@ -163,7 +163,7 @@ void workbench::print_profile(){
 //			pro.meeting_update_time/pro.rounds,overall/pro.rounds,2.0*(pro.num_pairs/pro.rounds)/config->num_objects);
 
 	// minimum duration
-	printf("%.2f\t%.2f\t%ld\n",pro.copy_time/pro.rounds,pro.meeting_update_time/pro.rounds,pro.num_meetings/pro.rounds);
+	//printf("%.2f\t%.2f\t%ld\n",pro.copy_time/pro.rounds,pro.meeting_update_time/pro.rounds,pro.num_meetings/pro.rounds);
 
 }
 

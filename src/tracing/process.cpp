@@ -189,7 +189,7 @@ void tracer::process(){
 	struct timeval start = get_cur_time();
 
 	for(int st=config->start_time;st<config->start_time+config->duration;st+=100){
-		int cur_duration = ((config->start_time+config->duration-st),(uint)100);
+		int cur_duration = min((config->start_time+config->duration-st),(uint)100);
 		this->loadData(config->trace_path.c_str(),st,cur_duration);
 		if(!bench){
 			bench = part->build_schema(trace, config->num_objects);

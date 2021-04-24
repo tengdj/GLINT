@@ -57,5 +57,8 @@ combiner:	tools/combiner.o $(GEOMETRY_OBJS) $(TRACING_OBJS)
 cudatest:	tools/cudatest.o cuda/test_cu.o
 	$(CXX) -o ../build/$@ $^ $(LIBS) $(CUDALIBS)
 	
+hashtest:	tools/hashtest.o cuda/hash_cu.o
+	$(CXX) -o ../build/$@ $^ $(LIBS) $(CUDALIBS)
+	
 clean:
 	rm -fr ../build/* $(OBJS) $(CU_OBJS)
