@@ -318,9 +318,6 @@ uint mhash32(uint k)
     return k;
 }
 
-#define ULL_MAX (size_t)1<<62
-
-
 __global__
 void cuda_clean_buckets(workbench *bench){
 	int bid = blockIdx.x*blockDim.x+threadIdx.x;
@@ -526,12 +523,6 @@ void cuda_sort_meetings(workbench *bench){
 			assert(stack_index<stack_size);
 		}
 	}
-//	if(bid==0){
-//		for(int i=0;i<size;i++){
-//			printf("%d ",bucket[i].pid1);
-//		}
-//		printf("\n");
-//	}
 }
 
 /*
@@ -548,15 +539,15 @@ void cuda_identify_meetings_sort(workbench *bench){
 	meeting_unit *bucket_new = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
 	meeting_unit *bucket_old = bench->meeting_buckets[!bench->current_bucket]+bid*bench->config->bucket_size;
 
-	uint size_new = bench->meeting_buckets_counter[bench->current_bucket][bid];
-	uint size_old = bench->meeting_buckets_counter[!bench->current_bucket][bid];
+	uint size_new = min(bench->config->bucket_size, bench->meeting_buckets_counter[bench->current_bucket][bid]);
+	uint size_old = min(bench->config->bucket_size, bench->meeting_buckets_counter[!bench->current_bucket][bid]);
 
 	uint i=0,j=0;
-	for(;i<size_old&&i<bench->config->bucket_size;i++){
+	for(;i<size_old;i++){
 		bool updated = false;
-		for(;j<size_new&&j<bench->config->bucket_size;j++){
-			if(bucket_old[j].pid1==bucket_new[i].pid1){
-				bucket_new[i].start = bucket_old[i].start;
+		for(;j<size_new;j++){
+			if(bucket_old[i].pid1==bucket_new[j].pid1){
+				bucket_new[j].start = bucket_old[i].start;
 				updated = true;
 				break;
 			}else if(bucket_old[i].pid1<bucket_new[j].pid1){
@@ -590,15 +581,14 @@ void cuda_identify_meetings(workbench *bench){
 	meeting_unit *bucket_new = bench->meeting_buckets[bench->current_bucket]+bid*bench->config->bucket_size;
 	meeting_unit *bucket_old = bench->meeting_buckets[!bench->current_bucket]+bid*bench->config->bucket_size;
 
-	uint size_new = bench->meeting_buckets_counter[bench->current_bucket][bid];
-	uint size_old = bench->meeting_buckets_counter[!bench->current_bucket][bid];
+	uint size_new = min(bench->config->bucket_size, bench->meeting_buckets_counter[bench->current_bucket][bid]);
+	uint size_old = min(bench->config->bucket_size, bench->meeting_buckets_counter[!bench->current_bucket][bid]);
 
-	for(uint i=0;i<size_old&&i<bench->config->bucket_size;i++){
+	for(uint i=0;i<size_old;i++){
 		bool updated = false;
-		for(uint j=0;j<size_new&&j<bench->config->bucket_size;j++){
-			if(bucket_new[i].pid1==bucket_old[j].pid1&&
-			   bucket_new[i].pid2==bucket_old[j].pid2){
-				bucket_new[i].start = bucket_old[i].start;
+		for(uint j=0;j<size_new;j++){
+			if(bucket_old[i].pid1==bucket_new[j].pid1){
+				bucket_new[j].start = bucket_old[i].start;
 				updated = true;
 				break;
 			}

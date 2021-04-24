@@ -29,7 +29,7 @@ namespace{
 #define TENG_RANDOM_NUMBER 0315
 #define OSM_SRID 4326
 #define PI 3.14159265
-
+#define ULL_MAX (unsigned long long)1<<62
 // some utility function
 
 const double degree_per_meter_latitude = 360.0/(40076.0*1000.0);

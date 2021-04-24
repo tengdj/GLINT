@@ -218,7 +218,7 @@ void tracer::process(){
 				process_with_gpu(bench,d_bench,gpu);
 	#endif
 			}
-			if(bench->meeting_counter>0&&t==config->duration-1){
+			if(bench->config->analyze_meeting&&bench->meeting_counter>0&&t==config->duration-1){
 				int luck = get_rand_number(min(bench->meeting_counter, bench->meeting_capacity));
 				print_trace(bench->meetings[luck].pid1);
 				print_trace(bench->meetings[luck].pid2);

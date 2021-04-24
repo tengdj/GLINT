@@ -121,6 +121,14 @@ void workbench::claim_space(){
 	global_stack[0] = (uint *)allocate(size);
 	global_stack[1] = (uint *)allocate(size);
 	log("\t%.2f MB\tstack space",2*size/1024.0/1024.0);
+
+	if(config->use_hash){
+#pragma omp parallel for
+		for(size_t i=0;i<(size_t)config->bucket_size*config->num_meeting_buckets;i++){
+			meeting_buckets[0][i].key = ULL_MAX;
+			meeting_buckets[1][i].key = ULL_MAX;
+		}
+	}
 }
 
 
