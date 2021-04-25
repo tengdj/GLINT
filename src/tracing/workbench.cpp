@@ -146,24 +146,24 @@ void workbench::print_profile(){
 		fprintf(stderr,"\toverflow:\t%.4f\n",100.0*pro.grid_overflow/pro.grid_count);
 	}
 
-	printf("grid_buffer\tschema\tfilter_list\trefine_list\tmeeting_table\tstack_size\t");
-	printf("copy\tfiltering\trefinement\tidentify\tupdate_index\t");
-	printf("num pairs\tnum meetings\toverflow\n");
+	printf("grid_buffer,schema,filter_list,refine_list,meeting_table,stack_size,");
+	printf("copy,filtering,refinement,identify,update_index,");
+	printf("num pairs,num meetings,overflow\n");
 
-	printf("%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t",pro.max_grid_num*pro.max_grid_size*sizeof(uint)/1024/1024
+	printf("%ld,%ld,%ld,%ld,%ld,%ld,",pro.max_grid_num*pro.max_grid_size*sizeof(uint)/1024/1024
 													   ,pro.max_schema_num*sizeof(QTSchema)/1024/1024
 													   ,pro.max_filter_size*2*sizeof(uint)/1024/1024
 													   ,pro.max_refine_size*sizeof(checking_unit)/1024/1024
 													   ,pro.max_bucket_num*sizeof(meeting_unit)/1024/1024
 													   ,tmp_space_capacity*sizeof(meeting_unit)/1024/1024);
 
-	printf("%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t",pro.copy_time/pro.rounds
+	printf("%.2f,%.2f,%.2f,%.2f,%.2f,",pro.copy_time/pro.rounds
 										   ,pro.filter_time/pro.rounds
 										   ,pro.refine_time/pro.rounds
 										   ,pro.meeting_identify_time/pro.rounds
 										   ,pro.index_update_time/pro.rounds);
 
-	printf("%.2f\t%ld\t%.4f\n",2.0*(pro.num_pairs/pro.rounds)/config->num_objects
+	printf("%.2f,%ld,%.4f\n",2.0*(pro.num_pairs/pro.rounds)/config->num_objects
 							  ,pro.num_meetings/pro.rounds
 							  ,100.0*pro.grid_overflow/pro.grid_count);
 
