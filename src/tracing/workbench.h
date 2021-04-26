@@ -28,8 +28,10 @@ typedef struct profiler{
 	uint max_schema_num = 0;
 	size_t max_bucket_num = 0;
 
-	uint grid_overflow = 0;
 	uint grid_count = 0;
+	uint grid_overflow = 0;
+	vector<double> grid_overflow_list;
+	vector<double> grid_deviation_list;
 	size_t num_pairs = 0;
 	size_t num_meetings = 0;
 }profiler;

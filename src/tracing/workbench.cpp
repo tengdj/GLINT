@@ -119,6 +119,7 @@ void workbench::claim_space(){
 
 
 void workbench::print_profile(){
+
 	fprintf(stderr,"memory space:\n");
 	fprintf(stderr,"\tgrid buffer:\t%ld MB\n",pro.max_grid_num*pro.max_grid_size*sizeof(uint)/1024/1024);
 	fprintf(stderr,"\tschema list:\t%ld MB\n",pro.max_schema_num*sizeof(QTSchema)/1024/1024);
@@ -168,7 +169,15 @@ void workbench::print_profile(){
 							  ,100.0*pro.grid_overflow/pro.grid_count);
 
 
+	printf("overflow rate:\n");
+	for(double o:pro.grid_overflow_list){
+		printf("%f\n", o);
+	}
 
+	printf("deviation:\n");
+	for(double o:pro.grid_deviation_list){
+		printf("%f\n", o);
+	}
 
 	// bucket number
 	//printf("%ld\t%.2f\t%.4f\n",2*pro.max_bucket_size*config->num_meeting_buckets*sizeof(meeting_unit)/1024/1024,pro.meeting_update_time/pro.rounds,pro.meet_coefficient/pro.rounds);

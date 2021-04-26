@@ -20,10 +20,14 @@ void workbench::analyze_grids(){
 		gridc[i] = 0;
 	}
 
+	double mean = config->num_objects/this->grids_stack_index;
+	double dev = 0.0;
+
 	for(int i=0;i<schema_stack_capacity;i++){
 		if(schema[i].type==LEAF){
 			uint gid = schema[i].grid_id;
 			uint gsize = grid_counter[gid];
+			dev = (gsize-mean)*(gsize-mean);
 			// todo increase the actual capacity
 			if(gsize>grid_capacity){
 				overflow++;
@@ -52,8 +56,10 @@ void workbench::analyze_grids(){
 	}
 	pro.grid_count += grids_stack_index;
 	pro.grid_overflow += overflow;
+	pro.grid_overflow_list.push_back(100.0*overflow/grids_stack_index);
+	pro.grid_deviation_list.push_back(sqrt(dev/grids_stack_index));
 	log("%d/%d overflow %d max",overflow,grids_stack_index,max_one);
-	//printf("%f\n",100.0*overflow/grids_stack_index);
+	printf("%f,%f\n",100.0*overflow/grids_stack_index,sqrt(dev/grids_stack_index));
 
 }
 
