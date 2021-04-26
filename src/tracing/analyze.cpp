@@ -29,7 +29,7 @@ void workbench::analyze_grids(){
 			uint gsize = grid_counter[gid];
 			dev += (gsize-mean)*(gsize-mean);
 			// todo increase the actual capacity
-			if(gsize>grid_capacity){
+			if(gsize>config->grid_capacity){
 				overflow++;
 			}
 			gridc[gsize>=grid_capacity?(grid_capacity-1):gsize]++;
@@ -45,12 +45,14 @@ void workbench::analyze_grids(){
 	pro.max_grid_num = max(pro.max_grid_num, total);
 
 	double cum = 0;
+	int capacity = 0;
 	for(int i=0;i<grid_capacity;i++){
 		cum += 1.0*gridc[i]/total;
 		if(cum>OVERFLOW_THRESHOLD){
 			if(pro.max_grid_size<i){
 				pro.max_grid_size = i;
 			}
+			capacity = i;
 			break;
 		}
 	}
@@ -58,6 +60,7 @@ void workbench::analyze_grids(){
 	pro.grid_overflow += overflow;
 	pro.grid_overflow_list.push_back(100.0*overflow/grids_stack_index);
 	pro.grid_deviation_list.push_back(sqrt(dev/grids_stack_index));
+	pro.grid_dev += sqrt(dev/grids_stack_index);
 	log("%d/%d overflow %d max",overflow,grids_stack_index,max_one);
 }
 
@@ -143,4 +146,91 @@ void workbench::analyze_reaches(){
 	valid_points.clear();
 	delete []unit_count;
 }
+
+
+
+
+void workbench::print_profile(){
+
+	//
+	//
+	//	printf("overflow rate:\n");
+	//	for(double o:pro.grid_overflow_list){
+	//		printf("%f\n", o);
+	//	}
+	//
+	//	printf("deviation:\n");
+	//	for(double o:pro.grid_deviation_list){
+	//		printf("%f\n", o);
+	//	}
+
+	fprintf(stderr,"memory space:\n");
+	fprintf(stderr,"\tgrid buffer:\t%ld MB\n",pro.max_grid_num*pro.max_grid_size*sizeof(uint)/1024/1024);
+	fprintf(stderr,"\tschema list:\t%ld MB\n",pro.max_schema_num*sizeof(QTSchema)/1024/1024);
+
+	fprintf(stderr,"\tfilter list:\t%ld MB\n",pro.max_filter_size*2*sizeof(uint)/1024/1024);
+	fprintf(stderr,"\trefine list:\t%ld MB\n",pro.max_refine_size*sizeof(checking_unit)/1024/1024);
+	fprintf(stderr,"\tmeeting table:\t%ld MB\n",pro.max_bucket_num*sizeof(meeting_unit)/1024/1024);
+	fprintf(stderr,"\tstack size:\t%ld MB\n",tmp_space_capacity*sizeof(meeting_unit)/1024/1024);
+
+	if(pro.rounds>0){
+		fprintf(stderr,"time cost:\n");
+		fprintf(stderr,"\tcopy data:\t%.2f\n",pro.copy_time/pro.rounds);
+		fprintf(stderr,"\tfiltering:\t%.2f\n",pro.filter_time/pro.rounds);
+		fprintf(stderr,"\trefinement:\t%.2f\n",pro.refine_time/pro.rounds);
+		fprintf(stderr,"\tupdate meets:\t%.2f\n",pro.meeting_identify_time/pro.rounds);
+		fprintf(stderr,"\tupdate index:\t%.2f\n",pro.index_update_time/pro.rounds);
+		fprintf(stderr,"\toverall:\t%.2f\n",(pro.copy_time+pro.filter_time+pro.refine_time+pro.meeting_identify_time+pro.index_update_time)/pro.rounds);
+
+
+		fprintf(stderr,"statistics:\n");
+		fprintf(stderr,"\tnum pairs:\t%.2f \n",2.0*(pro.num_pairs/pro.rounds)/config->num_objects);
+		fprintf(stderr,"\tnum meetings:\t%ld \n",pro.num_meetings/pro.rounds);
+		fprintf(stderr,"\tusage rate:\t%.2f%% (%ld/%ld)\n",100.0*(pro.max_bucket_num)/config->num_meeting_buckets,pro.max_bucket_num,config->num_meeting_buckets);
+		fprintf(stderr,"\t80 usage:\t%ld\n",(size_t)(pro.max_bucket_num/0.8));
+		fprintf(stderr,"\toverflow:\t%.4f\n",100.0*pro.grid_overflow/pro.grid_count);
+		fprintf(stderr,"\tmean:\t%.2f\n",(double)config->num_objects*pro.rounds/pro.grid_count);
+		fprintf(stderr,"\tdeviation:\t%.4f\n",pro.grid_dev/pro.grid_deviation_list.size());
+	}
+
+	printf("grid_buffer\tschema\tfilter_list\trefine_list\tmeeting_table\tstack_size\t");
+	printf("copy\tfiltering\trefinement\tidentify\tupdate_index\t");
+	printf("num_contacts\tnum_meetings\toverflow\tmean\tdeviation\n");
+
+	printf("%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t",pro.max_grid_num*pro.max_grid_size*sizeof(uint)/1024/1024
+													   ,pro.max_schema_num*sizeof(QTSchema)/1024/1024
+													   ,pro.max_filter_size*2*sizeof(uint)/1024/1024
+													   ,pro.max_refine_size*sizeof(checking_unit)/1024/1024
+													   ,pro.max_bucket_num*sizeof(meeting_unit)/1024/1024
+													   ,tmp_space_capacity*sizeof(meeting_unit)/1024/1024);
+
+	printf("%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t",pro.copy_time/pro.rounds
+										   ,pro.filter_time/pro.rounds
+										   ,pro.refine_time/pro.rounds
+										   ,pro.meeting_identify_time/pro.rounds
+										   ,pro.index_update_time/pro.rounds);
+
+	printf("%.2f\t%ld\t%.4f\t%.2f\t%.4f\n",2.0*(pro.num_pairs/pro.rounds)/config->num_objects
+							  ,pro.num_meetings/pro.rounds
+							  ,100.0*pro.grid_overflow/pro.grid_count
+							  ,(double)config->num_objects*pro.rounds/pro.grid_count
+							  ,pro.grid_dev/pro.grid_deviation_list.size());
+
+
+	// bucket number
+	//printf("%ld\t%.2f\t%.4f\n",2*pro.max_bucket_size*config->num_meeting_buckets*sizeof(meeting_unit)/1024/1024,pro.meeting_update_time/pro.rounds,pro.meet_coefficient/pro.rounds);
+
+	// grid size
+	//printf("%.2f\t%.2f\t%.2f\t%ld\t%.4f\n",pro.filter_time/pro.rounds,pro.refine_time/pro.rounds,pro.index_update_time/pro.rounds,pro.
+	//		max_filter_size*sizeof(checking_unit)/1024/1024,100.0*pro.grid_overflow/pro.grid_count);
+
+	// minimum distance
+//	printf("%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\n",pro.filter_time/pro.rounds,pro.refine_time/pro.rounds,pro.index_update_time/pro.rounds,
+//			pro.meeting_update_time/pro.rounds,overall/pro.rounds,2.0*(pro.num_pairs/pro.rounds)/config->num_objects);
+
+	// minimum duration
+	//printf("%.2f\t%.2f\t%ld\n",pro.copy_time/pro.rounds,pro.meeting_update_time/pro.rounds,pro.num_meetings/pro.rounds);
+
+}
+
 

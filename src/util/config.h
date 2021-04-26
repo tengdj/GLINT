@@ -137,6 +137,8 @@ inline configuration get_parameters(int argc, char **argv){
 	if(vm.count("disable_unroll")){
 		config.unroll = false;
 		config.zone_capacity = config.grid_capacity;
+	}else if(!vm.count("zone_capacity")){
+		config.zone_capacity = config.grid_capacity/2;
 	}
 
 	if(vm.count("disable_dynamic_schema")){

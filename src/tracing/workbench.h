@@ -30,6 +30,7 @@ typedef struct profiler{
 
 	uint grid_count = 0;
 	uint grid_overflow = 0;
+	double grid_dev = 0.0;
 	vector<double> grid_overflow_list;
 	vector<double> grid_deviation_list;
 	size_t num_pairs = 0;
