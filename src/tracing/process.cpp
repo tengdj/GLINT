@@ -131,6 +131,7 @@ void tracer::loadData(const char *path, int st, int duration) {
 	in.read((char *)&true_num_objects, sizeof(true_num_objects));
 	in.read((char *)&true_duration, sizeof(true_duration));
 	in.read((char *)&mbr, sizeof(mbr));
+	printf("%f %f\n",mbr.width(true),mbr.height(true));
 
 	assert((size_t)config->num_objects*(st+duration)<=(size_t)true_num_objects*true_duration);
 	//assert(config->num_objects<=true_num_objects);
