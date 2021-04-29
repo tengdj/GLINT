@@ -15,6 +15,7 @@
 
 typedef struct profiler{
 	double copy_time = 0;
+	double partition_time = 0;
 	double filter_time = 0;
 	double refine_time = 0;
 	double meeting_identify_time = 0;

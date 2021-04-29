@@ -360,6 +360,50 @@ void cuda_refinement(workbench *bench){
 	}
 }
 
+__global__
+void cuda_refinement_unroll(workbench *bench, uint offset){
+
+	// the objects in which grid need be processed
+	int loc = threadIdx.y;
+	int pairid = blockIdx.x*blockDim.x+threadIdx.x;
+	if(pairid>=bench->grid_check_counter){
+		return;
+	}
+
+	uint gid = bench->grid_check[pairid].gid;
+
+	uint size = min(bench->grid_counter[gid],bench->grid_capacity);
+	if(loc+offset>=size){
+		return;
+	}
+	uint pid = bench->grid_check[pairid].pid;
+	uint target_pid = *(bench->grids+bench->grid_capacity*gid+offset+loc);
+	if(!bench->grid_check[pairid].inside||pid<target_pid){
+		double dist = distance(bench->points[pid].x, bench->points[pid].y, bench->points[target_pid].x, bench->points[target_pid].y);
+		if(dist<=bench->config->reach_distance){
+			uint pid1 = min(pid,target_pid);
+			uint pid2 = max(target_pid,pid);
+			size_t key = ((size_t)pid1+pid2)*(pid1+pid2+1)/2+pid2;
+			size_t slot = key%bench->config->num_meeting_buckets;
+			int ite = 0;
+			while (ite++<5){
+				unsigned long long prev = atomicCAS((unsigned long long *)&bench->meeting_buckets[slot].key, ULL_MAX, (unsigned long long)key);
+				//printf("%ld\n",prev,ULL_MAX,bench->meeting_buckets[bench->current_bucket][slot].key);
+				if(prev == key){
+					bench->meeting_buckets[slot].end = bench->cur_time;
+					break;
+				}else if (prev == ULL_MAX){
+					bench->meeting_buckets[slot].key = key;
+					bench->meeting_buckets[slot].start = bench->cur_time;
+					bench->meeting_buckets[slot].end = bench->cur_time;
+					break;
+				}
+				slot = (slot + 1)%bench->config->num_meeting_buckets;
+			}
+		}
+	}
+}
+
 /*
  * kernel function for identify completed meetings
  *
@@ -660,7 +704,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		check_execution();
 		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-		bench->pro.filter_time += get_time_elapsed(start,false);
+		bench->pro.partition_time += get_time_elapsed(start,false);
 		logt("partition data %d still need lookup", start,h_bench.filter_list_index);
 		bench->filter_list_index = h_bench.filter_list_index;
 	}else{
@@ -682,24 +726,44 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	logt("filtering with %d checkings", start,h_bench.grid_check_counter);
 
 	/* 3. refinement step */
-	if(bench->config->unroll){
-		cuda_unroll<<<h_bench.grid_check_counter/1024+1,1024>>>(d_bench,h_bench.grid_check_counter);
+	if(false){
+		for(uint offset=0;offset<bench->grid_capacity;offset+=bench->config->zone_capacity){
+			struct timeval ss = get_cur_time();
+			bench->grid_check_counter = h_bench.grid_check_counter;
+			uint thread_y = bench->config->zone_capacity;
+			uint thread_x = 1024/thread_y;
+			dim3 block(thread_x, thread_y);
+			cuda_refinement_unroll<<<h_bench.grid_check_counter/thread_x+1,block>>>(d_bench,offset);
+			check_execution();
+			cudaDeviceSynchronize();
+			logt("process %d",ss,offset);
+		}
+		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+		bench->pro.refine_time += get_time_elapsed(start,false);
+		logt("refinement step", start);
+	}else{
+		if(bench->config->unroll){
+			cuda_unroll<<<h_bench.grid_check_counter/1024+1,1024>>>(d_bench,h_bench.grid_check_counter);
+			check_execution();
+			cudaDeviceSynchronize();
+			CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+			bench->pro.refine_time += get_time_elapsed(start,false);
+			logt("%d pid-grid-offset tuples need be checked", start,h_bench.grid_check_counter);
+		}
+
+		bench->grid_check_counter = h_bench.grid_check_counter;
+		uint thread_y = bench->config->unroll?bench->config->zone_capacity:bench->grid_capacity;
+		uint thread_x = 1024/thread_y;
+		dim3 block(thread_x, thread_y);
+		cuda_refinement<<<h_bench.grid_check_counter/thread_x+1,block>>>(d_bench);
 		check_execution();
 		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 		bench->pro.refine_time += get_time_elapsed(start,false);
-		logt("%d pid-grid-offset tuples need be checked", start,h_bench.grid_check_counter);
+		logt("refinement step", start);
 	}
-	bench->grid_check_counter = h_bench.grid_check_counter;
-	uint thread_y = bench->config->unroll?bench->config->zone_capacity:bench->grid_capacity;
-	uint thread_x = 1024/thread_y;
-	dim3 block(thread_x, thread_y);
-	cuda_refinement<<<h_bench.grid_check_counter/thread_x+1,block>>>(d_bench);
-	check_execution();
-	cudaDeviceSynchronize();
-	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-	bench->pro.refine_time += get_time_elapsed(start,false);
-	logt("refinement step", start);
+
+
 
 	/* 4. identify the completed meetings */
 	if(bench->config->profile){

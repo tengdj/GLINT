@@ -177,11 +177,12 @@ void workbench::print_profile(){
 	if(pro.rounds>0){
 		fprintf(stderr,"time cost:\n");
 		fprintf(stderr,"\tcopy data:\t%.2f\n",pro.copy_time/pro.rounds);
+		fprintf(stderr,"\tpartition:\t%.2f\n",pro.partition_time/pro.rounds);
 		fprintf(stderr,"\tfiltering:\t%.2f\n",pro.filter_time/pro.rounds);
 		fprintf(stderr,"\trefinement:\t%.2f\n",pro.refine_time/pro.rounds);
 		fprintf(stderr,"\tupdate meets:\t%.2f\n",pro.meeting_identify_time/pro.rounds);
 		fprintf(stderr,"\tupdate index:\t%.2f\n",pro.index_update_time/pro.rounds);
-		fprintf(stderr,"\toverall:\t%.2f\n",(pro.copy_time+pro.filter_time+pro.refine_time+pro.meeting_identify_time+pro.index_update_time)/pro.rounds);
+		fprintf(stderr,"\toverall:\t%.2f\n",(pro.copy_time+pro.partition_time+pro.filter_time+pro.refine_time+pro.meeting_identify_time+pro.index_update_time)/pro.rounds);
 
 
 		fprintf(stderr,"statistics:\n");
@@ -195,7 +196,7 @@ void workbench::print_profile(){
 	}
 
 	printf("grid_buffer\tschema\tfilter_list\trefine_list\tmeeting_table\tstack_size\t");
-	printf("copy\tfiltering\trefinement\tidentify\tupdate_index\t");
+	printf("copy\tpartition\tfiltering\trefinement\tidentify\tupdate_index\t");
 	printf("num_contacts\tnum_meetings\toverflow\tmean\tdeviation\n");
 
 	printf("%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t",pro.max_grid_num*pro.max_grid_size*sizeof(uint)/1024/1024
@@ -205,7 +206,8 @@ void workbench::print_profile(){
 													   ,pro.max_bucket_num*sizeof(meeting_unit)/1024/1024
 													   ,tmp_space_capacity*sizeof(meeting_unit)/1024/1024);
 
-	printf("%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t",pro.copy_time/pro.rounds
+	printf("%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t",pro.copy_time/pro.rounds
+										   ,pro.partition_time/pro.rounds
 										   ,pro.filter_time/pro.rounds
 										   ,pro.refine_time/pro.rounds
 										   ,pro.meeting_identify_time/pro.rounds
