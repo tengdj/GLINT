@@ -602,7 +602,7 @@ void cuda_init_grids_stack(workbench *bench){
 	bench->grids_stack[curnode] = curnode;
 }
 
-#define one_dim 16
+#define one_dim 16384
 
 __global__
 void cuda_build_qtree(workbench *bench){
@@ -635,7 +635,7 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 	uint size = 0;
 	for(uint i=0;i<4;i++){
 		size += bench->part_counter[p[i]];
-		printf("%d:\t%d %d %d\n",pid,i,p[i],bench->part_counter[p[i]]);
+		//printf("%d:\t%d %d %d\n",pid,i,p[i],bench->part_counter[p[i]]);
 	}
 	// parent node
 	if(size>bench->config->grid_capacity){
