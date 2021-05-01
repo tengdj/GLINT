@@ -612,6 +612,7 @@ void cuda_build_qtree(workbench *bench){
 	}
 	uint x = (bench->points[pid].x-bench->mbr.low[0])/(bench->mbr.high[0]-bench->mbr.low[0])*one_dim;
 	uint y = (bench->points[pid].y-bench->mbr.low[1])/(bench->mbr.high[1]-bench->mbr.low[1])*one_dim;
+	printf("%d %d\n",x,y);
 	atomicAdd(&bench->part_counter[x+y*one_dim],1);
 }
 
