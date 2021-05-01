@@ -780,8 +780,9 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 //			CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 //			logt("merge qtree %d %d %d %d", newstart,i, h_bench.schema_stack_index, h_bench.grids_stack_index, h_bench.grid_check_counter);
 		}
+		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 		cudaDeviceSynchronize();
-		logt("build qtree", start);
+		logt("build qtree %d nodes %d partitions", start, h_bench.schema_stack_index, h_bench.grids_stack_index);
 		exit(0);
 	}
 
