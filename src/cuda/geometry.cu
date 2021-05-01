@@ -659,7 +659,7 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 __global__
 void cuda_reset_stack(workbench *bench){
 	bench->grids_stack_index = 0;
-	bench->schema_stack_index = 0;
+	bench->schema_stack_index = 1;
 }
 
 workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
