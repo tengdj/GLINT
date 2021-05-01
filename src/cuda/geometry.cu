@@ -619,10 +619,44 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 	if(pid>=bench->config->num_objects){
 		return;
 	}
-	pid *= 4;
-	bench->part_counter[pid] += bench->part_counter[pid+gap];
-	bench->part_counter[pid] += bench->part_counter[pid+gap*16384];
-	bench->part_counter[pid] += bench->part_counter[pid+gap*16384+gap];
+	uint xdim = 16384/gap;
+	uint x = pid%xdim;
+	uint y = pid/xdim;
+
+	uint step = gap/2;
+	uint p[4];
+	p[0] = y*gap*16384+x*gap;
+	p[1] = y*gap*16384+x*gap+step;
+	p[2] = y*gap*16384+step*16384+x*gap;
+	p[3] = y*gap*16384+step*16384+x*gap+step;
+
+	uint size = 0;
+	for(uint i=0;i<4;i++){
+		size += bench->part_counter[p[i]];
+	}
+	// parent node
+	if(size>bench->config->grid_capacity){
+		uint node = atomicAdd(bench->schema_stack_index,1);
+		for(uint i=0;i<4;i++){
+			uint cnode = 0;
+			if(bench->schema_assigned[p[i]]==0){
+				cnode = bench->schema_assigned[p[i]];
+			}else{
+				cnode = atomicAdd(bench->schema_stack_index,1);
+				bench->schema[cnode].grid_id = atomicAdd(bench->grids_stack_index,1);
+			}
+			bench->schema[node].children[i] = cnode;
+		}
+		bench->schema_assigned[p[0]] = node;
+	}
+	// for next upper level
+	bench->part_counter[p[0]] = size;
+}
+
+__global__
+void cuda_reset_stack(workbench *bench){
+	bench->grids_stack_index = 0;
+	bench->schema_stack_index = 0;
 }
 
 workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
@@ -676,6 +710,7 @@ workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
 	log("\t%.2f MB\tmeetings",1.0*size/1024/1024);
 
 	h_bench.part_counter = (uint *)gpu->allocate(16384*16384*sizeof(uint));
+	h_bench.schema_assigned = (uint *)gpu->allocate(16384*16384*sizeof(uint));
 
 
 
@@ -723,6 +758,8 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	logt("copy in data", start);
 
 
+
+	cuda_reset_stack<<<1>>>(d_bench);
 	cuda_build_qtree<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
@@ -735,6 +772,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	}
 
 	logt("build qtree", start);
+	exit(0);
 
 	/* 2. filtering */
 	if(bench->config->phased_lookup){

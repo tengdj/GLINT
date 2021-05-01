@@ -104,6 +104,7 @@ public:
 	uint schema_stack_index = 0;
 
 	uint *part_counter;
+	uint *schema_assigned;
 
 	// the space for point-unit pairs
 	checking_unit *grid_check = NULL;
