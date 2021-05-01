@@ -770,11 +770,12 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		cuda_merge_qtree<<<num/1024+1,1024>>>(d_bench,i);
 		check_execution();
 		cudaDeviceSynchronize();
-		logt("merge qtree %d", start,i,false);
+		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+		logt("merge qtree %d", start,i, h_bench.schema_stack_index, h_bench.grids_stack_index,false);
 	}
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 
-	logt("build qtree %d %d", start, h_bench.schema_stack_index, h_bench.grids_stack_index);
+	logt("build qtree", start);
 	exit(0);
 
 	/* 2. filtering */
