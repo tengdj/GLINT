@@ -12,6 +12,7 @@ workbench::workbench(workbench *bench):workbench(bench->config){
 	grids_stack_index = bench->grids_stack_index;
 	schema_stack_index = bench->schema_stack_index;
 	cur_time = bench->cur_time;
+	mbr = bench->mbr;
 }
 
 workbench::workbench(configuration *conf){
