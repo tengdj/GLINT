@@ -602,7 +602,7 @@ void cuda_init_grids_stack(workbench *bench){
 	bench->grids_stack[curnode] = curnode;
 }
 
-#define one_dim 16384
+#define one_dim 32768
 
 __global__
 void cuda_build_qtree(workbench *bench){
