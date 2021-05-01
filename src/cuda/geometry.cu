@@ -729,7 +729,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 
 	for(uint i=1;i<16384;i*=2){
 		uint num = 16384*16384/(i*i);
-		cuda_merge_qtree<<<bench->num/1024+1,1024>>>(d_bench,i);
+		cuda_merge_qtree<<<num/1024+1,1024>>>(d_bench,i);
 		check_execution();
 		cudaDeviceSynchronize();
 	}
