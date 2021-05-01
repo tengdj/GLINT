@@ -635,6 +635,9 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 	uint size = 0;
 	for(uint i=0;i<4;i++){
 		size += bench->part_counter[p[i]];
+		if(bench->part_counter[p[i]]>bench->config->grid_capacity){
+			atomicAdd(&bench->grid_check_counter,1);
+		}
 		if(pid==0){
 			printf("%d:\t%d %d %d\n",pid,i,p[i],bench->part_counter[p[i]]);
 		}
@@ -777,7 +780,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		check_execution();
 		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-		logt("merge qtree %d %d %d", newstart,i, h_bench.schema_stack_index, h_bench.grids_stack_index);
+		logt("merge qtree %d %d %d %d", newstart,i, h_bench.schema_stack_index, h_bench.grids_stack_index, h_bench.grid_check_counter);
 	}
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 
