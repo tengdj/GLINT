@@ -21,7 +21,7 @@ workbench::workbench(configuration *conf){
 	// setup the capacity of each container
 	grid_capacity = config->grid_amplify*config->grid_capacity;
 	// each grid contains averagely grid_capacity/2 objects, times 4 for enough space
-	grids_stack_capacity = 4*max((uint)1, config->num_objects/config->grid_capacity);
+	grids_stack_capacity = 4*max((uint)100000, config->num_objects/config->grid_capacity);
 
 	// the number of all QTree Nodes
 	schema_stack_capacity = 1.6*grids_stack_capacity;
