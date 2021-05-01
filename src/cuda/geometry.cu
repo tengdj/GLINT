@@ -618,10 +618,10 @@ void cuda_build_qtree(workbench *bench){
 __global__
 void cuda_merge_qtree(workbench *bench, uint gap){
 	uint pid = blockIdx.x*blockDim.x+threadIdx.x;
-	if(pid>=(one_dim*one_dim/gap/gap)){
+	uint xdim = one_dim/gap;
+	if(pid>=(xdim*xdim)){
 		return;
 	}
-	uint xdim = one_dim/gap;
 	uint x = pid%xdim;
 	uint y = pid/xdim;
 
@@ -635,7 +635,9 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 	uint size = 0;
 	for(uint i=0;i<4;i++){
 		size += bench->part_counter[p[i]];
-		//printf("%d:\t%d %d %d\n",pid,i,p[i],bench->part_counter[p[i]]);
+		if(pid==0){
+			printf("%d:\t%d %d %d\n",pid,i,p[i],bench->part_counter[p[i]]);
+		}
 	}
 	// parent node
 	if(size>bench->config->grid_capacity){
