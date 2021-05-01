@@ -602,15 +602,17 @@ void cuda_init_grids_stack(workbench *bench){
 	bench->grids_stack[curnode] = curnode;
 }
 
+#define one_dim 16
+
 __global__
 void cuda_build_qtree(workbench *bench){
 	uint pid = blockIdx.x*blockDim.x+threadIdx.x;
 	if(pid>=bench->config->num_objects){
 		return;
 	}
-	uint x = (bench->points[pid].x-bench->mbr.low[0])/(bench->mbr.high[0]-bench->mbr.low[0])*16384;
-	uint y = (bench->points[pid].y-bench->mbr.low[1])/(bench->mbr.high[1]-bench->mbr.low[1])*16384;
-	atomicAdd(&bench->part_counter[x+y*16384],1);
+	uint x = (bench->points[pid].x-bench->mbr.low[0])/(bench->mbr.high[0]-bench->mbr.low[0])*one_dim;
+	uint y = (bench->points[pid].y-bench->mbr.low[1])/(bench->mbr.high[1]-bench->mbr.low[1])*one_dim;
+	atomicAdd(&bench->part_counter[x+y*one_dim],1);
 }
 
 __global__
@@ -619,20 +621,21 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 	if(pid>=bench->config->num_objects){
 		return;
 	}
-	uint xdim = 16384/gap;
+	uint xdim = one_dim/gap;
 	uint x = pid%xdim;
 	uint y = pid/xdim;
 
 	uint step = gap/2;
 	uint p[4];
-	p[0] = y*gap*16384+x*gap;
-	p[1] = y*gap*16384+x*gap+step;
-	p[2] = y*gap*16384+step*16384+x*gap;
-	p[3] = y*gap*16384+step*16384+x*gap+step;
+	p[0] = y*gap*one_dim+x*gap;
+	p[1] = y*gap*one_dim+x*gap+step;
+	p[2] = y*gap*one_dim+step*one_dim+x*gap;
+	p[3] = y*gap*one_dim+step*one_dim+x*gap+step;
 
 	uint size = 0;
 	for(uint i=0;i<4;i++){
 		size += bench->part_counter[p[i]];
+		printf("%d:\t%d %d %d\n",pid,i,p[i],bench->part_counter[p[i]]);
 	}
 	// parent node
 	if(size>bench->config->grid_capacity){
@@ -709,8 +712,8 @@ workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
 	size = bench->meeting_capacity*sizeof(meeting_unit);
 	log("\t%.2f MB\tmeetings",1.0*size/1024/1024);
 
-	h_bench.part_counter = (uint *)gpu->allocate(16384*16384*sizeof(uint));
-	h_bench.schema_assigned = (uint *)gpu->allocate(16384*16384*sizeof(uint));
+	h_bench.part_counter = (uint *)gpu->allocate(one_dim*one_dim*sizeof(uint));
+	h_bench.schema_assigned = (uint *)gpu->allocate(one_dim*one_dim*sizeof(uint));
 
 
 
@@ -765,8 +768,8 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	cudaDeviceSynchronize();
 	logt("build qtree", start,false);
 
-	for(uint i=2;i<16384;i*=2){
-		uint num = 16384*16384/(i*i);
+	for(uint i=2;i<one_dim;i*=2){
+		uint num = one_dim*one_dim/(i*i);
 		cuda_merge_qtree<<<num/1024+1,1024>>>(d_bench,i);
 		check_execution();
 		cudaDeviceSynchronize();
