@@ -610,7 +610,7 @@ void cuda_build_qtree(workbench *bench){
 	}
 	uint x = (bench->points[pid].x-bench->mbr.low[0])/(bench->mbr.high[0]-bench->mbr.low[0])*1024;
 	uint y = (bench->points[pid].y-bench->mbr.low[1])/(bench->mbr.high[1]-bench->mbr.low[1])*1024;
-	atomicAdd(&bench->part_counter[x][y],1);
+	atomicAdd(&bench->part_counter[x+y*1024],1);
 }
 
 workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
