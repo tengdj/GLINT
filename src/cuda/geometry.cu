@@ -635,9 +635,6 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 	uint size = 0;
 	for(uint i=0;i<4;i++){
 		size += bench->part_counter[p[i]];
-		if(pid==0){
-			printf("%d:\t%d %d %d\n",pid,i,p[i],bench->part_counter[p[i]]);
-		}
 	}
 	// parent node
 	if(size>bench->config->grid_capacity){
@@ -763,26 +760,26 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	logt("copy in data", start);
 
 
+	if(false){
+		struct timeval newstart = get_cur_time();
+		cuda_reset_stack<<<1,1>>>(d_bench);
+		cuda_build_qtree<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
+//		check_execution();
+//		cudaDeviceSynchronize();
+//		logt("build qtree", newstart);
 
-	struct timeval newstart = get_cur_time();
-	cuda_reset_stack<<<1,1>>>(d_bench);
-	cuda_build_qtree<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
-	check_execution();
-	cudaDeviceSynchronize();
-	logt("build qtree", newstart);
-
-	for(uint i=2;i<one_dim;i*=2){
-		uint num = one_dim*one_dim/(i*i);
-		cuda_merge_qtree<<<num/1024+1,1024>>>(d_bench,i);
-		check_execution();
+		for(uint i=2;i<one_dim;i*=2){
+			uint num = one_dim*one_dim/(i*i);
+			cuda_merge_qtree<<<num/1024+1,1024>>>(d_bench,i);
+//			check_execution();
+//			cudaDeviceSynchronize();
+//			CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
+//			logt("merge qtree %d %d %d %d", newstart,i, h_bench.schema_stack_index, h_bench.grids_stack_index, h_bench.grid_check_counter);
+		}
 		cudaDeviceSynchronize();
-		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-		logt("merge qtree %d %d %d %d", newstart,i, h_bench.schema_stack_index, h_bench.grids_stack_index, h_bench.grid_check_counter);
+		logt("build qtree", start);
+		exit(0);
 	}
-	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-
-	logt("build qtree", start);
-	exit(0);
 
 	/* 2. filtering */
 	if(bench->config->phased_lookup){
