@@ -83,6 +83,7 @@ public:
 	uint test_counter = 0;
 	configuration *config = NULL;
 	uint cur_time = 0;
+	box mbr;
 
 	// the pool of maintaining objects assignment
 	// each grid buffer: |point_id1...point_idn|
@@ -101,6 +102,8 @@ public:
 	uint *schema_stack = NULL;
 	uint schema_stack_capacity = 0;
 	uint schema_stack_index = 0;
+
+	uint *part_counter;
 
 	// the space for point-unit pairs
 	checking_unit *grid_check = NULL;

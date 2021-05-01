@@ -604,9 +604,13 @@ void cuda_init_grids_stack(workbench *bench){
 
 __global__
 void cuda_build_qtree(workbench *bench){
-
-
-
+	uint pid = blockIdx.x*blockDim.x+threadIdx.x;
+	if(pid>=bench->config->num_objects){
+		return;
+	}
+	uint x = (bench->points[pid].x-bench->mbr.low[0])/(bench->mbr.high[0]-bench->mbr.low[0])*1024;
+	uint y = (bench->points[pid].y-bench->mbr.low[1])/(bench->mbr.high[1]-bench->mbr.low[1])*1024;
+	atomicAdd(&bench->part_counter[x][y],1);
 }
 
 workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
@@ -659,6 +663,9 @@ workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
 	size = bench->meeting_capacity*sizeof(meeting_unit);
 	log("\t%.2f MB\tmeetings",1.0*size/1024/1024);
 
+	h_bench.part_counter = (uint *)gpu->allocate(1024*1024*sizeof(uint));
+
+
 
 	// space for the configuration
 	h_bench.config = (configuration *)gpu->allocate(sizeof(configuration));
@@ -702,6 +709,10 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	CUDA_SAFE_CALL(cudaMemcpy(h_bench.points, bench->points, bench->config->num_objects*sizeof(Point), cudaMemcpyHostToDevice));
 	bench->pro.copy_time += get_time_elapsed(start,false);
 	logt("copy in data", start);
+
+
+	cuda_build_qtree<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
+	logt("build qtree", start);
 
 	/* 2. filtering */
 	if(bench->config->phased_lookup){

@@ -188,13 +188,13 @@ void process_with_gpu(workbench *bench,workbench *d_bench, gpu_info *gpu);
 
 void tracer::process(){
 	struct timeval start = get_cur_time();
-
 	for(int st=config->start_time;st<config->start_time+config->duration;st+=100){
 		int cur_duration = min((config->start_time+config->duration-st),(uint)100);
 		loadData(config->trace_path.c_str(),st,cur_duration);
 		start = get_cur_time();
 		if(!bench){
 			bench = part->build_schema(trace, config->num_objects);
+			bench->mbr = mbr;
 #ifdef USE_GPU
 			if(config->gpu){
 				d_bench = cuda_create_device_bench(bench, gpu);
