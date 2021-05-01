@@ -714,9 +714,9 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	cuda_build_qtree<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
-	for(){
-
-	}
+//	for(){
+//
+//	}
 	logt("build qtree", start);
 
 	/* 2. filtering */
