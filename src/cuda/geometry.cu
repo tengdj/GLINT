@@ -636,14 +636,14 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 	}
 	// parent node
 	if(size>bench->config->grid_capacity){
-		uint node = atomicAdd(bench->schema_stack_index,1);
+		uint node = atomicAdd(&bench->schema_stack_index,1);
 		for(uint i=0;i<4;i++){
 			uint cnode = 0;
 			if(bench->schema_assigned[p[i]]==0){
 				cnode = bench->schema_assigned[p[i]];
 			}else{
-				cnode = atomicAdd(bench->schema_stack_index,1);
-				bench->schema[cnode].grid_id = atomicAdd(bench->grids_stack_index,1);
+				cnode = atomicAdd(&bench->schema_stack_index,1);
+				bench->schema[cnode].grid_id = atomicAdd(&bench->grids_stack_index,1);
 			}
 			bench->schema[node].children[i] = cnode;
 		}
