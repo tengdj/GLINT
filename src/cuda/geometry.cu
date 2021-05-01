@@ -635,9 +635,6 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 	uint size = 0;
 	for(uint i=0;i<4;i++){
 		size += bench->part_counter[p[i]];
-		if(bench->part_counter[p[i]]>bench->config->grid_capacity){
-			atomicAdd(&bench->grid_check_counter,1);
-		}
 		if(pid==0){
 			printf("%d:\t%d %d %d\n",pid,i,p[i],bench->part_counter[p[i]]);
 		}
@@ -647,7 +644,7 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 		uint node = atomicAdd(&bench->schema_stack_index,1);
 		for(uint i=0;i<4;i++){
 			uint cnode = 0;
-			if(bench->schema_assigned[p[i]]==0){
+			if(bench->schema_assigned[p[i]]!=0){
 				cnode = bench->schema_assigned[p[i]];
 			}else{
 				cnode = atomicAdd(&bench->schema_stack_index,1);
