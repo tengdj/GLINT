@@ -763,12 +763,14 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	cuda_build_qtree<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
+	logt("build qtree", start,false);
 
 	for(uint i=1;i<16384;i*=2){
 		uint num = 16384*16384/(i*i);
 		cuda_merge_qtree<<<num/1024+1,1024>>>(d_bench,i);
 		check_execution();
 		cudaDeviceSynchronize();
+		logt("merge qtree %d", start,i,false);
 	}
 
 	logt("build qtree", start);
