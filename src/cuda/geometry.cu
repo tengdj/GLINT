@@ -771,7 +771,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		check_execution();
 		cudaDeviceSynchronize();
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
-		logt("merge qtree %d", start,i, h_bench.schema_stack_index, h_bench.grids_stack_index,false);
+		logt("merge qtree %d %d %d", start,i, h_bench.schema_stack_index, h_bench.grids_stack_index,false);
 	}
 	CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 
