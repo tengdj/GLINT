@@ -124,8 +124,6 @@ public:
 	uint meeting_capacity = 0;
 	uint meeting_counter = 0;
 
-
-
 	// the temporary space
 	uint *tmp_space = NULL;
 	uint tmp_space_capacity = 0;

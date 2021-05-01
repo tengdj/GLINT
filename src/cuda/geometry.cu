@@ -602,6 +602,12 @@ void cuda_init_grids_stack(workbench *bench){
 	bench->grids_stack[curnode] = curnode;
 }
 
+__global__
+void cuda_build_qtree(workbench *bench){
+
+
+}
+
 workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
 	log("GPU memory:");
 	struct timeval start = get_cur_time();
@@ -671,7 +677,6 @@ workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
 
 	return d_bench;
 }
-
 
 /*
  *
