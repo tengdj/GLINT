@@ -613,6 +613,18 @@ void cuda_build_qtree(workbench *bench){
 	atomicAdd(&bench->part_counter[x+y*16384],1);
 }
 
+__global__
+void cuda_merge_qtree(workbench *bench, uint gap){
+	uint pid = blockIdx.x*blockDim.x+threadIdx.x;
+	if(pid>=bench->config->num_objects){
+		return;
+	}
+	pid *= 4;
+	bench->part_counter[pid] += bench->part_counter[pid+gap];
+	bench->part_counter[pid] += bench->part_counter[pid+gap*16384];
+	bench->part_counter[pid] += bench->part_counter[pid+gap*16384+gap];
+}
+
 workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
 	log("GPU memory:");
 	struct timeval start = get_cur_time();
@@ -714,9 +726,14 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	cuda_build_qtree<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
-//	for(){
-//
-//	}
+
+	for(uint i=1;i<16384;i*=2){
+		uint num = 16384*16384/(i*i);
+		cuda_merge_qtree<<<bench->num/1024+1,1024>>>(d_bench,i);
+		check_execution();
+		cudaDeviceSynchronize();
+	}
+
 	logt("build qtree", start);
 
 	/* 2. filtering */
