@@ -759,7 +759,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 
 
 
-	cuda_reset_stack<<<1>>>(d_bench);
+	cuda_reset_stack<<<1,1>>>(d_bench);
 	cuda_build_qtree<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
 	check_execution();
 	cudaDeviceSynchronize();
