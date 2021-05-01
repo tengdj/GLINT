@@ -606,6 +606,7 @@ __global__
 void cuda_build_qtree(workbench *bench){
 
 
+
 }
 
 workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
