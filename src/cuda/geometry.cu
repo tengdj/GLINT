@@ -712,14 +712,15 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 
 
 	cuda_build_qtree<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
+	check_execution();
+	cudaDeviceSynchronize();
 	logt("build qtree", start);
 
 	/* 2. filtering */
 	if(bench->config->phased_lookup){
 		// do the partition
 		cuda_partition<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
-		check_execution();
-		cudaDeviceSynchronize();
+
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 		bench->pro.partition_time += get_time_elapsed(start,false);
 		logt("partition data %d still need lookup", start,h_bench.filter_list_index);
