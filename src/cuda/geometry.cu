@@ -622,6 +622,7 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 	if(pid>=(xdim*xdim)){
 		return;
 	}
+
 	uint x = pid%xdim;
 	uint y = pid/xdim;
 
@@ -631,14 +632,17 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 	p[1] = y*gap*one_dim+x*gap+step;
 	p[2] = y*gap*one_dim+step*one_dim+x*gap;
 	p[3] = y*gap*one_dim+step*one_dim+x*gap+step;
-
 	uint size = 0;
 	for(uint i=0;i<4;i++){
 		size += bench->part_counter[p[i]];
 	}
 	// parent node
 	if(size>bench->config->grid_capacity){
-		uint node = atomicAdd(&bench->schema_stack_index,1);
+		uint node = 0;
+		// node 0 is for the root only
+		if(xdim!=one_dim){
+			node = atomicAdd(&bench->schema_stack_index,1);
+		}
 		for(uint i=0;i<4;i++){
 			uint cnode = 0;
 			if(bench->schema_assigned[p[i]]!=0){
@@ -768,7 +772,7 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 //		cudaDeviceSynchronize();
 //		logt("build qtree", newstart);
 
-		for(uint i=2;i<one_dim;i*=2){
+		for(uint i=2;i<=one_dim;i*=2){
 			uint num = one_dim*one_dim/(i*i);
 			cuda_merge_qtree<<<num/1024+1,1024>>>(d_bench,i);
 //			check_execution();
