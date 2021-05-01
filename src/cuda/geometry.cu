@@ -618,7 +618,7 @@ void cuda_build_qtree(workbench *bench){
 __global__
 void cuda_merge_qtree(workbench *bench, uint gap){
 	uint pid = blockIdx.x*blockDim.x+threadIdx.x;
-	if(pid>=bench->config->num_objects){
+	if(pid>=(one_dim*one_dim/gap/gap)){
 		return;
 	}
 	uint xdim = one_dim/gap;
