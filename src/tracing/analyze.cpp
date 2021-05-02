@@ -155,15 +155,15 @@ void workbench::print_profile(){
 
 	//
 	//
-	//	printf("overflow rate:\n");
-	//	for(double o:pro.grid_overflow_list){
-	//		printf("%f\n", o);
-	//	}
-	//
-	//	printf("deviation:\n");
-	//	for(double o:pro.grid_deviation_list){
-	//		printf("%f\n", o);
-	//	}
+//		printf("overflow rate:\n");
+//		for(double o:pro.grid_overflow_list){
+//			printf("%f\n", o);
+//		}
+//
+//		printf("deviation:\n");
+//		for(double o:pro.grid_deviation_list){
+//			printf("%f\n", o);
+//		}
 
 	fprintf(stderr,"memory space:\n");
 	fprintf(stderr,"\tgrid buffer:\t%ld MB\n",pro.max_grid_num*pro.max_grid_size*sizeof(uint)/1024/1024);

@@ -602,7 +602,8 @@ void cuda_init_grids_stack(workbench *bench){
 	bench->grids_stack[curnode] = curnode;
 }
 
-#define one_dim 32768
+#define one_dim 16384
+//#define one_dim 8
 
 __global__
 void cuda_build_qtree(workbench *bench){
@@ -616,6 +617,20 @@ void cuda_build_qtree(workbench *bench){
 }
 
 __global__
+void cuda_clean_cells(workbench *bench){
+	uint pid = blockIdx.x*blockDim.x+threadIdx.x;
+	if(pid>=one_dim*one_dim){
+		return;
+	}
+	bench->schema_assigned[pid] = 0;
+	bench->part_counter[pid] = 0;
+	if(pid==0){
+		bench->grids_stack_index = 0;
+		bench->schema_stack_index = 1;
+	}
+}
+
+__global__
 void cuda_merge_qtree(workbench *bench, uint gap){
 	uint pid = blockIdx.x*blockDim.x+threadIdx.x;
 	uint xdim = one_dim/gap;
@@ -625,44 +640,94 @@ void cuda_merge_qtree(workbench *bench, uint gap){
 
 	uint x = pid%xdim;
 	uint y = pid/xdim;
+	if(gap==1){
+		if(bench->part_counter[pid]>bench->config->grid_capacity){
+			uint node = atomicAdd(&bench->schema_stack_index,1);
+			bench->schema[node].type = BRANCH;
+			bench->schema[node].mbr.low[0] = bench->mbr.low[0]+x*(bench->mbr.high[0]-bench->mbr.low[0])/xdim;
+			bench->schema[node].mbr.low[1] = bench->mbr.low[1]+y*(bench->mbr.high[1]-bench->mbr.low[1])/xdim;
+			bench->schema[node].mbr.high[0] = bench->mbr.low[0]+(x+1)*(bench->mbr.high[0]-bench->mbr.low[0])/xdim;
+			bench->schema[node].mbr.high[1] = bench->mbr.low[1]+(y+1)*(bench->mbr.high[1]-bench->mbr.low[1])/xdim;
+			bench->schema[node].mid_x = (bench->schema[node].mbr.low[0]+bench->schema[node].mbr.high[0])/2;
+			bench->schema[node].mid_y = (bench->schema[node].mbr.low[1]+bench->schema[node].mbr.high[1])/2;
+			double xhalf = bench->schema[node].mid_x-bench->schema[node].mbr.low[0];
+			double yhalf = bench->schema[node].mid_y-bench->schema[node].mbr.low[1];
 
-	uint step = gap/2;
-	uint p[4];
-	p[0] = y*gap*one_dim+x*gap;
-	p[1] = y*gap*one_dim+x*gap+step;
-	p[2] = y*gap*one_dim+step*one_dim+x*gap;
-	p[3] = y*gap*one_dim+step*one_dim+x*gap+step;
-	uint size = 0;
-	for(uint i=0;i<4;i++){
-		size += bench->part_counter[p[i]];
-	}
-	// parent node
-	if(size>bench->config->grid_capacity){
-		uint node = 0;
-		// node 0 is for the root only
-		if(xdim!=one_dim){
-			node = atomicAdd(&bench->schema_stack_index,1);
-		}
-		for(uint i=0;i<4;i++){
-			uint cnode = 0;
-			if(bench->schema_assigned[p[i]]!=0){
-				cnode = bench->schema_assigned[p[i]];
-			}else{
-				cnode = atomicAdd(&bench->schema_stack_index,1);
+			for(uint i=0;i<4;i++){
+				uint cnode = atomicAdd(&bench->schema_stack_index,1);
 				bench->schema[cnode].grid_id = atomicAdd(&bench->grids_stack_index,1);
+				bench->schema[cnode].type = LEAF;
+				bench->schema[node].children[i] = cnode;
+				bench->grid_counter[bench->schema[cnode].grid_id] = 0;
+				bench->schema[cnode].type = LEAF;
+				bench->schema[cnode].overflow_count = 0;
+				bench->schema[cnode].underflow_count = 0;
+				bench->schema[cnode].mbr.low[0] = bench->schema[node].mbr.low[0]+(i%2==1)*xhalf;
+				bench->schema[cnode].mbr.low[1] = bench->schema[node].mbr.low[1]+(i/2==1)*yhalf;
+				bench->schema[cnode].mbr.high[0] = bench->schema[node].mid_x+(i%2==1)*xhalf;
+				bench->schema[cnode].mbr.high[1] = bench->schema[node].mid_y+(i/2==1)*yhalf;
+				bench->schema[cnode].mid_x = (bench->schema[cnode].mbr.low[0]+bench->schema[cnode].mbr.high[0])/2;
+				bench->schema[cnode].mid_y = (bench->schema[cnode].mbr.low[1]+bench->schema[cnode].mbr.high[1])/2;
+				//print_box(&bench->schema[cnode].mbr);
 			}
-			bench->schema[node].children[i] = cnode;
+			bench->schema_assigned[pid] = node;
 		}
-		bench->schema_assigned[p[0]] = node;
-	}
-	// for next upper level
-	bench->part_counter[p[0]] = size;
-}
+	}else{
 
-__global__
-void cuda_reset_stack(workbench *bench){
-	bench->grids_stack_index = 0;
-	bench->schema_stack_index = 1;
+		uint step = gap/2;
+		uint p[4];
+		p[0] = y*gap*one_dim+x*gap;
+		p[1] = y*gap*one_dim+x*gap+step;
+		p[2] = y*gap*one_dim+step*one_dim+x*gap;
+		p[3] = y*gap*one_dim+step*one_dim+x*gap+step;
+		uint size = 0;
+		for(uint i=0;i<4;i++){
+			size += bench->part_counter[p[i]];
+		}
+		// parent node
+		if(size>bench->config->grid_capacity){
+			uint node = 0;
+			// node 0 is for the root only
+			if(xdim!=1){
+				node = atomicAdd(&bench->schema_stack_index,1);
+			}
+			bench->schema[node].type = BRANCH;
+			bench->schema[node].mbr.low[0] = bench->mbr.low[0]+x*(bench->mbr.high[0]-bench->mbr.low[0])/xdim;
+			bench->schema[node].mbr.low[1] = bench->mbr.low[1]+y*(bench->mbr.high[1]-bench->mbr.low[1])/xdim;
+			bench->schema[node].mbr.high[0] = bench->mbr.low[0]+(x+1)*(bench->mbr.high[0]-bench->mbr.low[0])/xdim;
+			bench->schema[node].mbr.high[1] = bench->mbr.low[1]+(y+1)*(bench->mbr.high[1]-bench->mbr.low[1])/xdim;
+			bench->schema[node].mid_x = (bench->schema[node].mbr.low[0]+bench->schema[node].mbr.high[0])/2;
+			bench->schema[node].mid_y = (bench->schema[node].mbr.low[1]+bench->schema[node].mbr.high[1])/2;
+
+			double xhalf = bench->schema[node].mid_x-bench->schema[node].mbr.low[0];
+			double yhalf = bench->schema[node].mid_y-bench->schema[node].mbr.low[1];
+			for(uint i=0;i<4;i++){
+				uint cnode = 0;
+				if(bench->schema_assigned[p[i]]!=0){
+					cnode = bench->schema_assigned[p[i]];
+				}else{
+					cnode = atomicAdd(&bench->schema_stack_index,1);
+					bench->schema[cnode].grid_id = atomicAdd(&bench->grids_stack_index,1);
+					bench->schema[cnode].type = LEAF;
+					bench->grid_counter[bench->schema[cnode].grid_id] = 0;
+					bench->schema[cnode].type = LEAF;
+					bench->schema[cnode].overflow_count = 0;
+					bench->schema[cnode].underflow_count = 0;
+					bench->schema[cnode].mbr.low[0] = bench->schema[node].mbr.low[0]+(i%2==1)*xhalf;
+					bench->schema[cnode].mbr.low[1] = bench->schema[node].mbr.low[1]+(i/2==1)*yhalf;
+					bench->schema[cnode].mbr.high[0] = bench->schema[node].mid_x+(i%2==1)*xhalf;
+					bench->schema[cnode].mbr.high[1] = bench->schema[node].mid_y+(i/2==1)*yhalf;
+					bench->schema[cnode].mid_x = (bench->schema[cnode].mbr.low[0]+bench->schema[cnode].mbr.high[0])/2;
+					bench->schema[cnode].mid_y = (bench->schema[cnode].mbr.low[1]+bench->schema[cnode].mbr.high[1])/2;
+					//print_box(&bench->schema[cnode].mbr);
+				}
+				bench->schema[node].children[i] = cnode;
+			}
+			bench->schema_assigned[p[0]] = node;
+		}
+		// for next upper level
+		bench->part_counter[p[0]] = size;
+	}
 }
 
 workbench *cuda_create_device_bench(workbench *bench, gpu_info *gpu){
@@ -764,15 +829,15 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 	logt("copy in data", start);
 
 
-	if(false){
+	if(!bench->config->dynamic_schema){
 		struct timeval newstart = get_cur_time();
-		cuda_reset_stack<<<1,1>>>(d_bench);
+		cuda_clean_cells<<<one_dim*one_dim/1024+1,1024>>>(d_bench);
 		cuda_build_qtree<<<bench->config->num_objects/1024+1,1024>>>(d_bench);
 //		check_execution();
 //		cudaDeviceSynchronize();
 //		logt("build qtree", newstart);
 
-		for(uint i=2;i<=one_dim;i*=2){
+		for(uint i=1;i<=one_dim;i*=2){
 			uint num = one_dim*one_dim/(i*i);
 			cuda_merge_qtree<<<num/1024+1,1024>>>(d_bench,i);
 //			check_execution();
@@ -782,8 +847,9 @@ void process_with_gpu(workbench *bench, workbench* d_bench, gpu_info *gpu){
 		}
 		CUDA_SAFE_CALL(cudaMemcpy(&h_bench, d_bench, sizeof(workbench), cudaMemcpyDeviceToHost));
 		cudaDeviceSynchronize();
+		bench->pro.index_update_time += get_time_elapsed(start,false);
 		logt("build qtree %d nodes %d partitions", start, h_bench.schema_stack_index, h_bench.grids_stack_index);
-		exit(0);
+		//exit(0);
 	}
 
 	/* 2. filtering */
