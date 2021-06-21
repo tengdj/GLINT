@@ -266,16 +266,16 @@ public:
 	void print(){
 		vector<QTNode *> nodes;
 		get_leafs(nodes,false);
-		printf("MULTIPOLYGON(");
+		fprintf(stderr,"MULTIPOLYGON(");
 		for(int i=0;i<nodes.size();i++){
 			if(i>0){
-				printf(",");
+				fprintf(stderr,",");
 			}
-			printf("((");
+			fprintf(stderr,"((");
 			nodes[i]->mbr.print_vertices();
-			printf("))");
+			fprintf(stderr,"))");
 		}
-		printf(")\n");
+		fprintf(stderr,")\n");
 		nodes.clear();
 	}
 

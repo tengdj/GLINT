@@ -49,7 +49,7 @@ workbench *partitioner::build_schema(Point *points, size_t num_objects){
 
 	// set the ids and other stuff
 	qtree->finalize();
-	//qtree->print();
+	qtree->print();
 //	vector<QTNode *> leafs;
 //	qtree->get_leafs(leafs,false);
 //	for(QTNode *n:leafs){
