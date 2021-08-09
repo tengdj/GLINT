@@ -55,7 +55,7 @@ void workbench::analyze_grids(){
 	int capacity = 0;
 	for(int i=0;i<grid_capacity;i++){
 		cum += 1.0*gridc[i]/total;
-		//printf("%d\t%d\n",i,gridc[i]);
+		printf("%d\t%d\n",i,gridc[i]);
 		if(cum>OVERFLOW_THRESHOLD){
 			if(pro.max_grid_size<i){
 				pro.max_grid_size = i;
